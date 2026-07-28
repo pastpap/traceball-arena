@@ -25,7 +25,7 @@ const els = {
 let socket;
 let roomId = location.pathname.startsWith('/room/') ? location.pathname.split('/').pop() : null;
 let inviteUrl = roomId ? `${location.origin}/room/${roomId}` : '';
-let playerId = localStorage.getItem(`traceball:${roomId}:playerId`) || null;
+let playerId = null;
 let game = null;
 let replayIndex = null;
 
@@ -38,6 +38,7 @@ function init() {
   if (roomId) showInvite();
   updateRoomText();
   draw();
+  if (roomId) connect(() => watchCurrentRoom());
   els.newRoom.addEventListener('click', createRoom);
   els.copyInvite.addEventListener('click', copyInvite);
   els.joinForm.addEventListener('submit', join);
@@ -51,6 +52,11 @@ function init() {
 }
 
 async function createRoom() {
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  socket = null;
+  playerId = null;
+  game = null;
+  replayIndex = null;
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
   roomId = data.roomId;
@@ -58,26 +64,30 @@ async function createRoom() {
   history.pushState({}, '', `/room/${roomId}`);
   showInvite();
   updateRoomText();
+  updateUi();
+  draw();
+  connect(() => watchCurrentRoom());
   toast('Game created. Choose a name to join.');
 }
 
 function join(event) {
   event.preventDefault();
   if (!roomId) return toast('Create a game first.');
-  if (!socket || socket.readyState > 1) connect();
   const name = els.nameInput.value.trim();
-  socket.addEventListener('open', () => send({ type: 'join', roomId, name }), { once: true });
-  if (socket.readyState === WebSocket.OPEN) send({ type: 'join', roomId, name });
+  const joinRoom = () => send({ type: 'join', roomId, name });
+  if (!socket || socket.readyState > WebSocket.OPEN) connect(joinRoom);
+  else if (socket.readyState === WebSocket.CONNECTING) socket.addEventListener('open', joinRoom, { once: true });
+  else joinRoom();
 }
 
-function connect() {
+function connect(onOpen) {
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
   socket = new WebSocket(`${protocol}://${location.host}/ws`);
+  if (onOpen) socket.addEventListener('open', onOpen, { once: true });
   socket.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'joined') {
       playerId = msg.playerId;
-      localStorage.setItem(`traceball:${roomId}:playerId`, playerId);
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
     if (msg.type === 'state') {
@@ -88,7 +98,13 @@ function connect() {
     }
     if (msg.type === 'error') toast(msg.error);
   });
-  socket.addEventListener('close', () => toast('Connection closed. Refresh or join again.'));
+  socket.addEventListener('close', () => {
+    if (socket) toast('Connection closed. Refresh or join again.');
+  });
+}
+
+function watchCurrentRoom() {
+  if (roomId) send({ type: 'watch', roomId });
 }
 
 function send(payload) {
@@ -124,7 +140,15 @@ function nearestPoint(click) {
 }
 
 function updateUi() {
-  if (!game) return;
+  if (!game) {
+    els.p1.textContent = 'Waiting for blue';
+    els.p2.textContent = 'Waiting for red';
+    els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Create a game or open an invite link.';
+    els.replayRange.max = 0;
+    els.replayRange.value = 0;
+    els.replayText.textContent = 'Replay appears once moves are made.';
+    return;
+  }
   els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
   els.p2.textContent = game.players.p2?.name || 'Waiting for red';
   const turnName = game.players[game.turn]?.name || game.turn;

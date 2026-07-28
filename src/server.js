@@ -54,16 +54,22 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'join') {
       const roomId = String(msg.roomId || '').trim() || nanoid(8);
-      let game = rooms.get(roomId);
-      if (!game) {
-        game = createGame(roomId);
-        rooms.set(roomId, game);
-      }
+      const game = getOrCreateRoom(roomId);
       const result = addPlayer(game, msg.name);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
       send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      broadcast(roomId);
+      return;
+    }
+
+    if (msg.type === 'watch') {
+      const roomId = String(msg.roomId || '').trim();
+      if (!roomId) return send(ws, 'error', { error: 'Room id is required.' });
+      getOrCreateRoom(roomId);
+      socketState.roomId = roomId;
+      socketState.playerId = null;
       broadcast(roomId);
       return;
     }
@@ -79,6 +85,7 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'reset') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can start a new round.' });
       resetGame(game);
       broadcast(socketState.roomId);
       return;
@@ -89,6 +96,15 @@ wss.on('connection', (ws) => {
     sockets.delete(ws);
   });
 });
+
+function getOrCreateRoom(roomId) {
+  let game = rooms.get(roomId);
+  if (!game) {
+    game = createGame(roomId);
+    rooms.set(roomId, game);
+  }
+  return game;
+}
 
 function broadcast(roomId) {
   const game = rooms.get(roomId);
