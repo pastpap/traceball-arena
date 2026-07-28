@@ -41,6 +41,7 @@ init();
 
 function init() {
   setMobilePage('invite');
+  registerServiceWorker();
   if (roomId) showInvite();
   updateRoomText();
   draw();
@@ -241,6 +242,7 @@ function draw() {
   drawBall(moves);
   drawLegalMoves();
   ctx.restore();
+  drawTurnGateBall();
 }
 
 function applyBoardTransform() {
@@ -341,8 +343,35 @@ function drawPoints(moves) {
 
 function drawBall(moves) {
   const p = moves.length ? moves[moves.length - 1].to : (game?.ball || { x: 4, y: 6 });
-  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 15, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#111'; ctx.font = '20px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', screenX(p.x), screenY(p.y) + 1);
+  drawSoccerBall(screenX(p.x), screenY(p.y), 15);
+}
+
+function drawTurnGateBall() {
+  if (!game || game.status !== 'playing') return;
+  const ownGateMarginY = game.turn === 'p1' ? 11 : 1;
+  const displayGateY = isPlayerInverted() ? canvas.height - screenY(ownGateMarginY) : screenY(ownGateMarginY);
+  const markerY = displayGateY < canvas.height / 2 ? screenY(1) - 30 : screenY(11) + 30;
+  const markerX = canvas.width - 28;
+  const color = game.turn === 'p1' ? '#0b7cff' : '#ff3b30';
+
+  ctx.save();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(markerX, markerY, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  drawSoccerBall(markerX, markerY, 13);
+  ctx.restore();
+}
+
+function drawSoccerBall(x, y, radius) {
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.font = `${Math.round(radius * 1.33)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', x, y + 1);
 }
 
 function isPlayerInverted() { return playerId === 'p2'; }
@@ -365,6 +394,11 @@ function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.
 function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
 function roundRect(context, x, y, w, h, r) { context.beginPath(); context.roundRect(x, y, w, h, r); }
 function toast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 2300); }
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
 
 function setMobilePage(page = 'play') {
   const selected = ['play', 'invite', 'match'].includes(page) ? page : 'play';

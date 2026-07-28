@@ -1,0 +1,19 @@
+{
+  "name": "Traceball Arena",
+  "short_name": "Traceball",
+  "description": "Realtime paper-soccer with WebSocket rooms, invite links, QR codes, and replay.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#03160a",
+  "theme_color": "#0a8f28",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
