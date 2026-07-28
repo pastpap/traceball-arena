@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0a8f28" />
+    <title>Traceball Arena</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Realtime paper-soccer</p>
+          <h1>Traceball Arena</h1>
+          <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
+        </div>
+        <div class="actions">
+          <button id="newRoom" class="primary">Create game</button>
+          <button id="copyInvite">Copy invite</button>
+        </div>
+      </section>
+
+      <section id="joinPanel" class="card join-panel">
+        <div>
+          <h2>Join this match</h2>
+          <p id="roomText">Create a game or open an invite link.</p>
+        </div>
+        <form id="joinForm">
+          <input id="nameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
+          <button class="primary" type="submit">Join</button>
+        </form>
+        <div id="inviteBox" class="invite hidden">
+          <img id="qr" alt="Invite QR code" />
+          <div>
+            <label>Invite link</label>
+            <input id="inviteLink" readonly />
+          </div>
+        </div>
+      </section>
+
+      <section class="game-layout">
+        <div class="board-card">
+          <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
+          <div class="board-help">Click a highlighted dot to move. Blue attacks the top goal; red attacks the bottom goal.</div>
+        </div>
+        <aside class="side">
+          <div class="card scoreboard">
+            <h2>Match</h2>
+            <div id="status">Waiting…</div>
+            <div class="players">
+              <div><span class="dot blue"></span><strong id="p1">Blue</strong></div>
+              <div><span class="dot red"></span><strong id="p2">Red</strong></div>
+            </div>
+            <button id="reset" class="ghost">New round</button>
+          </div>
+          <div class="card rules">
+            <h2>Rules</h2>
+            <ul>
+              <li>Move one point in any of 8 directions.</li>
+              <li>No line segment can be reused.</li>
+              <li>Landing on a visited point or wall gives another move.</li>
+              <li>Score in the opponent gate. Own gate = own goal.</li>
+              <li>If you are stuck, you lose.</li>
+            </ul>
+          </div>
+          <div class="card replay">
+            <h2>Replay</h2>
+            <div class="replay-controls">
+              <button id="replayStart">Start</button>
+              <button id="replayPrev">‹</button>
+              <button id="replayNext">›</button>
+              <button id="replayEnd">End</button>
+            </div>
+            <input id="replayRange" type="range" min="0" max="0" value="0" />
+            <p id="replayText">Replay appears once moves are made.</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <div id="toast" role="status"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

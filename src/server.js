@@ -1,0 +1,115 @@
+import express from 'express';
+import { createServer } from 'node:http';
+import { WebSocketServer } from 'ws';
+import { nanoid } from 'nanoid';
+import QRCode from 'qrcode';
+import { addPlayer, createGame, makeMove, publicGame, resetGame } from './game.js';
+
+const PORT = process.env.PORT || 3000;
+const app = express();
+const server = createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+const rooms = new Map();
+const sockets = new Map();
+
+app.use(express.static('public', { extensions: ['html'] }));
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, rooms: rooms.size, uptime: process.uptime() });
+});
+
+app.post('/api/rooms', express.json(), (_req, res) => {
+  const roomId = nanoid(8);
+  const game = createGame(roomId);
+  rooms.set(roomId, game);
+  res.json({ roomId, url: roomUrl(roomId) });
+});
+
+app.get('/api/qr', async (req, res) => {
+  const url = typeof req.query.url === 'string' ? req.query.url : roomUrl(String(req.query.room || ''));
+  try {
+    const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, scale: 8, color: { dark: '#102a1a', light: '#ffffff' } });
+    res.setHeader('content-type', 'image/png');
+    res.send(png);
+  } catch (error) {
+    res.status(500).json({ error: 'Could not generate QR code.' });
+  }
+});
+
+app.get('/room/:roomId', (_req, res) => {
+  res.sendFile(new URL('../public/index.html', import.meta.url).pathname);
+});
+
+wss.on('connection', (ws) => {
+  const socketState = { roomId: null, playerId: null };
+  sockets.set(ws, socketState);
+
+  ws.on('message', (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return send(ws, 'error', { error: 'Invalid JSON.' });
+    }
+
+    if (msg.type === 'join') {
+      const roomId = String(msg.roomId || '').trim() || nanoid(8);
+      let game = rooms.get(roomId);
+      if (!game) {
+        game = createGame(roomId);
+        rooms.set(roomId, game);
+      }
+      const result = addPlayer(game, msg.name);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      socketState.playerId = result.playerId;
+      send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      broadcast(roomId);
+      return;
+    }
+
+    const game = socketState.roomId ? rooms.get(socketState.roomId) : null;
+    if (!game) return send(ws, 'error', { error: 'Join a room first.' });
+
+    if (msg.type === 'move') {
+      const result = makeMove(game, socketState.playerId, msg.to);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'reset') {
+      resetGame(game);
+      broadcast(socketState.roomId);
+      return;
+    }
+  });
+
+  ws.on('close', () => {
+    sockets.delete(ws);
+  });
+});
+
+function broadcast(roomId) {
+  const game = rooms.get(roomId);
+  if (!game) return;
+  const payload = { game: publicGame(game) };
+  for (const [client, state] of sockets.entries()) {
+    if (state.roomId === roomId && client.readyState === client.OPEN) {
+      send(client, 'state', payload);
+    }
+  }
+}
+
+function send(ws, type, payload) {
+  if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type, ...payload }));
+}
+
+function roomUrl(roomId) {
+  const base = process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` || `http://localhost:${PORT}`;
+  return `${base}/room/${roomId}`;
+}
+
+server.listen(PORT, () => {
+  console.log(`Traceball Arena listening on ${PORT}`);
+});
