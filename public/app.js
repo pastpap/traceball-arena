@@ -13,6 +13,8 @@ const els = {
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
   p2: document.querySelector('#p2'),
+  p1Score: document.querySelector('#p1Score'),
+  p2Score: document.querySelector('#p2Score'),
   reset: document.querySelector('#reset'),
   replayStart: document.querySelector('#replayStart'),
   replayPrev: document.querySelector('#replayPrev'),
@@ -34,6 +36,11 @@ let playerId = null;
 let game = null;
 let replayIndex = null;
 const clientId = getClientId();
+let wantsPlayerSession = false;
+let playerName = localStorageSafeGet('traceballPlayerName') || '';
+let reconnectTimer = null;
+let reconnectDelay = 1000;
+let intentionalClose = false;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -60,14 +67,21 @@ function init() {
   els.replayEnd.addEventListener('click', () => setReplay(game?.moves?.length || 0));
   els.replayRange.addEventListener('input', () => setReplay(Number(els.replayRange.value)));
   mobileTabs.forEach((tab) => tab.addEventListener('click', () => setMobilePage(tab.dataset.pageTarget)));
+  window.addEventListener('online', wakeConnection);
+  window.addEventListener('focus', wakeConnection);
+  window.addEventListener('pageshow', wakeConnection);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeConnection(); });
 }
 
 async function createRoom() {
+  intentionalClose = true;
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
   socket = null;
   playerId = null;
   game = null;
   replayIndex = null;
+  wantsPlayerSession = false;
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
   roomId = data.roomId;
@@ -86,6 +100,9 @@ function join(event) {
   event.preventDefault();
   if (!roomId) return toast('Create a game first.');
   const name = els.nameInput.value.trim();
+  playerName = name;
+  wantsPlayerSession = true;
+  localStorageSafeSet('traceballPlayerName', name);
   const joinRoom = () => send({ type: 'join', roomId, name, clientId });
   if (!socket || socket.readyState > WebSocket.OPEN) connect(joinRoom);
   else if (socket.readyState === WebSocket.CONNECTING) socket.addEventListener('open', joinRoom, { once: true });
@@ -93,13 +110,18 @@ function join(event) {
 }
 
 function connect(onOpen) {
+  clearTimeout(reconnectTimer);
   const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+  intentionalClose = false;
   socket = new WebSocket(`${protocol}://${location.host}/ws`);
+  const activeSocket = socket;
   if (onOpen) socket.addEventListener('open', onOpen, { once: true });
+  socket.addEventListener('open', () => { reconnectDelay = 1000; });
   socket.addEventListener('message', (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === 'joined') {
       playerId = msg.playerId;
+      wantsPlayerSession = true;
       setMobilePage('play');
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
@@ -112,12 +134,34 @@ function connect(onOpen) {
     if (msg.type === 'error') toast(msg.error);
   });
   socket.addEventListener('close', () => {
-    if (socket) toast('Connection closed. Refresh or join again.');
+    if (socket !== activeSocket) return;
+    if (!intentionalClose && roomId) {
+      toast('Connection paused — reconnecting…');
+      scheduleReconnect();
+    }
   });
 }
 
 function watchCurrentRoom() {
   if (roomId) send({ type: 'watch', roomId });
+}
+
+function resumeRoomSession() {
+  if (!roomId) return;
+  if (wantsPlayerSession && playerName) send({ type: 'join', roomId, name: playerName, clientId });
+  else watchCurrentRoom();
+}
+
+function scheduleReconnect() {
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => connect(resumeRoomSession), reconnectDelay);
+  reconnectDelay = Math.min(reconnectDelay * 1.6, 8000);
+}
+
+function wakeConnection() {
+  if (!roomId) return;
+  if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) connect(resumeRoomSession);
+  else if (socket.readyState === WebSocket.OPEN) resumeRoomSession();
 }
 
 function send(payload) {
@@ -157,6 +201,8 @@ function updateUi() {
   if (!game) {
     els.p1.textContent = 'Waiting for blue';
     els.p2.textContent = 'Waiting for red';
+    els.p1Score.textContent = '0';
+    els.p2Score.textContent = '0';
     els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Create a game or open an invite link.';
     els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Create or open a room first.';
     els.replayRange.max = 0;
@@ -167,8 +213,10 @@ function updateUi() {
     return;
   }
   const score = game.score || { p1: 0, p2: 0 };
-  els.p1.textContent = `${game.players.p1?.name || 'Waiting for blue'} · ${score.p1 || 0}`;
-  els.p2.textContent = `${game.players.p2?.name || 'Waiting for red'} · ${score.p2 || 0}`;
+  els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
+  els.p2.textContent = game.players.p2?.name || 'Waiting for red';
+  els.p1Score.textContent = score.p1 || 0;
+  els.p2Score.textContent = score.p2 || 0;
   const turnName = game.players[game.turn]?.name || game.turn;
   if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
   if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
@@ -459,21 +507,34 @@ function toast(message) { els.toast.textContent = message; els.toast.classList.a
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
-  navigator.serviceWorker.register('/sw.js').catch(() => {});
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('/sw.js').then((registration) => {
+    registration.update().catch(() => {});
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }).catch(() => {});
+}
+
+function localStorageSafeGet(key) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+
+function localStorageSafeSet(key, value) {
+  try { localStorage.setItem(key, value); } catch {}
 }
 
 function getClientId() {
   const key = 'traceballClientId';
-  try {
-    let id = localStorage.getItem(key);
-    if (!id) {
-      id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-      localStorage.setItem(key, id);
-    }
-    return id;
-  } catch {
-    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  let id = localStorageSafeGet(key);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorageSafeSet(key, id);
   }
+  return id;
 }
 
 function setMobilePage(page = 'play') {

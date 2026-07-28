@@ -23,6 +23,9 @@ const playTab = html.indexOf('data-page-target="play"');
 const matchTab = html.indexOf('data-page-target="match"');
 if (!(inviteTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Invite, Play, Match.');
 if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
+if (!html.includes('score-strip') || !html.includes('p1Score') || !html.includes('p2Score')) {
+  throw new Error('Match card must render the traced name/score/name layout.');
+}
 if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manifest" href="/manifest.webmanifest"')) {
   throw new Error('Favicon and PWA manifest links are required.');
 }
@@ -43,6 +46,9 @@ if (!app.includes('drawGatePlayerLabels') || !app.includes('drawGoalMesh') || !a
 if (!app.includes('traceballClientId') || !app.includes('clientId });')) {
   throw new Error('Client join messages must include a stable browser client id for reconnects.');
 }
+if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !app.includes('visibilitychange')) {
+  throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
+}
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
 
 const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
@@ -54,5 +60,6 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
+if (!sw.includes('traceball-arena-v3') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 console.log('Static build checks passed.');

@@ -98,8 +98,21 @@ h2 { margin: 0 0 .8rem; }
 .side { display: grid; gap: 16px; align-content: start; }
 .side .card { padding: 18px; }
 #status { min-height: 3rem; color: var(--muted); line-height: 1.45; }
-.players { display: grid; gap: 10px; margin-top: 12px; }
-.players > div { display: flex; align-items: center; gap: 10px; padding: 10px; background: rgba(255,255,255,.06); border-radius: 14px; }
+.players { display: grid; gap: 8px 12px; margin-top: 12px; }
+.score-strip {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: end;
+  padding: 12px 14px;
+  background: rgba(255,255,255,.06);
+  border-radius: 16px;
+}
+.score-name { display: flex; align-items: center; gap: 10px; min-width: 0; color: white; font-size: clamp(1rem, 2.4vw, 1.2rem); }
+.score-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.red-name { justify-content: flex-end; text-align: right; }
+.score-number { color: white; font-weight: 950; font-size: clamp(2.8rem, 9vw, 5.4rem); line-height: .86; letter-spacing: -.08em; }
+.blue-score { text-align: left; }
+.red-score { text-align: right; }
+.score-dash { color: white; align-self: center; font-weight: 900; font-size: clamp(1.8rem, 5vw, 3.4rem); line-height: 1; opacity: .92; }
 .dot { width: 14px; height: 14px; border-radius: 999px; display: inline-block; box-shadow: 0 0 0 5px rgba(255,255,255,.08); }
 .dot.blue { background: var(--blue); }
 .dot.red { background: var(--red); }
@@ -188,8 +201,9 @@ li { margin: .5rem 0; }
   .side { gap: 10px; }
   .side .card { padding: 13px; border-radius: 20px; }
   #status { min-height: auto; font-size: .92rem; }
-  .players { gap: 8px; margin-top: 10px; }
-  .players > div { padding: 9px; }
+  .players { gap: 6px 9px; margin-top: 10px; }
+  .score-strip { padding: 10px 12px; border-radius: 15px; }
+  .score-name { font-size: .98rem; }
   .rules li { margin: .32rem 0; font-size: .88rem; }
   .replay-controls { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .replay-controls button { font-size: .86rem; }

@@ -70,9 +70,13 @@
           <div class="card scoreboard">
             <h2>Match</h2>
             <div id="status">Waiting…</div>
-            <div class="players">
-              <div><span class="dot blue"></span><strong id="p1">Blue</strong></div>
-              <div><span class="dot red"></span><strong id="p2">Red</strong></div>
+            <div class="players score-strip" aria-label="Room score">
+              <div class="score-name blue-name"><span class="dot blue"></span><strong id="p1">Blue</strong></div>
+              <div class="score-spacer" aria-hidden="true"></div>
+              <div class="score-name red-name"><strong id="p2">Red</strong><span class="dot red"></span></div>
+              <div id="p1Score" class="score-number blue-score">0</div>
+              <div class="score-dash">-</div>
+              <div id="p2Score" class="score-number red-score">0</div>
             </div>
             <button id="reset" class="ghost">New round</button>
           </div>
