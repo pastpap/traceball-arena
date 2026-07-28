@@ -32,6 +32,31 @@ describe('traceball rules', () => {
     expect(game.turn).toBe('p1');
   });
 
+  it('treats margins as already traced lines while allowing margin points', () => {
+    const game = readyGame();
+    game.ball = { x: 0, y: 6 };
+    game.visited.push('0,6');
+    game.turn = 'p1';
+
+    expect(legalMoves(game)).not.toContainEqual({ x: 0, y: 5 });
+    expect(legalMoves(game)).not.toContainEqual({ x: 0, y: 7 });
+    expect(legalMoves(game)).toContainEqual({ x: 1, y: 6 });
+
+    const alongMargin = makeMove(game, 'p1', { x: 0, y: 5 });
+    expect(alongMargin.ok).toBe(false);
+    expect(alongMargin.error).toContain('margin');
+  });
+
+  it('allows moves through the gate mouth but not along outer pitch margins', () => {
+    const game = readyGame();
+    game.ball = { x: 3, y: 1 };
+    game.visited.push('3,1');
+    game.turn = 'p1';
+
+    expect(legalMoves(game)).toContainEqual({ x: 4, y: 1 });
+    expect(legalMoves(game)).not.toContainEqual({ x: 2, y: 1 });
+  });
+
   it('ends as a goal when entering the opponent gate', () => {
     const game = readyGame();
     game.ball = { x: 4, y: 1 };

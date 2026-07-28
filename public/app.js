@@ -20,6 +20,7 @@ const els = {
   replayEnd: document.querySelector('#replayEnd'),
   replayRange: document.querySelector('#replayRange'),
   replayText: document.querySelector('#replayText'),
+  turnIndicator: document.querySelector('#turnIndicator'),
   toast: document.querySelector('#toast'),
 };
 
@@ -39,12 +40,15 @@ const margin = 58;
 init();
 
 function init() {
+  setMobilePage('invite');
   if (roomId) showInvite();
   updateRoomText();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.newRoom.addEventListener('click', createRoom);
   els.copyInvite.addEventListener('click', copyInvite);
+  els.inviteLink.addEventListener('focus', copyInviteFromField);
+  els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
   els.joinForm.addEventListener('submit', join);
   els.reset.addEventListener('click', () => send({ type: 'reset' }));
   canvas.addEventListener('click', boardClick);
@@ -99,7 +103,7 @@ function connect(onOpen) {
     }
     if (msg.type === 'state') {
       game = msg.game;
-      replayIndex = null;
+      if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
       updateUi();
       draw();
     }
@@ -155,6 +159,8 @@ function updateUi() {
     els.replayRange.max = 0;
     els.replayRange.value = 0;
     els.replayText.textContent = 'Replay appears once moves are made.';
+    els.turnIndicator.textContent = 'Waiting for players';
+    els.turnIndicator.className = 'turn-indicator';
     return;
   }
   els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
@@ -164,6 +170,7 @@ function updateUi() {
   if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
   if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
+  updateTurnIndicator();
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
@@ -184,6 +191,29 @@ async function copyInvite() {
   if (!inviteUrl) return toast('Create a game first.');
   await navigator.clipboard.writeText(inviteUrl);
   toast('Invite link copied.');
+}
+
+async function copyInviteFromField() {
+  if (!inviteUrl) return;
+  els.inviteLink.select();
+  try {
+    await navigator.clipboard.writeText(inviteUrl);
+    toast('Invite link copied.');
+  } catch {
+    toast('Invite selected — copy it from the field.');
+  }
+}
+
+function updateTurnIndicator() {
+  const turn = game?.turn;
+  const player = game?.players?.[turn];
+  const colorName = turn === 'p1' ? 'Blue' : 'Red';
+  const name = player?.name || colorName;
+  const orientation = playerId ? `${playerId === 'p1' ? 'Blue' : 'Red'} at bottom` : 'Spectator view: blue at bottom';
+  els.turnIndicator.textContent = game.status === 'playing'
+    ? `${colorName} turn — ${name}${turn === playerId ? ' — you attack upward' : ''} · ${orientation}`
+    : `${game.status === 'finished' ? 'Match finished' : 'Waiting'} · ${orientation}`;
+  els.turnIndicator.className = `turn-indicator ${turn === 'p2' ? 'red' : 'blue'}`;
 }
 
 function setReplay(index) {
@@ -300,6 +330,8 @@ function drawBall(moves) {
   ctx.fillStyle = '#111'; ctx.font = '20px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', screenX(p.x), screenY(p.y) + 1);
 }
 
+function isPlayerInverted() { return playerId === 'p2'; }
+
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || game.turn !== playerId || replayIndex !== null) return;
   ctx.strokeStyle = '#ffe66d'; ctx.lineWidth = 4;
@@ -314,8 +346,14 @@ function gridPoints() {
   for (let y of [0, 12]) for (let x = 3; x <= 5; x++) pts.push({ x, y });
   return pts;
 }
-function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.width - 1)); }
-function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
+function screenX(x) {
+  const viewX = isPlayerInverted() ? (board.width - 1 - x) : x;
+  return margin + viewX * ((canvas.width - margin * 2) / (board.width - 1));
+}
+function screenY(y) {
+  const viewY = isPlayerInverted() ? (board.height - 1 - y) : y;
+  return margin + viewY * ((canvas.height - margin * 2) / (board.height - 1));
+}
 function roundRect(context, x, y, w, h, r) { context.beginPath(); context.roundRect(x, y, w, h, r); }
 function toast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 2300); }
 

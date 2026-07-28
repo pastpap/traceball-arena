@@ -18,5 +18,18 @@ const html = readFileSync('public/index.html', 'utf8');
 if (!html.includes('data-page-target="play"') || !html.includes('data-mobile-page="invite"') || !html.includes('data-mobile-page="match"')) {
   throw new Error('Mobile page navigation markup is required.');
 }
+const inviteTab = html.indexOf('data-page-target="invite"');
+const playTab = html.indexOf('data-page-target="play"');
+const matchTab = html.indexOf('data-page-target="match"');
+if (!(inviteTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Invite, Play, Match.');
+if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
+
+const app = readFileSync('public/app.js', 'utf8');
+if (!app.includes("els.inviteLink.addEventListener('focus', copyInviteFromField)") || !app.includes("els.inviteLink.addEventListener('pointerdown', copyInviteFromField)")) {
+  throw new Error('Invite link field must copy on focus/press.');
+}
+if (!app.includes("playerId === 'p2'") || !app.includes('board.height - 1 - y')) {
+  throw new Error('Board view must flip for the second player.');
+}
 
 console.log('Static build checks passed.');

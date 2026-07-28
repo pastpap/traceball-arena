@@ -68,6 +68,7 @@ export function makeMove(game, playerId, to) {
   if (!isOneStep(from, target)) return { ok: false, error: 'Move one point in any of 8 directions.' };
   if (!isOnBoardOrGoal(target)) return { ok: false, error: 'Move stays on the pitch or through a gate.' };
   if (hasSegment(game, from, target)) return { ok: false, error: 'That line was already used.' };
+  if (isTracedMarginSegment(from, target)) return { ok: false, error: 'The margin line is already traced.' };
   if (isBlockedCornerCut(from, target)) return { ok: false, error: 'Cannot cut through the outside corner.' };
 
   const visitedBefore = game.visited.includes(pointKey(target));
@@ -118,7 +119,7 @@ export function legalMoves(game) {
     for (let dx = -1; dx <= 1; dx += 1) {
       if (dx === 0 && dy === 0) continue;
       const to = { x: game.ball.x + dx, y: game.ball.y + dy };
-      if (isOnBoardOrGoal(to) && !hasSegment(game, game.ball, to) && !isBlockedCornerCut(game.ball, to)) {
+      if (isOnBoardOrGoal(to) && !hasSegment(game, game.ball, to) && !isTracedMarginSegment(game.ball, to) && !isBlockedCornerCut(game.ball, to)) {
         options.push(to);
       }
     }
@@ -167,6 +168,28 @@ function isOnBoardOrGoal(p) {
 
 function isBoundaryPoint(p) {
   return p.x === 0 || p.x === WIDTH - 1 || p.y === 1 || p.y === HEIGHT - 2;
+}
+
+function isTracedMarginSegment(from, to) {
+  const dx = Math.abs(from.x - to.x);
+  const dy = Math.abs(from.y - to.y);
+  if (dx + dy !== 1) return false;
+
+  const verticalSide = from.x === to.x
+    && (from.x === 0 || from.x === WIDTH - 1)
+    && from.y >= 1 && from.y <= HEIGHT - 2
+    && to.y >= 1 && to.y <= HEIGHT - 2;
+  if (verticalSide) return true;
+
+  const horizontalPitchEdge = from.y === to.y
+    && (from.y === 1 || from.y === HEIGHT - 2)
+    && from.x >= 0 && from.x < WIDTH
+    && to.x >= 0 && to.x < WIDTH;
+  if (!horizontalPitchEdge) return false;
+
+  const inGateMouth = Math.min(from.x, to.x) >= GOAL_X_MIN
+    && Math.max(from.x, to.x) <= GOAL_X_MAX;
+  return !inGateMouth;
 }
 
 function isBlockedCornerCut(from, to) {

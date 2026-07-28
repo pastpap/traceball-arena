@@ -22,12 +22,12 @@
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
-        <button type="button" class="mobile-tab active" data-page-target="play">Play</button>
-        <button type="button" class="mobile-tab" data-page-target="invite">Invite</button>
+        <button type="button" class="mobile-tab active" data-page-target="invite">Invite</button>
+        <button type="button" class="mobile-tab" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
 
-      <section id="joinPanel" class="card join-panel mobile-page" data-mobile-page="invite">
+      <section id="joinPanel" class="card join-panel mobile-page active" data-mobile-page="invite">
         <div>
           <h2>Join this match</h2>
           <p id="roomText">Create a game or open an invite link.</p>
@@ -46,10 +46,22 @@
       </section>
 
       <section class="game-layout">
-        <div class="board-card mobile-page active" data-mobile-page="play">
+        <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
+          <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
           <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
-          <div class="board-help">Click a highlighted dot to move. Blue attacks the top goal; red attacks the bottom goal.</div>
+          <div class="board-help">Your side is always at the bottom. Attack upward; the turn badge shows whose move it is.</div>
+          <div class="board-replay replay">
+            <h2>Replay</h2>
+            <div class="replay-controls">
+              <button id="replayStart">Start</button>
+              <button id="replayPrev">‹</button>
+              <button id="replayNext">›</button>
+              <button id="replayEnd">End</button>
+            </div>
+            <input id="replayRange" type="range" min="0" max="0" value="0" />
+            <p id="replayText">Replay appears once moves are made.</p>
+          </div>
         </div>
         <aside class="side mobile-page" data-mobile-page="match">
           <div class="card scoreboard">
@@ -66,21 +78,11 @@
             <ul>
               <li>Move one point in any of 8 directions.</li>
               <li>No line segment can be reused.</li>
+              <li>Margin lines are already traced; only margin points may be used.</li>
               <li>Landing on a visited point or wall gives another move.</li>
               <li>Score in the opponent gate. Own gate = own goal.</li>
               <li>If you are stuck, you lose.</li>
             </ul>
-          </div>
-          <div class="card replay">
-            <h2>Replay</h2>
-            <div class="replay-controls">
-              <button id="replayStart">Start</button>
-              <button id="replayPrev">‹</button>
-              <button id="replayNext">›</button>
-              <button id="replayEnd">End</button>
-            </div>
-            <input id="replayRange" type="range" min="0" max="0" value="0" />
-            <p id="replayText">Replay appears once moves are made.</p>
           </div>
         </aside>
       </section>
