@@ -10,6 +10,7 @@ const els = {
   inviteLink: document.querySelector('#inviteLink'),
   qr: document.querySelector('#qr'),
   status: document.querySelector('#status'),
+  playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
   p2: document.querySelector('#p2'),
   reset: document.querySelector('#reset'),
@@ -21,6 +22,9 @@ const els = {
   replayText: document.querySelector('#replayText'),
   toast: document.querySelector('#toast'),
 };
+
+const mobileTabs = [...document.querySelectorAll('.mobile-tab')];
+const mobilePages = [...document.querySelectorAll('.mobile-page')];
 
 let socket;
 let roomId = location.pathname.startsWith('/room/') ? location.pathname.split('/').pop() : null;
@@ -49,6 +53,7 @@ function init() {
   els.replayNext.addEventListener('click', () => setReplay(Math.min((game?.moves?.length || 0), currentReplay() + 1)));
   els.replayEnd.addEventListener('click', () => setReplay(game?.moves?.length || 0));
   els.replayRange.addEventListener('input', () => setReplay(Number(els.replayRange.value)));
+  mobileTabs.forEach((tab) => tab.addEventListener('click', () => setMobilePage(tab.dataset.pageTarget)));
 }
 
 async function createRoom() {
@@ -67,6 +72,7 @@ async function createRoom() {
   updateUi();
   draw();
   connect(() => watchCurrentRoom());
+  setMobilePage('invite');
   toast('Game created. Choose a name to join.');
 }
 
@@ -88,6 +94,7 @@ function connect(onOpen) {
     const msg = JSON.parse(event.data);
     if (msg.type === 'joined') {
       playerId = msg.playerId;
+      setMobilePage('play');
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
     if (msg.type === 'state') {
@@ -144,6 +151,7 @@ function updateUi() {
     els.p1.textContent = 'Waiting for blue';
     els.p2.textContent = 'Waiting for red';
     els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Create a game or open an invite link.';
+    els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Create or open a room first.';
     els.replayRange.max = 0;
     els.replayRange.value = 0;
     els.replayText.textContent = 'Replay appears once moves are made.';
@@ -155,6 +163,7 @@ function updateUi() {
   if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
   if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
   if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
+  els.playStatus.textContent = els.status.textContent;
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
@@ -309,3 +318,11 @@ function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.
 function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
 function roundRect(context, x, y, w, h, r) { context.beginPath(); context.roundRect(x, y, w, h, r); }
 function toast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 2300); }
+
+function setMobilePage(page = 'play') {
+  const selected = ['play', 'invite', 'match'].includes(page) ? page : 'play';
+  document.body.dataset.mobilePage = selected;
+  mobileTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.pageTarget === selected));
+  mobilePages.forEach((panel) => panel.classList.toggle('active', panel.dataset.mobilePage === selected));
+  if (selected === 'play') requestAnimationFrame(draw);
+}

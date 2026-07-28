@@ -21,7 +21,13 @@
         </div>
       </section>
 
-      <section id="joinPanel" class="card join-panel">
+      <nav class="mobile-nav" aria-label="Mobile game pages">
+        <button type="button" class="mobile-tab active" data-page-target="play">Play</button>
+        <button type="button" class="mobile-tab" data-page-target="invite">Invite</button>
+        <button type="button" class="mobile-tab" data-page-target="match">Match</button>
+      </nav>
+
+      <section id="joinPanel" class="card join-panel mobile-page" data-mobile-page="invite">
         <div>
           <h2>Join this match</h2>
           <p id="roomText">Create a game or open an invite link.</p>
@@ -40,11 +46,12 @@
       </section>
 
       <section class="game-layout">
-        <div class="board-card">
+        <div class="board-card mobile-page active" data-mobile-page="play">
+          <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
           <div class="board-help">Click a highlighted dot to move. Blue attacks the top goal; red attacks the bottom goal.</div>
         </div>
-        <aside class="side">
+        <aside class="side mobile-page" data-mobile-page="match">
           <div class="card scoreboard">
             <h2>Match</h2>
             <div id="status">Waiting…</div>
