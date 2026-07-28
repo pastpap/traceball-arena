@@ -18,15 +18,15 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, rooms: rooms.size, uptime: process.uptime() });
 });
 
-app.post('/api/rooms', express.json(), (_req, res) => {
+app.post('/api/rooms', express.json(), (req, res) => {
   const roomId = nanoid(8);
   const game = createGame(roomId);
   rooms.set(roomId, game);
-  res.json({ roomId, url: roomUrl(roomId) });
+  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)) });
 });
 
 app.get('/api/qr', async (req, res) => {
-  const url = typeof req.query.url === 'string' ? req.query.url : roomUrl(String(req.query.room || ''));
+  const url = typeof req.query.url === 'string' ? req.query.url : roomUrl(String(req.query.room || ''), originFromRequest(req));
   try {
     const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, scale: 8, color: { dark: '#102a1a', light: '#ffffff' } });
     res.setHeader('content-type', 'image/png');
@@ -105,9 +105,16 @@ function send(ws, type, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type, ...payload }));
 }
 
-function roomUrl(roomId) {
-  const base = process.env.PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` || `http://localhost:${PORT}`;
+function roomUrl(roomId, requestOrigin) {
+  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
   return `${base}/room/${roomId}`;
+}
+
+function originFromRequest(req) {
+  const host = req.get('x-forwarded-host') || req.get('host');
+  if (!host) return null;
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+  return `${protocol}://${host}`;
 }
 
 server.listen(PORT, () => {
