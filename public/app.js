@@ -129,7 +129,8 @@ function boardClick(event) {
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
-  const click = { x: (event.clientX - rect.left) * scaleX, y: (event.clientY - rect.top) * scaleY };
+  const rawClick = { x: (event.clientX - rect.left) * scaleX, y: (event.clientY - rect.top) * scaleY };
+  const click = boardSpacePoint(rawClick);
   const target = nearestPoint(click);
   if (!target) return;
   const legal = game.legalMoves.some((p) => p.x === target.x && p.y === target.y);
@@ -231,12 +232,26 @@ function currentReplay() {
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  applyBoardTransform();
   drawPitch();
   const moves = replayMoves();
   drawSegments(moves);
   drawPoints(moves);
   drawBall(moves);
   drawLegalMoves();
+  ctx.restore();
+}
+
+function applyBoardTransform() {
+  if (!isPlayerInverted()) return;
+  ctx.translate(canvas.width, canvas.height);
+  ctx.rotate(Math.PI);
+}
+
+function boardSpacePoint(point) {
+  if (!isPlayerInverted()) return point;
+  return { x: canvas.width - point.x, y: canvas.height - point.y };
 }
 
 function replayMoves() {
@@ -346,14 +361,8 @@ function gridPoints() {
   for (let y of [0, 12]) for (let x = 3; x <= 5; x++) pts.push({ x, y });
   return pts;
 }
-function screenX(x) {
-  const viewX = isPlayerInverted() ? (board.width - 1 - x) : x;
-  return margin + viewX * ((canvas.width - margin * 2) / (board.width - 1));
-}
-function screenY(y) {
-  const viewY = isPlayerInverted() ? (board.height - 1 - y) : y;
-  return margin + viewY * ((canvas.height - margin * 2) / (board.height - 1));
-}
+function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.width - 1)); }
+function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
 function roundRect(context, x, y, w, h, r) { context.beginPath(); context.roundRect(x, y, w, h, r); }
 function toast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 2300); }
 

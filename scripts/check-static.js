@@ -28,8 +28,8 @@ const app = readFileSync('public/app.js', 'utf8');
 if (!app.includes("els.inviteLink.addEventListener('focus', copyInviteFromField)") || !app.includes("els.inviteLink.addEventListener('pointerdown', copyInviteFromField)")) {
   throw new Error('Invite link field must copy on focus/press.');
 }
-if (!app.includes("playerId === 'p2'") || !app.includes('board.height - 1 - y')) {
-  throw new Error('Board view must flip for the second player.');
+if (!app.includes("playerId === 'p2'") || !app.includes('applyBoardTransform') || !app.includes('ctx.rotate(Math.PI)') || !app.includes('boardSpacePoint')) {
+  throw new Error('Board view must rotate the renderer and invert click hit-testing for the second player.');
 }
 
 console.log('Static build checks passed.');
