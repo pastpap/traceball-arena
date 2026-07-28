@@ -40,6 +40,9 @@ if (!app.includes('drawTurnGateBall') || !app.includes('ownGateMarginY') || !app
 if (!app.includes('drawGatePlayerLabels') || !app.includes('drawGoalMesh') || !app.includes("game.score?.[id]")) {
   throw new Error('Gate labels, light in-gate mesh, and room score rendering are required.');
 }
+if (!app.includes('traceballClientId') || !app.includes('clientId });')) {
+  throw new Error('Client join messages must include a stable browser client id for reconnects.');
+}
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
 
 const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));

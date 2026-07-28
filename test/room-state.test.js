@@ -43,4 +43,14 @@ describe('room state lifecycle', () => {
     expect(next.score).toEqual({ p1: 0, p2: 0 });
     expect(next.status).toBe('waiting');
   });
+
+  it('lets the same browser client reclaim its player slot after reconnecting', () => {
+    const game = createGame('room-test');
+    expect(addPlayer(game, 'First name', 'phone-client')).toEqual({ ok: true, playerId: 'p1' });
+    addPlayer(game, 'Other phone', 'other-client');
+
+    expect(addPlayer(game, 'Updated name', 'phone-client')).toEqual({ ok: true, playerId: 'p1', rejoined: true });
+    expect(game.players.p1?.name).toBe('Updated name');
+    expect(game.players.p2?.name).toBe('Other phone');
+  });
 });

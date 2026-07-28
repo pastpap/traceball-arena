@@ -33,6 +33,7 @@ let inviteUrl = roomId ? `${location.origin}/room/${roomId}` : '';
 let playerId = null;
 let game = null;
 let replayIndex = null;
+const clientId = getClientId();
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -85,7 +86,7 @@ function join(event) {
   event.preventDefault();
   if (!roomId) return toast('Create a game first.');
   const name = els.nameInput.value.trim();
-  const joinRoom = () => send({ type: 'join', roomId, name });
+  const joinRoom = () => send({ type: 'join', roomId, name, clientId });
   if (!socket || socket.readyState > WebSocket.OPEN) connect(joinRoom);
   else if (socket.readyState === WebSocket.CONNECTING) socket.addEventListener('open', joinRoom, { once: true });
   else joinRoom();
@@ -459,6 +460,20 @@ function toast(message) { els.toast.textContent = message; els.toast.classList.a
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) return;
   navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+function getClientId() {
+  const key = 'traceballClientId';
+  try {
+    let id = localStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      localStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
 }
 
 function setMobilePage(page = 'play') {

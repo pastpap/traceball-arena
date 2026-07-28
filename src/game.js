@@ -43,15 +43,25 @@ export function publicGame(game) {
   };
 }
 
-export function addPlayer(game, name) {
+export function addPlayer(game, name, clientId) {
   const cleanName = String(name || '').trim().slice(0, 24) || 'Player';
+  const cleanClientId = String(clientId || '').trim().slice(0, 80) || null;
+  if (cleanClientId) {
+    for (const id of ['p1', 'p2']) {
+      if (game.players[id]?.clientId === cleanClientId) {
+        game.players[id].name = cleanName;
+        game.updatedAt = Date.now();
+        return { ok: true, playerId: id, rejoined: true };
+      }
+    }
+  }
   let playerId;
   if (!game.players.p1) {
     playerId = 'p1';
-    game.players.p1 = { id: 'p1', name: cleanName, color: '#0b7cff' };
+    game.players.p1 = { id: 'p1', name: cleanName, color: '#0b7cff', clientId: cleanClientId };
   } else if (!game.players.p2) {
     playerId = 'p2';
-    game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30' };
+    game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30', clientId: cleanClientId };
     game.status = 'playing';
   } else {
     return { ok: false, error: 'Room is already full.' };
