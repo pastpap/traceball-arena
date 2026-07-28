@@ -34,8 +34,11 @@ if (!app.includes("els.inviteLink.addEventListener('focus', copyInviteFromField)
 if (!app.includes("playerId === 'p2'") || !app.includes('applyBoardTransform') || !app.includes('ctx.rotate(Math.PI)') || !app.includes('boardSpacePoint')) {
   throw new Error('Board view must rotate the renderer and invert click hit-testing for the second player.');
 }
-if (!app.includes('drawTurnGateBall') || !app.includes('ownGateMarginY') || !app.includes('canvas.width - 28')) {
-  throw new Error('Current-turn gate ball marker must be drawn on the right board margin.');
+if (!app.includes('drawTurnGateBall') || !app.includes('ownGateMarginY') || !app.includes('Math.max(leftPost.x, rightPost.x) + 34')) {
+  throw new Error('Current-turn gate ball marker must be drawn on the right side of the active gate.');
+}
+if (!app.includes('drawGatePlayerLabels') || !app.includes('drawGoalMesh') || !app.includes("game.score?.[id]")) {
+  throw new Error('Gate labels, light in-gate mesh, and room score rendering are required.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
 

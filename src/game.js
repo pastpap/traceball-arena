@@ -16,6 +16,7 @@ export function createGame(roomId) {
     visited: [pointKey(START)],
     segments: [],
     moves: [],
+    score: { p1: 0, p2: 0 },
     winner: null,
     endReason: null,
     createdAt: Date.now(),
@@ -34,6 +35,7 @@ export function publicGame(game) {
     visited: game.visited,
     segments: game.segments,
     moves: game.moves,
+    score: game.score,
     winner: game.winner,
     endReason: game.endReason,
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
@@ -90,8 +92,7 @@ export function makeMove(game, playerId, to) {
   const goal = goalForMove(playerId, target);
   if (goal) {
     game.status = 'finished';
-    game.winner = goal.winner;
-    game.endReason = goal.reason;
+    finishGame(game, goal.winner, goal.reason);
     move.goal = true;
     game.moves.push(move);
     game.updatedAt = Date.now();
@@ -106,8 +107,8 @@ export function makeMove(game, playerId, to) {
   const moves = legalMoves(game);
   if (moves.length === 0) {
     game.status = 'finished';
-    game.winner = otherPlayer(game.turn);
-    game.endReason = `${playerName(game, game.turn)} is stuck — ${playerName(game, otherPlayer(game.turn))} wins.`;
+    const winner = otherPlayer(game.turn);
+    finishGame(game, winner, `${playerName(game, game.turn)} is stuck — ${playerName(game, winner)} wins.`);
   }
   game.updatedAt = Date.now();
   return { ok: true, bounce: getsBounce };
@@ -129,10 +130,20 @@ export function legalMoves(game) {
 
 export function resetGame(game) {
   const players = game.players;
+  const score = { p1: game.score?.p1 || 0, p2: game.score?.p2 || 0 };
   Object.assign(game, createGame(game.roomId));
   game.players = players;
+  game.score = score;
   game.status = players.p1 && players.p2 ? 'playing' : 'waiting';
   return game;
+}
+
+function finishGame(game, winner, reason) {
+  if (game.winner) return;
+  game.winner = winner;
+  game.endReason = reason;
+  game.score = game.score || { p1: 0, p2: 0 };
+  game.score[winner] = (game.score[winner] || 0) + 1;
 }
 
 function playerName(game, id) {

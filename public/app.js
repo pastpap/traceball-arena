@@ -165,8 +165,9 @@ function updateUi() {
     els.turnIndicator.className = 'turn-indicator';
     return;
   }
-  els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
-  els.p2.textContent = game.players.p2?.name || 'Waiting for red';
+  const score = game.score || { p1: 0, p2: 0 };
+  els.p1.textContent = `${game.players.p1?.name || 'Waiting for blue'} · ${score.p1 || 0}`;
+  els.p2.textContent = `${game.players.p2?.name || 'Waiting for red'} · ${score.p2 || 0}`;
   const turnName = game.players[game.turn]?.name || game.turn;
   if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
   if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
@@ -242,6 +243,7 @@ function draw() {
   drawBall(moves);
   drawLegalMoves();
   ctx.restore();
+  drawGatePlayerLabels();
   drawTurnGateBall();
 }
 
@@ -303,11 +305,62 @@ function drawPitch() {
 function drawGoal(y) {
   const top = y === 0;
   const x1 = screenX(3), x2 = screenX(5), gy = screenY(y);
+  const mouthY = top ? screenY(1) : screenY(11);
   ctx.strokeStyle = '#f8fff8'; ctx.lineWidth = 8;
-  ctx.beginPath(); ctx.moveTo(x1, top ? screenY(1) : screenY(11)); ctx.lineTo(x1, gy); ctx.lineTo(x2, gy); ctx.lineTo(x2, top ? screenY(1) : screenY(11)); ctx.stroke();
-  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1;
-  for (let x = x1; x <= x2 + 1; x += 10) { ctx.beginPath(); ctx.moveTo(x, gy); ctx.lineTo(x + 42, top ? gy - 54 : gy + 54); ctx.stroke(); }
-  for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.moveTo(x1, gy + (top ? -i * 10 : i * 10)); ctx.lineTo(x2, gy + (top ? -i * 10 : i * 10)); ctx.stroke(); }
+  ctx.beginPath(); ctx.moveTo(x1, mouthY); ctx.lineTo(x1, gy); ctx.lineTo(x2, gy); ctx.lineTo(x2, mouthY); ctx.stroke();
+  drawGoalMesh(x1, x2, gy, mouthY);
+}
+
+function drawGoalMesh(x1, x2, backY, mouthY) {
+  const top = backY < mouthY;
+  const insetTop = top ? backY + 7 : mouthY + 7;
+  const insetBottom = top ? mouthY - 7 : backY - 7;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.18)';
+  ctx.lineWidth = 1;
+  for (let x = x1 + 6; x <= x2 + 16; x += 12) {
+    ctx.beginPath(); ctx.moveTo(x, insetTop); ctx.lineTo(x - 28, insetBottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - 28, insetTop); ctx.lineTo(x, insetBottom); ctx.stroke();
+  }
+  for (let meshY = insetTop + 8; meshY < insetBottom; meshY += 12) {
+    ctx.beginPath(); ctx.moveTo(x1 + 5, meshY); ctx.lineTo(x2 - 5, meshY); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGatePlayerLabels() {
+  if (!game) return;
+  drawGatePlayerLabel('p2', 0);
+  drawGatePlayerLabel('p1', 12);
+}
+
+function drawGatePlayerLabel(id, gateY) {
+  const center = displayPoint(4, gateY);
+  const edge = displayPoint(4, gateY === 0 ? -0.45 : 12.45);
+  const player = game.players[id];
+  const score = game.score?.[id] || 0;
+  const text = `${player?.name || (id === 'p1' ? 'Blue' : 'Red')} ${score}`;
+  const color = id === 'p1' ? '#0b7cff' : '#ff3b30';
+  ctx.save();
+  ctx.font = '700 22px system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const metrics = ctx.measureText(text);
+  const padX = 16;
+  const boxW = Math.min(210, metrics.width + padX * 2);
+  const boxH = 32;
+  const x = Math.max(126, Math.min(canvas.width - 126, center.x));
+  const y = Math.max(24, Math.min(canvas.height - 24, edge.y));
+  ctx.fillStyle = 'rgba(3, 24, 11, .52)';
+  roundRect(ctx, x - boxW / 2, y - boxH / 2, boxW, boxH, 15);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = .75;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#f8fff8';
+  ctx.fillText(text, x, y + 1);
   ctx.restore();
 }
 
@@ -348,10 +401,12 @@ function drawBall(moves) {
 
 function drawTurnGateBall() {
   if (!game || game.status !== 'playing') return;
-  const ownGateMarginY = game.turn === 'p1' ? 11 : 1;
-  const displayGateY = isPlayerInverted() ? canvas.height - screenY(ownGateMarginY) : screenY(ownGateMarginY);
-  const markerY = displayGateY < canvas.height / 2 ? screenY(1) - 30 : screenY(11) + 30;
-  const markerX = canvas.width - 28;
+  const ownGateMarginY = game.turn === 'p1' ? 12 : 0;
+  const leftPost = displayPoint(3, ownGateMarginY);
+  const rightPost = displayPoint(5, ownGateMarginY);
+  const center = displayPoint(4, ownGateMarginY);
+  const markerY = center.y;
+  const markerX = Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34);
   const color = game.turn === 'p1' ? '#0b7cff' : '#ff3b30';
 
   ctx.save();
@@ -367,6 +422,12 @@ function drawTurnGateBall() {
   ctx.stroke();
   drawSoccerBall(markerX, markerY, 13);
   ctx.restore();
+}
+
+function displayPoint(x, y) {
+  const point = { x: screenX(x), y: screenY(y) };
+  if (!isPlayerInverted()) return point;
+  return { x: canvas.width - point.x, y: canvas.height - point.y };
 }
 
 function drawSoccerBall(x, y, radius) {
