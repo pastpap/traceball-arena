@@ -25,6 +25,13 @@ app.post('/api/rooms', express.json(), (req, res) => {
   res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)) });
 });
 
+app.get('/api/rooms/:roomId', (req, res) => {
+  const roomId = safeRoomId(req.params.roomId);
+  if (!roomId) return res.status(400).json({ error: 'Invalid room code.' });
+  if (!rooms.has(roomId)) return res.status(404).json({ error: 'Game not found or expired.' });
+  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)) });
+});
+
 app.get('/api/qr', async (req, res) => {
   const url = typeof req.query.url === 'string' ? req.query.url : roomUrl(String(req.query.room || ''), originFromRequest(req));
   try {
@@ -53,8 +60,10 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'join') {
-      const roomId = String(msg.roomId || '').trim() || nanoid(8);
-      const game = getOrCreateRoom(roomId);
+      const roomId = safeRoomId(msg.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
       const result = addPlayer(game, msg.name, msg.clientId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
@@ -65,9 +74,9 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.type === 'watch') {
-      const roomId = String(msg.roomId || '').trim();
-      if (!roomId) return send(ws, 'error', { error: 'Room id is required.' });
-      getOrCreateRoom(roomId);
+      const roomId = safeRoomId(msg.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!rooms.has(roomId)) return send(ws, 'error', { error: 'Game not found or expired.' });
       if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
       broadcast(roomId);
@@ -104,6 +113,11 @@ function getOrCreateRoom(roomId) {
     rooms.set(roomId, game);
   }
   return game;
+}
+
+function safeRoomId(value) {
+  const roomId = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
 }
 
 function broadcast(roomId) {

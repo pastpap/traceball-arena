@@ -1,20 +1,28 @@
 const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
-  newRoom: document.querySelector('#newRoom'),
+  generateRoom: document.querySelector('#generateRoom'),
+  joinGeneratedRoom: document.querySelector('#joinGeneratedRoom'),
+  newGameTab: document.querySelector('#newGameTab'),
+  existingGameTab: document.querySelector('#existingGameTab'),
+  newGamePanel: document.querySelector('#newGamePanel'),
+  existingGamePanel: document.querySelector('#existingGamePanel'),
   onlineMode: document.querySelector('#onlineMode'),
   localMode: document.querySelector('#localMode'),
   localPanel: document.querySelector('#localPanel'),
   localForm: document.querySelector('#localForm'),
   localP1Name: document.querySelector('#localP1Name'),
   localP2Name: document.querySelector('#localP2Name'),
+  existingRoomForm: document.querySelector('#existingRoomForm'),
+  existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
-  joinForm: document.querySelector('#joinForm'),
-  nameInput: document.querySelector('#nameInput'),
+  playerNameInput: document.querySelector('#playerNameInput'),
   roomText: document.querySelector('#roomText'),
   inviteBox: document.querySelector('#inviteBox'),
   inviteLink: document.querySelector('#inviteLink'),
   qr: document.querySelector('#qr'),
+  winnerOverlay: document.querySelector('#winnerOverlay'),
+  winnerName: document.querySelector('#winnerName'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -48,9 +56,16 @@ let playerName = localStorageSafeGet('traceballPlayerName') || '';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let intentionalClose = false;
+let lastWinnerKey = '';
+let confettiUntil = 0;
+let turnMarkerJump = null;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
+const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
+const MOVE_HINT_ALPHA = 0.34;
+const TURN_MARKER_JUMP_MS = 1150;
+const CONFETTI_MS = 4800;
 
 init();
 
@@ -58,18 +73,24 @@ function init() {
   setMobilePage('invite');
   registerServiceWorker();
   if (roomId) showInvite();
+  els.playerNameInput.value = playerName;
   updateModePanels();
   updateRoomText();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
-  els.newRoom.addEventListener('click', createRoom);
+  els.generateRoom.addEventListener('click', createRoom);
+  els.joinGeneratedRoom.addEventListener('click', joinGeneratedGame);
+  els.newGameTab.addEventListener('click', () => setOnlineAction('new'));
+  els.existingGameTab.addEventListener('click', () => setOnlineAction('existing'));
+  els.playerNameInput.addEventListener('input', persistPlayerName);
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
+  els.existingRoomForm.addEventListener('submit', joinExistingRoom);
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
-  els.joinForm.addEventListener('submit', join);
+
   els.reset.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
@@ -114,6 +135,81 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
+  const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  const data = await res.json();
+  openOnlineRoom(data.roomId, data.url, 'Game generated. Copy the invite, then join when ready.');
+}
+
+function joinGeneratedGame() {
+  const name = requirePlayerName();
+  if (!name) return;
+  joinOnlinePlayer(name);
+}
+
+async function joinExistingRoom(event) {
+  event.preventDefault();
+  const name = requirePlayerName();
+  if (!name) return;
+  const parsed = parseRoomInput(els.existingRoomInput.value);
+  if (!parsed.ok) return toast(parsed.error);
+  const res = await fetch(`/api/rooms/${encodeURIComponent(parsed.roomId)}`, { cache: 'no-store' });
+  if (res.status === 404) return toast('Game not found or expired.');
+  if (!res.ok) return toast('Could not check that game. Try again.');
+  const data = await res.json();
+  openOnlineRoom(data.roomId, data.url, 'Game found. Joining now.');
+  joinOnlinePlayer(name);
+}
+
+function setOnlineAction(action) {
+  const existing = action === 'existing';
+  els.newGamePanel.classList.toggle('hidden', existing);
+  els.existingGamePanel.classList.toggle('hidden', !existing);
+  els.newGameTab.classList.toggle('active', !existing);
+  els.existingGameTab.classList.toggle('active', existing);
+  els.newGameTab.setAttribute('aria-pressed', String(!existing));
+  els.existingGameTab.setAttribute('aria-pressed', String(existing));
+}
+
+function persistPlayerName() {
+  playerName = els.playerNameInput.value.trim();
+  localStorageSafeSet('traceballPlayerName', playerName);
+}
+
+function requirePlayerName() {
+  persistPlayerName();
+  if (!playerName) {
+    els.playerNameInput.focus();
+    toast('Add your name first.');
+    return '';
+  }
+  return playerName;
+}
+
+function parseRoomInput(raw) {
+  const input = String(raw || '').trim();
+  if (!input) return { ok: false, error: 'Paste a Traceball invite link or room code.' };
+  if (input.length > 200) return { ok: false, error: 'That invite is too long.' };
+  let candidate = input;
+  const looksLikeLink = /^[a-z][a-z\d+.-]*:/i.test(input) || input.startsWith('/');
+  if (looksLikeLink) {
+    let url;
+    try {
+      url = new URL(input, location.origin);
+    } catch {
+      return { ok: false, error: 'That invite link is not valid.' };
+    }
+    if (url.origin !== location.origin) return { ok: false, error: 'Only Traceball invite links from this app can be joined.' };
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2 || parts[0] !== 'room') return { ok: false, error: 'Paste a Traceball room link or room code.' };
+    candidate = decodeURIComponent(parts[1]);
+  } else if (input.includes('/') || input.includes(':')) {
+    return { ok: false, error: 'Paste a Traceball room link or room code.' };
+  }
+  if (!ROOM_CODE_RE.test(candidate)) return { ok: false, error: 'That room code looks invalid.' };
+  return { ok: true, roomId: candidate };
+}
+
+function openOnlineRoom(nextRoomId, nextUrl, message) {
   intentionalClose = true;
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
@@ -122,12 +218,10 @@ async function createRoom() {
   game = null;
   replayIndex = null;
   wantsPlayerSession = false;
-  const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-  const data = await res.json();
-  roomId = data.roomId;
+  roomId = nextRoomId;
   gameMode = 'online';
-  inviteUrl = data.url || `${location.origin}/room/${roomId}`;
-  history.pushState({}, '', `/room/${roomId}`);
+  inviteUrl = nextUrl || `${location.origin}/room/${roomId}`;
+  history.pushState({}, '', `/room/${encodeURIComponent(roomId)}`);
   showInvite();
   updateRoomText();
   updateModePanels();
@@ -135,7 +229,7 @@ async function createRoom() {
   draw();
   connect(() => watchCurrentRoom());
   setMobilePage('invite');
-  toast('Game created. Choose a name to join.');
+  toast(message);
 }
 
 function startLocalGame(event) {
@@ -230,6 +324,7 @@ function makeLocalMove(to) {
   move.bounce = getsBounce;
   game.moves.push(move);
   if (!getsBounce) game.turn = otherLocalPlayer(player);
+  if (game.turn !== player && game.status === 'playing') startTurnMarkerJump(player, game.turn);
   game.legalMoves = localLegalMoves(game);
   if (game.legalMoves.length === 0) {
     const winner = otherLocalPlayer(game.turn);
@@ -283,17 +378,17 @@ function localSegmentKey(a, b) {
   return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
 }
 
-function join(event) {
-  event.preventDefault();
-  if (!roomId) return toast('Create a game first.');
-  const name = els.nameInput.value.trim();
-  playerName = name;
+function joinOnlinePlayer(name = playerName) {
+  if (!roomId) return toast('Generate or choose a game first.');
+  playerName = String(name || '').trim();
+  if (!playerName) return toast('Add your name first.');
   wantsPlayerSession = true;
-  localStorageSafeSet('traceballPlayerName', name);
-  const joinRoom = () => send({ type: 'join', roomId, name, clientId });
+  localStorageSafeSet('traceballPlayerName', playerName);
+  const joinRoom = () => send({ type: 'join', roomId, name: playerName, clientId });
   if (!socket || socket.readyState > WebSocket.OPEN) connect(joinRoom);
   else if (socket.readyState === WebSocket.CONNECTING) socket.addEventListener('open', joinRoom, { once: true });
   else joinRoom();
+  setMobilePage('play');
 }
 
 function connect(onOpen) {
@@ -313,7 +408,7 @@ function connect(onOpen) {
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
     if (msg.type === 'state') {
-      game = msg.game;
+      applyRemoteGameState(msg.game);
       if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
       updateUi();
       draw();
@@ -327,6 +422,15 @@ function connect(onOpen) {
       scheduleReconnect();
     }
   });
+}
+
+function applyRemoteGameState(nextGame) {
+  const previousTurn = game?.turn;
+  const previousStatus = game?.status;
+  game = nextGame;
+  if (previousStatus === 'playing' && game.status === 'playing' && previousTurn && previousTurn !== game.turn) {
+    startTurnMarkerJump(previousTurn, game.turn);
+  }
 }
 
 function watchCurrentRoom() {
@@ -387,6 +491,7 @@ function nearestPoint(click) {
 
 function updateUi() {
   if (!game) {
+    updateWinnerOverlay();
     els.p1.textContent = 'Waiting for blue';
     els.p2.textContent = 'Waiting for red';
     els.p1Score.textContent = '0';
@@ -411,10 +516,36 @@ function updateUi() {
   else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
+  updateWinnerOverlay();
   updateTurnIndicator();
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
+}
+
+function updateWinnerOverlay() {
+  const winnerId = game?.status === 'finished' ? game.winner : null;
+  if (!winnerId) {
+    els.winnerOverlay.classList.add('hidden');
+    lastWinnerKey = '';
+    return;
+  }
+  const winnerName = game.players[winnerId]?.name || (winnerId === 'p1' ? 'Blue' : 'Red');
+  els.winnerName.textContent = winnerName;
+  els.winnerOverlay.classList.remove('hidden');
+  const winnerKey = `${roomId || 'local'}:${winnerId}:${game.moves?.length || 0}:${winnerName}`;
+  if (winnerKey !== lastWinnerKey) {
+    lastWinnerKey = winnerKey;
+    confettiUntil = Date.now() + CONFETTI_MS;
+    requestAnimationFrame(animateConfetti);
+  }
+}
+
+function animateConfetti() {
+  if (Date.now() <= confettiUntil) {
+    draw();
+    requestAnimationFrame(animateConfetti);
+  }
 }
 
 function showInvite() {
@@ -429,18 +560,19 @@ function updateRoomText() {
     els.roomText.textContent = 'Local same-screen match — Players face each other and use this device.';
     return;
   }
-  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create an online game to generate an invite link and QR code.';
+  els.roomText.textContent = roomId ? `Room ${roomId}. Use Home to copy the invite, or Play to move.` : 'Choose a name, then generate a new game or join an existing one.';
 }
 
 function updateModePanels() {
   const localVisible = gameMode === 'local' || gameMode === 'local-setup';
   els.localPanel.classList.toggle('hidden', !localVisible);
-  els.joinForm.closest('#joinPanel').classList.toggle('hidden', localVisible);
+  document.querySelector('#joinPanel').classList.toggle('hidden', localVisible);
   els.copyInviteCard.disabled = !inviteUrl;
   els.onlineMode.classList.toggle('active', !localVisible);
   els.localMode.classList.toggle('active', localVisible);
   els.onlineMode.setAttribute('aria-pressed', String(!localVisible));
   els.localMode.setAttribute('aria-pressed', String(localVisible));
+  els.joinGeneratedRoom.classList.toggle('hidden', !roomId || localVisible);
 }
 
 async function copyInvite() {
@@ -500,6 +632,7 @@ function draw() {
   ctx.restore();
   drawGatePlayerLabels();
   drawTurnGateBall();
+  drawWinnerGateConfetti();
 }
 
 function applyBoardTransform() {
@@ -656,27 +789,121 @@ function drawBall(moves) {
 
 function drawTurnGateBall() {
   if (!game || game.status !== 'playing') return;
-  const ownGateMarginY = game.turn === 'p1' ? 12 : 0;
+  const target = turnMarkerSpot(game.turn);
+  if (turnMarkerJump) {
+    drawTurnMarkerJump(target);
+    return;
+  }
+  drawTurnMarker(target.x, target.y, currentPlayerColor(game.turn));
+}
+
+function turnMarkerSpot(player) {
+  const ownGateMarginY = player === 'p1' ? 12 : 0;
   const leftPost = displayPoint(3, ownGateMarginY);
   const rightPost = displayPoint(5, ownGateMarginY);
   const center = displayPoint(4, ownGateMarginY);
-  const markerY = center.y;
-  const markerX = Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34);
-  const color = game.turn === 'p1' ? '#0b7cff' : '#ff3b30';
+  return {
+    x: Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34),
+    y: center.y,
+  };
+}
 
+function startTurnMarkerJump(fromPlayer, toPlayer) {
+  if (!fromPlayer || !toPlayer || fromPlayer === toPlayer) return;
+  turnMarkerJump = {
+    from: turnMarkerSpot(fromPlayer),
+    to: turnMarkerSpot(toPlayer),
+    fromPlayer,
+    toPlayer,
+    startedAt: performance.now(),
+  };
+  requestAnimationFrame(animateTurnMarkerJump);
+}
+
+function animateTurnMarkerJump() {
+  if (!turnMarkerJump) return;
+  draw();
+  if (performance.now() - turnMarkerJump.startedAt < TURN_MARKER_JUMP_MS) requestAnimationFrame(animateTurnMarkerJump);
+  else {
+    turnMarkerJump = null;
+    draw();
+  }
+}
+
+function drawTurnMarkerJump(fallbackTarget) {
+  const elapsed = Math.min(TURN_MARKER_JUMP_MS, performance.now() - turnMarkerJump.startedAt);
+  const t = easeInOut(elapsed / TURN_MARKER_JUMP_MS);
+  const arc = Math.sin(Math.PI * t) * 82;
+  const x = lerp(turnMarkerJump.from.x, fallbackTarget.x, t);
+  const y = lerp(turnMarkerJump.from.y, fallbackTarget.y, t) - arc;
+  const color = mixPlayerColors(turnMarkerJump.fromPlayer, turnMarkerJump.toPlayer, Math.min(1, t * 1.18));
+  drawTurnMarker(x, y, color);
+}
+
+function drawTurnMarker(x, y, color) {
   ctx.save();
   ctx.shadowColor = color;
   ctx.shadowBlur = 18;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(markerX, markerY, 22, 0, Math.PI * 2);
+  ctx.arc(x, y, 22, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 3;
   ctx.stroke();
-  drawSoccerBall(markerX, markerY, 13);
+  drawSoccerBall(x, y, 13);
   ctx.restore();
+}
+
+function currentPlayerColor(player) {
+  return player === 'p2' ? '#ff3b30' : '#0b7cff';
+}
+
+function mixPlayerColors(fromPlayer, toPlayer, t) {
+  return mixHex(currentPlayerColor(fromPlayer), currentPlayerColor(toPlayer), t);
+}
+
+function mixHex(a, b, t) {
+  const ca = hexToRgb(a), cb = hexToRgb(b);
+  const mix = (x, y) => Math.round(x + (y - x) * t);
+  return `rgb(${mix(ca.r, cb.r)}, ${mix(ca.g, cb.g)}, ${mix(ca.b, cb.b)})`;
+}
+
+function hexToRgb(hex) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeInOut(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+
+function drawWinnerGateConfetti() {
+  if (!game || game.status !== 'finished' || Date.now() > confettiUntil) return;
+  const winnerGateY = winnerOwnGateY(game.winner);
+  const gate = displayPoint(4, winnerGateY);
+  const elapsed = CONFETTI_MS - Math.max(0, confettiUntil - Date.now());
+  const colors = ['#ffe784', '#ffffff', '#11bf46', '#0b7cff', '#ff3b30', '#ff8bd1'];
+  ctx.save();
+  for (let i = 0; i < 54; i += 1) {
+    const angle = ((i * 137.5) % 360) * Math.PI / 180;
+    const burst = 18 + ((i * 23) % 96);
+    const fall = (elapsed / CONFETTI_MS) * (86 + (i % 7) * 16);
+    const wobble = Math.sin((elapsed / 210) + i) * 18;
+    const x = gate.x + Math.cos(angle) * burst + wobble;
+    const y = gate.y + Math.sin(angle) * burst + (winnerGateY === 0 ? fall : -fall);
+    ctx.translate(x, y);
+    ctx.rotate(angle + elapsed / 220);
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.globalAlpha = Math.max(0, 1 - elapsed / (CONFETTI_MS + 400));
+    ctx.fillRect(-4, -7, 8, 14);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  ctx.restore();
+}
+
+function winnerOwnGateY(winnerId) {
+  return winnerId === 'p1' ? 12 : 0;
 }
 
 function displayPoint(x, y) {
@@ -695,10 +922,18 @@ function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
-  ctx.strokeStyle = '#ffe66d'; ctx.lineWidth = 4;
+  ctx.save();
+  ctx.strokeStyle = currentPlayerColor(game.turn);
+  ctx.fillStyle = currentPlayerColor(game.turn);
+  ctx.globalAlpha = MOVE_HINT_ALPHA;
+  ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 17, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = MOVE_HINT_ALPHA * .22;
+    ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 12, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = MOVE_HINT_ALPHA;
   }
+  ctx.restore();
 }
 
 function gridPoints() {

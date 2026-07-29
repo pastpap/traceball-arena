@@ -11,7 +11,22 @@ const css = readFileSync('public/styles.css', 'utf8');
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
 if (!css.includes('@media (max-width: 640px)')) throw new Error('Mobile layout breakpoint is required.');
+if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobile-page="play"] .board-card')) {
+  throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
+}
 if (!css.includes('.mobile-page { display: none !important; }')) throw new Error('Mobile pages must be split into tabbed panels.');
+if (!css.includes('.inline-form input { flex: 1 1 320px; min-width: 260px; }') || !css.includes('.inline-form .primary { flex: 0 0 auto; width: auto; min-width: 170px; }')) {
+  throw new Error('Desktop invite-link input must keep usable width beside the Join game button.');
+}
+if (!css.includes('@media (max-width: 640px)') || !css.includes('.inline-form input { min-width: 0; }')) {
+  throw new Error('Mobile invite-link input must reset min-width so the form can stack cleanly.');
+}
+if (!css.includes('.inline-form input { flex: 0 1 auto; min-width: 0; min-height: 0; }')) {
+  throw new Error('Mobile invite-link input must reset desktop flex-basis so it does not become a tall text box.');
+}
+if (!css.includes('.mobile-page.hidden { display: none !important; }')) {
+  throw new Error('Hidden Home cards must stay hidden on mobile even when they also have mobile-page active.');
+}
 if (!css.includes('body[data-mobile-page="play"] .board-card')) throw new Error('Mobile play page must prioritize the board viewport.');
 
 const html = readFileSync('public/index.html', 'utf8');
@@ -49,8 +64,26 @@ if (!(navEnd < modeToggle && modeToggle < joinPanel && joinPanel < localPanel)) 
 if (!html.includes('data-home-mode="online"') || !html.includes('data-home-mode="local"')) {
   throw new Error('Home selector must offer Online and Local options.');
 }
-if (!html.includes('id="newRoom"') || !html.includes('>New game</button>')) {
-  throw new Error('Online card must contain a New game button that creates an online room.');
+if (!html.includes('id="onlineActionToggle"') || !html.includes('data-online-action="new"') || !html.includes('data-online-action="existing"')) {
+  throw new Error('Online card must split New game and Existing game into linked sub-tabs.');
+}
+if (!html.includes('id="playerNameInput"') || !html.includes('id="newGamePanel"') || !html.includes('id="existingGamePanel"')) {
+  throw new Error('Online card must have one generic persisted player-name input shared by both online tabs.');
+}
+if (!html.includes('id="generateRoom"') || !html.includes('>Generate</button>')) {
+  throw new Error('New game tab must contain a Generate button that creates an online room.');
+}
+if (!html.includes('id="joinGeneratedRoom"') || !html.includes('>Join generated game</button>')) {
+  throw new Error('New game tab must reintroduce an explicit Join button after Generate so invite copying stays on Home.');
+}
+if (!html.includes('id="winnerOverlay"') || !html.includes('class="winner-card"') || !html.includes('Winner')) {
+  throw new Error('Play board must include a golden winner modal overlay.');
+}
+if (!html.includes('id="existingRoomForm"') || !html.includes('id="existingRoomInput"') || !html.includes('>Join game</button>')) {
+  throw new Error('Online card must allow safely joining an existing game by pasted invite link or room code.');
+}
+if (html.includes('id="newRoom"') || html.includes('id="joinForm"')) {
+  throw new Error('Online actions must not use the old mixed New game/Join form layout.');
 }
 if (!html.includes('localPanel') || !html.includes('startLocal')) {
   throw new Error('Local selector must reveal the local setup card.');
@@ -65,6 +98,15 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
+if (!app.includes('const MOVE_HINT_ALPHA = 0.34') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
+  throw new Error('Legal-move hint circles must be dimmer and use the current player color instead of universal yellow.');
+}
+if (!app.includes('const TURN_MARKER_JUMP_MS = 1150') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
+  throw new Error('Turn gate ball must animate more slowly by jumping between gates and changing to the next player color at landing.');
+}
+if (!app.includes('const CONFETTI_MS = 4800') || app.includes('confettiUntil = Date.now() + 3200')) {
+  throw new Error('Celebration/confetti animation must be slower so players can understand the result.');
+}
 if (!app.includes("els.inviteLink.addEventListener('focus', copyInviteFromField)") || !app.includes("els.inviteLink.addEventListener('pointerdown', copyInviteFromField)")) {
   throw new Error('Invite link field must copy on focus/press.');
 }
@@ -84,6 +126,27 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
+if (!app.includes('setOnlineAction') || !app.includes('joinOnlinePlayer') || !app.includes("setMobilePage('play')")) {
+  throw new Error('Client must switch online sub-tabs and navigate final online actions to Play.');
+}
+if (!app.includes('joinGeneratedRoom') || !app.includes('joinGeneratedGame') || app.includes("createRoom(data.roomId") || !app.includes("setMobilePage('invite')")) {
+  throw new Error('Generate must stay on Home and only the explicit generated-room Join action may navigate to Play.');
+}
+if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfetti') || !app.includes('confettiUntil') || !app.includes('requestAnimationFrame')) {
+  throw new Error('Client must show a winner overlay and animate confetti over the winner gate.');
+}
+if (!app.includes('function winnerOwnGateY') || !app.includes("return winnerId === 'p1' ? 12 : 0") || app.includes("const winnerGateY = game.winner === 'p1' ? 0 : 12")) {
+  throw new Error('Winner confetti must anchor to the winner’s own gate, not the gate they scored into.');
+}
+if (!app.includes('persistPlayerName') || !app.includes('traceballPlayerName') || !app.includes('playerNameInput.value = playerName')) {
+  throw new Error('Generic player name must be initialized from and persisted to localStorage.');
+}
+if (!app.includes('parseRoomInput') || !app.includes('joinExistingRoom') || !app.includes('/api/rooms/') || !app.includes('input.length > 200')) {
+  throw new Error('Client must safely parse pasted invite links/codes, cap input length, and check room existence before navigation.');
+}
+if (!app.includes('url.origin !== location.origin') || !app.includes('/^[A-Za-z0-9_-]{6,32}$/')) {
+  throw new Error('Pasted room links must be same-origin and room codes must use a strict allowlist.');
+}
 if (!app.includes("gameMode = 'local'") || !app.includes('setHomeMode') || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
   throw new Error('Client app must support an Online/Local Home selector and local same-screen PvP without WebSockets.');
 }
@@ -106,6 +169,19 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v6') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v14') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+
+const readme = readFileSync('README.md', 'utf8');
+for (const marker of ['## Gameplay', '## Technologies', '## Game-dev evolution', '## Screenshots', 'docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {
+  if (!readme.includes(marker)) throw new Error(`README must document gameplay, technology, evolution, and screenshots: missing ${marker}`);
+}
+for (const shot of ['docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {
+  if (!existsSync(shot)) throw new Error(`Missing README screenshot asset ${shot}`);
+}
+
+const server = readFileSync('src/server.js', 'utf8');
+if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {
+  throw new Error('Server must expose a safe direct room lookup for pasted links/codes.');
+}
 
 console.log('Static build checks passed.');
