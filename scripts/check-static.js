@@ -98,6 +98,15 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
+if (!app.includes('const MOVE_HINT_ALPHA = 0.34') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
+  throw new Error('Legal-move hint circles must be dimmer and use the current player color instead of universal yellow.');
+}
+if (!app.includes('const TURN_MARKER_JUMP_MS = 1150') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
+  throw new Error('Turn gate ball must animate more slowly by jumping between gates and changing to the next player color at landing.');
+}
+if (!app.includes('const CONFETTI_MS = 4800') || app.includes('confettiUntil = Date.now() + 3200')) {
+  throw new Error('Celebration/confetti animation must be slower so players can understand the result.');
+}
 if (!app.includes("els.inviteLink.addEventListener('focus', copyInviteFromField)") || !app.includes("els.inviteLink.addEventListener('pointerdown', copyInviteFromField)")) {
   throw new Error('Invite link field must copy on focus/press.');
 }
@@ -160,7 +169,15 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v13') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v14') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+
+const readme = readFileSync('README.md', 'utf8');
+for (const marker of ['## Gameplay', '## Technologies', '## Game-dev evolution', '## Screenshots', 'docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {
+  if (!readme.includes(marker)) throw new Error(`README must document gameplay, technology, evolution, and screenshots: missing ${marker}`);
+}
+for (const shot of ['docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {
+  if (!existsSync(shot)) throw new Error(`Missing README screenshot asset ${shot}`);
+}
 
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {

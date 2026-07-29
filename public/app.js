@@ -58,10 +58,14 @@ let reconnectDelay = 1000;
 let intentionalClose = false;
 let lastWinnerKey = '';
 let confettiUntil = 0;
+let turnMarkerJump = null;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
 const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
+const MOVE_HINT_ALPHA = 0.34;
+const TURN_MARKER_JUMP_MS = 1150;
+const CONFETTI_MS = 4800;
 
 init();
 
@@ -320,6 +324,7 @@ function makeLocalMove(to) {
   move.bounce = getsBounce;
   game.moves.push(move);
   if (!getsBounce) game.turn = otherLocalPlayer(player);
+  if (game.turn !== player && game.status === 'playing') startTurnMarkerJump(player, game.turn);
   game.legalMoves = localLegalMoves(game);
   if (game.legalMoves.length === 0) {
     const winner = otherLocalPlayer(game.turn);
@@ -403,7 +408,7 @@ function connect(onOpen) {
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
     if (msg.type === 'state') {
-      game = msg.game;
+      applyRemoteGameState(msg.game);
       if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
       updateUi();
       draw();
@@ -417,6 +422,15 @@ function connect(onOpen) {
       scheduleReconnect();
     }
   });
+}
+
+function applyRemoteGameState(nextGame) {
+  const previousTurn = game?.turn;
+  const previousStatus = game?.status;
+  game = nextGame;
+  if (previousStatus === 'playing' && game.status === 'playing' && previousTurn && previousTurn !== game.turn) {
+    startTurnMarkerJump(previousTurn, game.turn);
+  }
 }
 
 function watchCurrentRoom() {
@@ -522,7 +536,7 @@ function updateWinnerOverlay() {
   const winnerKey = `${roomId || 'local'}:${winnerId}:${game.moves?.length || 0}:${winnerName}`;
   if (winnerKey !== lastWinnerKey) {
     lastWinnerKey = winnerKey;
-    confettiUntil = Date.now() + 3200;
+    confettiUntil = Date.now() + CONFETTI_MS;
     requestAnimationFrame(animateConfetti);
   }
 }
@@ -775,47 +789,113 @@ function drawBall(moves) {
 
 function drawTurnGateBall() {
   if (!game || game.status !== 'playing') return;
-  const ownGateMarginY = game.turn === 'p1' ? 12 : 0;
+  const target = turnMarkerSpot(game.turn);
+  if (turnMarkerJump) {
+    drawTurnMarkerJump(target);
+    return;
+  }
+  drawTurnMarker(target.x, target.y, currentPlayerColor(game.turn));
+}
+
+function turnMarkerSpot(player) {
+  const ownGateMarginY = player === 'p1' ? 12 : 0;
   const leftPost = displayPoint(3, ownGateMarginY);
   const rightPost = displayPoint(5, ownGateMarginY);
   const center = displayPoint(4, ownGateMarginY);
-  const markerY = center.y;
-  const markerX = Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34);
-  const color = game.turn === 'p1' ? '#0b7cff' : '#ff3b30';
+  return {
+    x: Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34),
+    y: center.y,
+  };
+}
 
+function startTurnMarkerJump(fromPlayer, toPlayer) {
+  if (!fromPlayer || !toPlayer || fromPlayer === toPlayer) return;
+  turnMarkerJump = {
+    from: turnMarkerSpot(fromPlayer),
+    to: turnMarkerSpot(toPlayer),
+    fromPlayer,
+    toPlayer,
+    startedAt: performance.now(),
+  };
+  requestAnimationFrame(animateTurnMarkerJump);
+}
+
+function animateTurnMarkerJump() {
+  if (!turnMarkerJump) return;
+  draw();
+  if (performance.now() - turnMarkerJump.startedAt < TURN_MARKER_JUMP_MS) requestAnimationFrame(animateTurnMarkerJump);
+  else {
+    turnMarkerJump = null;
+    draw();
+  }
+}
+
+function drawTurnMarkerJump(fallbackTarget) {
+  const elapsed = Math.min(TURN_MARKER_JUMP_MS, performance.now() - turnMarkerJump.startedAt);
+  const t = easeInOut(elapsed / TURN_MARKER_JUMP_MS);
+  const arc = Math.sin(Math.PI * t) * 82;
+  const x = lerp(turnMarkerJump.from.x, fallbackTarget.x, t);
+  const y = lerp(turnMarkerJump.from.y, fallbackTarget.y, t) - arc;
+  const color = mixPlayerColors(turnMarkerJump.fromPlayer, turnMarkerJump.toPlayer, Math.min(1, t * 1.18));
+  drawTurnMarker(x, y, color);
+}
+
+function drawTurnMarker(x, y, color) {
   ctx.save();
   ctx.shadowColor = color;
   ctx.shadowBlur = 18;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(markerX, markerY, 22, 0, Math.PI * 2);
+  ctx.arc(x, y, 22, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 3;
   ctx.stroke();
-  drawSoccerBall(markerX, markerY, 13);
+  drawSoccerBall(x, y, 13);
   ctx.restore();
 }
+
+function currentPlayerColor(player) {
+  return player === 'p2' ? '#ff3b30' : '#0b7cff';
+}
+
+function mixPlayerColors(fromPlayer, toPlayer, t) {
+  return mixHex(currentPlayerColor(fromPlayer), currentPlayerColor(toPlayer), t);
+}
+
+function mixHex(a, b, t) {
+  const ca = hexToRgb(a), cb = hexToRgb(b);
+  const mix = (x, y) => Math.round(x + (y - x) * t);
+  return `rgb(${mix(ca.r, cb.r)}, ${mix(ca.g, cb.g)}, ${mix(ca.b, cb.b)})`;
+}
+
+function hexToRgb(hex) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeInOut(t) { return t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
 
 function drawWinnerGateConfetti() {
   if (!game || game.status !== 'finished' || Date.now() > confettiUntil) return;
   const winnerGateY = winnerOwnGateY(game.winner);
   const gate = displayPoint(4, winnerGateY);
-  const elapsed = 3200 - Math.max(0, confettiUntil - Date.now());
+  const elapsed = CONFETTI_MS - Math.max(0, confettiUntil - Date.now());
   const colors = ['#ffe784', '#ffffff', '#11bf46', '#0b7cff', '#ff3b30', '#ff8bd1'];
   ctx.save();
   for (let i = 0; i < 54; i += 1) {
     const angle = ((i * 137.5) % 360) * Math.PI / 180;
     const burst = 18 + ((i * 23) % 96);
-    const fall = (elapsed / 3200) * (80 + (i % 7) * 16);
-    const wobble = Math.sin((elapsed / 140) + i) * 18;
+    const fall = (elapsed / CONFETTI_MS) * (86 + (i % 7) * 16);
+    const wobble = Math.sin((elapsed / 210) + i) * 18;
     const x = gate.x + Math.cos(angle) * burst + wobble;
     const y = gate.y + Math.sin(angle) * burst + (winnerGateY === 0 ? fall : -fall);
     ctx.translate(x, y);
     ctx.rotate(angle + elapsed / 220);
     ctx.fillStyle = colors[i % colors.length];
-    ctx.globalAlpha = Math.max(0, 1 - elapsed / 3600);
+    ctx.globalAlpha = Math.max(0, 1 - elapsed / (CONFETTI_MS + 400));
     ctx.fillRect(-4, -7, 8, 14);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
@@ -842,10 +922,18 @@ function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
-  ctx.strokeStyle = '#ffe66d'; ctx.lineWidth = 4;
+  ctx.save();
+  ctx.strokeStyle = currentPlayerColor(game.turn);
+  ctx.fillStyle = currentPlayerColor(game.turn);
+  ctx.globalAlpha = MOVE_HINT_ALPHA;
+  ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 17, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = MOVE_HINT_ALPHA * .22;
+    ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 12, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = MOVE_HINT_ALPHA;
   }
+  ctx.restore();
 }
 
 function gridPoints() {
