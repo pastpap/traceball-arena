@@ -19,8 +19,29 @@
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
         <div class="actions">
-          <button id="newRoom" class="primary">Create game</button>
+          <button id="newRoom" class="primary">Create online game</button>
           <button id="copyInvite">Copy invite</button>
+        </div>
+      </section>
+
+      <section id="modeSelect" class="card mode-card mobile-page active" data-mobile-page="invite">
+        <div>
+          <p class="eyebrow">Choose game type</p>
+          <h2>How do you want to play?</h2>
+          <p>Use Online room for WebSocket invite play, or Local same-screen PvP when two players sit face to face on one device.</p>
+        </div>
+        <div class="mode-grid">
+          <button id="modeOnline" type="button" class="mode-option primary">
+            <strong>Online room</strong>
+            <span>Generate a link and QR code for a friend.</span>
+          </button>
+          <form id="localForm" class="mode-option local-setup">
+            <strong>Local same-screen PvP</strong>
+            <span>Face-to-face mode: the board rotates to the active player each turn.</span>
+            <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
+            <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
+            <button id="startLocal" class="primary" type="submit">Start local match</button>
+          </form>
         </div>
       </section>
 

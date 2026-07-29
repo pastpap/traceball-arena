@@ -2,6 +2,11 @@ const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
   newRoom: document.querySelector('#newRoom'),
+  modeOnline: document.querySelector('#modeOnline'),
+  modeSelect: document.querySelector('#modeSelect'),
+  localForm: document.querySelector('#localForm'),
+  localP1Name: document.querySelector('#localP1Name'),
+  localP2Name: document.querySelector('#localP2Name'),
   copyInvite: document.querySelector('#copyInvite'),
   joinForm: document.querySelector('#joinForm'),
   nameInput: document.querySelector('#nameInput'),
@@ -32,6 +37,7 @@ const mobilePages = [...document.querySelectorAll('.mobile-page')];
 let socket;
 let roomId = location.pathname.startsWith('/room/') ? location.pathname.split('/').pop() : null;
 let inviteUrl = roomId ? `${location.origin}/room/${roomId}` : '';
+let gameMode = roomId ? 'online' : 'select';
 let playerId = null;
 let game = null;
 let replayIndex = null;
@@ -51,15 +57,18 @@ function init() {
   setMobilePage('invite');
   registerServiceWorker();
   if (roomId) showInvite();
+  updateModePanels();
   updateRoomText();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.newRoom.addEventListener('click', createRoom);
+  els.modeOnline.addEventListener('click', createRoom);
+  els.localForm.addEventListener('submit', startLocalGame);
   els.copyInvite.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
   els.joinForm.addEventListener('submit', join);
-  els.reset.addEventListener('click', () => send({ type: 'reset' }));
+  els.reset.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
   els.replayPrev.addEventListener('click', () => setReplay(Math.max(0, currentReplay() - 1)));
@@ -85,15 +94,162 @@ async function createRoom() {
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
   roomId = data.roomId;
+  gameMode = 'online';
   inviteUrl = data.url || `${location.origin}/room/${roomId}`;
   history.pushState({}, '', `/room/${roomId}`);
   showInvite();
   updateRoomText();
+  updateModePanels();
   updateUi();
   draw();
   connect(() => watchCurrentRoom());
   setMobilePage('invite');
   toast('Game created. Choose a name to join.');
+}
+
+function startLocalGame(event) {
+  event.preventDefault();
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  replayIndex = null;
+  gameMode = 'local';
+  const p1Name = cleanLocalName(els.localP1Name.value, 'Blue');
+  const p2Name = cleanLocalName(els.localP2Name.value, 'Red');
+  game = createLocalGame(p1Name, p2Name, game?.score);
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('play');
+  toast('Local same-screen PvP started.');
+}
+
+function resetRound() {
+  if (gameMode === 'local') {
+    const p1Name = game?.players?.p1?.name || cleanLocalName(els.localP1Name.value, 'Blue');
+    const p2Name = game?.players?.p2?.name || cleanLocalName(els.localP2Name.value, 'Red');
+    game = createLocalGame(p1Name, p2Name, game?.score);
+    replayIndex = null;
+    updateUi();
+    draw();
+    toast('New local round.');
+    return;
+  }
+  send({ type: 'reset' });
+}
+
+function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }) {
+  const localGame = {
+    roomId: 'local',
+    status: 'playing',
+    players: {
+      p1: { id: 'p1', name: p1Name, color: '#0b7cff' },
+      p2: { id: 'p2', name: p2Name, color: '#ff3b30' },
+    },
+    turn: 'p1',
+    ball: { x: 4, y: 6 },
+    visited: ['4,6'],
+    segments: [],
+    moves: [],
+    score: { p1: score?.p1 || 0, p2: score?.p2 || 0 },
+    winner: null,
+    endReason: null,
+    legalMoves: [],
+  };
+  localGame.legalMoves = localLegalMoves(localGame);
+  return localGame;
+}
+
+function makeLocalMove(to) {
+  if (!game || game.status !== 'playing') return;
+  const player = game.turn;
+  const from = { ...game.ball };
+  const target = { x: Number(to.x), y: Number(to.y) };
+  if (!localIsLegalTarget(game, target)) return toast('That move is not legal.');
+  const visitedBefore = game.visited.includes(localPointKey(target));
+  const boundaryBounce = isBoundaryPoint(target);
+  const segment = localSegmentKey(from, target);
+  game.segments.push(segment);
+  game.ball = target;
+  if (!visitedBefore) game.visited.push(localPointKey(target));
+  const move = { playerId: player, from, to: target, segment, bounce: false, at: Date.now() };
+  const goal = localGoalForMove(player, target);
+  if (goal) {
+    game.status = 'finished';
+    game.winner = goal.winner;
+    game.endReason = goal.reason;
+    game.score[goal.winner] = (game.score[goal.winner] || 0) + 1;
+    move.goal = true;
+    game.moves.push(move);
+    game.legalMoves = [];
+    replayIndex = null;
+    updateUi();
+    draw();
+    return;
+  }
+  const getsBounce = visitedBefore || boundaryBounce;
+  move.bounce = getsBounce;
+  game.moves.push(move);
+  if (!getsBounce) game.turn = otherLocalPlayer(player);
+  game.legalMoves = localLegalMoves(game);
+  if (game.legalMoves.length === 0) {
+    const winner = otherLocalPlayer(game.turn);
+    game.status = 'finished';
+    game.winner = winner;
+    game.endReason = `${game.players[game.turn]?.name || game.turn} is stuck — ${game.players[winner]?.name || winner} wins.`;
+    game.score[winner] = (game.score[winner] || 0) + 1;
+  }
+  replayIndex = null;
+  updateUi();
+  draw();
+}
+
+function localLegalMoves(localGame) {
+  const moves = [];
+  for (let dy = -1; dy <= 1; dy += 1) {
+    for (let dx = -1; dx <= 1; dx += 1) {
+      if (dx === 0 && dy === 0) continue;
+      const to = { x: localGame.ball.x + dx, y: localGame.ball.y + dy };
+      if (localIsLegalTarget(localGame, to)) moves.push(to);
+    }
+  }
+  return moves;
+}
+
+function localIsLegalTarget(localGame, to) {
+  return isOnBoardOrGoal(to)
+    && isOneStep(localGame.ball, to)
+    && !localGame.segments.includes(localSegmentKey(localGame.ball, to))
+    && !isTracedMarginSegment(localGame.ball, to)
+    && !isBlockedCornerCut(localGame.ball, to);
+}
+
+function localGoalForMove(player, target) {
+  if (target.y !== 0 && target.y !== 12) return null;
+  const scoredOpponentGoal = (player === 'p1' && target.y === 0) || (player === 'p2' && target.y === 12);
+  if (scoredOpponentGoal) return { winner: player, reason: `${game.players[player]?.name || player} scored!` };
+  const winner = otherLocalPlayer(player);
+  return { winner, reason: `Own goal by ${game.players[player]?.name || player}.` };
+}
+
+function cleanLocalName(name, fallback) {
+  return String(name || '').trim().slice(0, 24) || fallback;
+}
+
+function otherLocalPlayer(id) { return id === 'p1' ? 'p2' : 'p1'; }
+function localPointKey(p) { return `${p.x},${p.y}`; }
+function localSegmentKey(a, b) {
+  const ak = localPointKey(a);
+  const bk = localPointKey(b);
+  return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
 }
 
 function join(event) {
@@ -171,7 +327,7 @@ function send(payload) {
 
 function boardClick(event) {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
-  if (game.turn !== playerId) return toast('Wait for your turn.');
+  if (gameMode !== 'local' && game.turn !== playerId) return toast('Wait for your turn.');
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
@@ -181,6 +337,7 @@ function boardClick(event) {
   if (!target) return;
   const legal = game.legalMoves.some((p) => p.x === target.x && p.y === target.y);
   if (!legal) return toast('That move is not legal.');
+  if (gameMode === 'local') return makeLocalMove(target);
   send({ type: 'move', to: target });
 }
 
@@ -203,8 +360,8 @@ function updateUi() {
     els.p2.textContent = 'Waiting for red';
     els.p1Score.textContent = '0';
     els.p2Score.textContent = '0';
-    els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Create a game or open an invite link.';
-    els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Create or open a room first.';
+    els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Choose Online room or Local same-screen PvP.';
+    els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Pick a game type to start.';
     els.replayRange.max = 0;
     els.replayRange.value = 0;
     els.replayText.textContent = 'Replay appears once moves are made.';
@@ -218,9 +375,10 @@ function updateUi() {
   els.p1Score.textContent = score.p1 || 0;
   els.p2Score.textContent = score.p2 || 0;
   const turnName = game.players[game.turn]?.name || game.turn;
-  if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
-  if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
-  if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
+  if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — pass the screen across or play face to face.`;
+  else if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
+  else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
+  else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
   updateTurnIndicator();
   els.replayRange.max = game.moves.length;
@@ -236,7 +394,18 @@ function showInvite() {
 }
 
 function updateRoomText() {
-  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create a game or open an invite link.';
+  if (gameMode === 'local') {
+    els.roomText.textContent = 'Local same-screen match — both players use this device.';
+    return;
+  }
+  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create an online game or start a local same-screen match.';
+}
+
+function updateModePanels() {
+  const selecting = gameMode === 'select';
+  els.modeSelect.classList.toggle('hidden', !selecting);
+  els.joinForm.closest('#joinPanel').classList.toggle('hidden', gameMode === 'local' || selecting);
+  els.copyInvite.disabled = gameMode !== 'online' || !inviteUrl;
 }
 
 async function copyInvite() {
@@ -261,9 +430,11 @@ function updateTurnIndicator() {
   const player = game?.players?.[turn];
   const colorName = turn === 'p1' ? 'Blue' : 'Red';
   const name = player?.name || colorName;
-  const orientation = playerId ? `${playerId === 'p1' ? 'Blue' : 'Red'} at bottom` : 'Spectator view: blue at bottom';
+  const orientation = gameMode === 'local'
+    ? `${colorName} at bottom now — Face-to-face mode`
+    : playerId ? `${playerId === 'p1' ? 'Blue' : 'Red'} at bottom` : 'Spectator view: blue at bottom';
   els.turnIndicator.textContent = game.status === 'playing'
-    ? `${colorName} turn — ${name}${turn === playerId ? ' — you attack upward' : ''} · ${orientation}`
+    ? `${colorName} turn — ${name}${gameMode !== 'local' && turn === playerId ? ' — you attack upward' : ''} · ${orientation}`
     : `${game.status === 'finished' ? 'Match finished' : 'Waiting'} · ${orientation}`;
   els.turnIndicator.className = `turn-indicator ${turn === 'p2' ? 'red' : 'blue'}`;
 }
@@ -484,10 +655,11 @@ function drawSoccerBall(x, y, radius) {
   ctx.fillStyle = '#111'; ctx.font = `${Math.round(radius * 1.33)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', x, y + 1);
 }
 
-function isPlayerInverted() { return playerId === 'p2'; }
+function isPlayerInverted() { return gameMode === 'local' ? game?.turn === 'p2' : playerId === 'p2'; }
 
 function drawLegalMoves() {
-  if (!game || game.status !== 'playing' || game.turn !== playerId || replayIndex !== null) return;
+  if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (gameMode !== 'local' && game.turn !== playerId) return;
   ctx.strokeStyle = '#ffe66d'; ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 17, 0, Math.PI * 2); ctx.stroke();
@@ -499,6 +671,49 @@ function gridPoints() {
   for (let y = 1; y <= 11; y++) for (let x = 0; x <= 8; x++) pts.push({ x, y });
   for (let y of [0, 12]) for (let x = 3; x <= 5; x++) pts.push({ x, y });
   return pts;
+}
+
+function isOneStep(a, b) {
+  const dx = Math.abs(a.x - b.x);
+  const dy = Math.abs(a.y - b.y);
+  return dx <= 1 && dy <= 1 && (dx + dy > 0);
+}
+
+function isOnBoardOrGoal(p) {
+  const inMain = p.x >= 0 && p.x < board.width && p.y > 0 && p.y < board.height - 1;
+  const inGate = p.x >= board.goalXMin && p.x <= board.goalXMax && (p.y === 0 || p.y === board.height - 1);
+  return inMain || inGate;
+}
+
+function isBoundaryPoint(p) {
+  return p.x === 0 || p.x === board.width - 1 || p.y === 1 || p.y === board.height - 2;
+}
+
+function isTracedMarginSegment(from, to) {
+  const dx = Math.abs(from.x - to.x);
+  const dy = Math.abs(from.y - to.y);
+  if (dx + dy !== 1) return false;
+  const verticalSide = from.x === to.x
+    && (from.x === 0 || from.x === board.width - 1)
+    && from.y >= 1 && from.y <= board.height - 2
+    && to.y >= 1 && to.y <= board.height - 2;
+  if (verticalSide) return true;
+  const horizontalPitchEdge = from.y === to.y
+    && (from.y === 1 || from.y === board.height - 2)
+    && from.x >= 0 && from.x < board.width
+    && to.x >= 0 && to.x < board.width;
+  if (!horizontalPitchEdge) return false;
+  const inGateMouth = Math.min(from.x, to.x) >= board.goalXMin && Math.max(from.x, to.x) <= board.goalXMax;
+  return !inGateMouth;
+}
+
+function isBlockedCornerCut(from, to) {
+  const diagonal = Math.abs(from.x - to.x) === 1 && Math.abs(from.y - to.y) === 1;
+  if (!diagonal) return false;
+  const touchesTopOutside = (from.y === 1 && to.y === 0) || (from.y === 0 && to.y === 1);
+  const touchesBottomOutside = (from.y === board.height - 2 && to.y === board.height - 1) || (from.y === board.height - 1 && to.y === board.height - 2);
+  return (touchesTopOutside || touchesBottomOutside)
+    && (to.x < board.goalXMin || to.x > board.goalXMax || from.x < board.goalXMin || from.x > board.goalXMax);
 }
 function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.width - 1)); }
 function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
