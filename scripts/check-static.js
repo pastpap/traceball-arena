@@ -11,6 +11,9 @@ const css = readFileSync('public/styles.css', 'utf8');
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
 if (!css.includes('@media (max-width: 640px)')) throw new Error('Mobile layout breakpoint is required.');
+if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobile-page="play"] .board-card')) {
+  throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
+}
 if (!css.includes('.mobile-page { display: none !important; }')) throw new Error('Mobile pages must be split into tabbed panels.');
 if (!css.includes('.mobile-page.hidden { display: none !important; }')) {
   throw new Error('Hidden Home cards must stay hidden on mobile even when they also have mobile-page active.');
@@ -59,7 +62,13 @@ if (!html.includes('id="playerNameInput"') || !html.includes('id="newGamePanel"'
   throw new Error('Online card must have one generic persisted player-name input shared by both online tabs.');
 }
 if (!html.includes('id="generateRoom"') || !html.includes('>Generate</button>')) {
-  throw new Error('New game tab must contain a Generate button that creates and joins an online room.');
+  throw new Error('New game tab must contain a Generate button that creates an online room.');
+}
+if (!html.includes('id="joinGeneratedRoom"') || !html.includes('>Join generated game</button>')) {
+  throw new Error('New game tab must reintroduce an explicit Join button after Generate so invite copying stays on Home.');
+}
+if (!html.includes('id="winnerOverlay"') || !html.includes('class="winner-card"') || !html.includes('Winner')) {
+  throw new Error('Play board must include a golden winner modal overlay.');
 }
 if (!html.includes('id="existingRoomForm"') || !html.includes('id="existingRoomInput"') || !html.includes('>Join game</button>')) {
   throw new Error('Online card must allow safely joining an existing game by pasted invite link or room code.');
@@ -102,6 +111,12 @@ if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error
 if (!app.includes('setOnlineAction') || !app.includes('joinOnlinePlayer') || !app.includes("setMobilePage('play')")) {
   throw new Error('Client must switch online sub-tabs and navigate final online actions to Play.');
 }
+if (!app.includes('joinGeneratedRoom') || !app.includes('joinGeneratedGame') || app.includes("createRoom(data.roomId") || !app.includes("setMobilePage('invite')")) {
+  throw new Error('Generate must stay on Home and only the explicit generated-room Join action may navigate to Play.');
+}
+if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfetti') || !app.includes('confettiUntil') || !app.includes('requestAnimationFrame')) {
+  throw new Error('Client must show a winner overlay and animate confetti over the winner gate.');
+}
 if (!app.includes('persistPlayerName') || !app.includes('traceballPlayerName') || !app.includes('playerNameInput.value = playerName')) {
   throw new Error('Generic player name must be initialized from and persisted to localStorage.');
 }
@@ -133,7 +148,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v9') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v10') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {

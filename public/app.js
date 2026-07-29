@@ -2,6 +2,7 @@ const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
   generateRoom: document.querySelector('#generateRoom'),
+  joinGeneratedRoom: document.querySelector('#joinGeneratedRoom'),
   newGameTab: document.querySelector('#newGameTab'),
   existingGameTab: document.querySelector('#existingGameTab'),
   newGamePanel: document.querySelector('#newGamePanel'),
@@ -20,6 +21,8 @@ const els = {
   inviteBox: document.querySelector('#inviteBox'),
   inviteLink: document.querySelector('#inviteLink'),
   qr: document.querySelector('#qr'),
+  winnerOverlay: document.querySelector('#winnerOverlay'),
+  winnerName: document.querySelector('#winnerName'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -53,6 +56,8 @@ let playerName = localStorageSafeGet('traceballPlayerName') || '';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let intentionalClose = false;
+let lastWinnerKey = '';
+let confettiUntil = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -70,6 +75,7 @@ function init() {
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.generateRoom.addEventListener('click', createRoom);
+  els.joinGeneratedRoom.addEventListener('click', joinGeneratedGame);
   els.newGameTab.addEventListener('click', () => setOnlineAction('new'));
   els.existingGameTab.addEventListener('click', () => setOnlineAction('existing'));
   els.playerNameInput.addEventListener('input', persistPlayerName);
@@ -125,11 +131,14 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
-  const name = requirePlayerName();
-  if (!name) return;
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
-  openOnlineRoom(data.roomId, data.url, 'Game generated. Share from Home, or start playing.');
+  openOnlineRoom(data.roomId, data.url, 'Game generated. Copy the invite, then join when ready.');
+}
+
+function joinGeneratedGame() {
+  const name = requirePlayerName();
+  if (!name) return;
   joinOnlinePlayer(name);
 }
 
@@ -468,6 +477,7 @@ function nearestPoint(click) {
 
 function updateUi() {
   if (!game) {
+    updateWinnerOverlay();
     els.p1.textContent = 'Waiting for blue';
     els.p2.textContent = 'Waiting for red';
     els.p1Score.textContent = '0';
@@ -492,10 +502,36 @@ function updateUi() {
   else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
+  updateWinnerOverlay();
   updateTurnIndicator();
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
+}
+
+function updateWinnerOverlay() {
+  const winnerId = game?.status === 'finished' ? game.winner : null;
+  if (!winnerId) {
+    els.winnerOverlay.classList.add('hidden');
+    lastWinnerKey = '';
+    return;
+  }
+  const winnerName = game.players[winnerId]?.name || (winnerId === 'p1' ? 'Blue' : 'Red');
+  els.winnerName.textContent = winnerName;
+  els.winnerOverlay.classList.remove('hidden');
+  const winnerKey = `${roomId || 'local'}:${winnerId}:${game.moves?.length || 0}:${winnerName}`;
+  if (winnerKey !== lastWinnerKey) {
+    lastWinnerKey = winnerKey;
+    confettiUntil = Date.now() + 3200;
+    requestAnimationFrame(animateConfetti);
+  }
+}
+
+function animateConfetti() {
+  if (Date.now() <= confettiUntil) {
+    draw();
+    requestAnimationFrame(animateConfetti);
+  }
 }
 
 function showInvite() {
@@ -522,6 +558,7 @@ function updateModePanels() {
   els.localMode.classList.toggle('active', localVisible);
   els.onlineMode.setAttribute('aria-pressed', String(!localVisible));
   els.localMode.setAttribute('aria-pressed', String(localVisible));
+  els.joinGeneratedRoom.classList.toggle('hidden', !roomId || localVisible);
 }
 
 async function copyInvite() {
@@ -581,6 +618,7 @@ function draw() {
   ctx.restore();
   drawGatePlayerLabels();
   drawTurnGateBall();
+  drawWinnerGateConfetti();
 }
 
 function applyBoardTransform() {
@@ -757,6 +795,30 @@ function drawTurnGateBall() {
   ctx.lineWidth = 3;
   ctx.stroke();
   drawSoccerBall(markerX, markerY, 13);
+  ctx.restore();
+}
+
+function drawWinnerGateConfetti() {
+  if (!game || game.status !== 'finished' || Date.now() > confettiUntil) return;
+  const winnerGateY = game.winner === 'p1' ? 0 : 12;
+  const gate = displayPoint(4, winnerGateY);
+  const elapsed = 3200 - Math.max(0, confettiUntil - Date.now());
+  const colors = ['#ffe784', '#ffffff', '#11bf46', '#0b7cff', '#ff3b30', '#ff8bd1'];
+  ctx.save();
+  for (let i = 0; i < 54; i += 1) {
+    const angle = ((i * 137.5) % 360) * Math.PI / 180;
+    const burst = 18 + ((i * 23) % 96);
+    const fall = (elapsed / 3200) * (80 + (i % 7) * 16);
+    const wobble = Math.sin((elapsed / 140) + i) * 18;
+    const x = gate.x + Math.cos(angle) * burst + wobble;
+    const y = gate.y + Math.sin(angle) * burst + (winnerGateY === 0 ? fall : -fall);
+    ctx.translate(x, y);
+    ctx.rotate(angle + elapsed / 220);
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.globalAlpha = Math.max(0, 1 - elapsed / 3600);
+    ctx.fillRect(-4, -7, 8, 14);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  }
   ctx.restore();
 }
 
