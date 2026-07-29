@@ -68,7 +68,8 @@ h2 { margin: 0 0 .8rem; }
 .home-mode-toggle button.active { background: linear-gradient(135deg, #11bf46, #0b7cff); font-weight: 900; }
 .play-status { display: none; }
 .card, .board-card { border: 1px solid var(--line); border-radius: 26px; background: var(--panel); box-shadow: 0 24px 70px rgba(0,0,0,.32); backdrop-filter: blur(14px); }
-.join-panel { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; align-items: center; padding: 18px; margin-bottom: 16px; }
+.join-panel { display: grid; grid-template-columns: 1fr; gap: 16px; align-items: stretch; padding: 18px; margin-bottom: 16px; }
+.online-header p { color: var(--muted); margin-bottom: 0; line-height: 1.45; }
 .mode-card { padding: 18px; margin-bottom: 16px; }
 .mode-card p { color: var(--muted); margin: 0; }
 .mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
@@ -78,14 +79,33 @@ h2 { margin: 0 0 .8rem; }
 .mode-option span { color: rgba(255,255,255,.78); line-height: 1.35; }
 .local-setup { display: grid; gap: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); }
 .local-setup input { margin-top: 2px; }
-#joinForm { display: flex; gap: 10px; }
+.player-name-field { display: grid; gap: 8px; }
+.player-name-field span { color: var(--muted); font-weight: 800; }
+.online-action-toggle {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 6px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(0,0,0,.18);
+}
+.online-action-toggle button { background: transparent; border: 0; }
+.online-action-toggle button.active { background: linear-gradient(135deg, var(--green), var(--blue)); color: white; font-weight: 900; }
+.online-action-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.05);
+}
+.online-action-panel p { margin: 0; color: var(--muted); line-height: 1.4; }
+.online-action-panel .primary { width: 100%; }
 #localForm { display: grid; gap: 10px; }
 .existing-room-form {
-  grid-column: 1 / -1;
   display: grid;
   gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
 }
 .existing-room-form label { color: var(--muted); font-weight: 800; }
 .inline-form { display: flex; gap: 10px; }
@@ -162,8 +182,8 @@ li { margin: .5rem 0; }
 
 @media (max-width: 860px) {
   .hero, .join-panel, .mode-grid { grid-template-columns: 1fr; display: grid; }
-  .actions, #joinForm, .inline-form { justify-content: stretch; }
-  #joinForm, .inline-form { flex-direction: column; }
+  .actions, .inline-form { justify-content: stretch; }
+  .inline-form { flex-direction: column; }
   .game-layout { grid-template-columns: 1fr; }
   .side { grid-template-columns: 1fr; }
 }

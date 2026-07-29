@@ -1,7 +1,11 @@
 const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
-  newRoom: document.querySelector('#newRoom'),
+  generateRoom: document.querySelector('#generateRoom'),
+  newGameTab: document.querySelector('#newGameTab'),
+  existingGameTab: document.querySelector('#existingGameTab'),
+  newGamePanel: document.querySelector('#newGamePanel'),
+  existingGamePanel: document.querySelector('#existingGamePanel'),
   onlineMode: document.querySelector('#onlineMode'),
   localMode: document.querySelector('#localMode'),
   localPanel: document.querySelector('#localPanel'),
@@ -11,8 +15,7 @@ const els = {
   existingRoomForm: document.querySelector('#existingRoomForm'),
   existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
-  joinForm: document.querySelector('#joinForm'),
-  nameInput: document.querySelector('#nameInput'),
+  playerNameInput: document.querySelector('#playerNameInput'),
   roomText: document.querySelector('#roomText'),
   inviteBox: document.querySelector('#inviteBox'),
   inviteLink: document.querySelector('#inviteLink'),
@@ -61,11 +64,15 @@ function init() {
   setMobilePage('invite');
   registerServiceWorker();
   if (roomId) showInvite();
+  els.playerNameInput.value = playerName;
   updateModePanels();
   updateRoomText();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
-  els.newRoom.addEventListener('click', createRoom);
+  els.generateRoom.addEventListener('click', createRoom);
+  els.newGameTab.addEventListener('click', () => setOnlineAction('new'));
+  els.existingGameTab.addEventListener('click', () => setOnlineAction('existing'));
+  els.playerNameInput.addEventListener('input', persistPlayerName);
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
@@ -73,7 +80,7 @@ function init() {
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
-  els.joinForm.addEventListener('submit', join);
+
   els.reset.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
@@ -118,20 +125,51 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
+  const name = requirePlayerName();
+  if (!name) return;
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
-  openOnlineRoom(data.roomId, data.url, 'Game created. Choose a name to join.');
+  openOnlineRoom(data.roomId, data.url, 'Game generated. Share from Home, or start playing.');
+  joinOnlinePlayer(name);
 }
 
 async function joinExistingRoom(event) {
   event.preventDefault();
+  const name = requirePlayerName();
+  if (!name) return;
   const parsed = parseRoomInput(els.existingRoomInput.value);
   if (!parsed.ok) return toast(parsed.error);
   const res = await fetch(`/api/rooms/${encodeURIComponent(parsed.roomId)}`, { cache: 'no-store' });
   if (res.status === 404) return toast('Game not found or expired.');
   if (!res.ok) return toast('Could not check that game. Try again.');
   const data = await res.json();
-  openOnlineRoom(data.roomId, data.url, 'Game found. Choose a name to join.');
+  openOnlineRoom(data.roomId, data.url, 'Game found. Joining now.');
+  joinOnlinePlayer(name);
+}
+
+function setOnlineAction(action) {
+  const existing = action === 'existing';
+  els.newGamePanel.classList.toggle('hidden', existing);
+  els.existingGamePanel.classList.toggle('hidden', !existing);
+  els.newGameTab.classList.toggle('active', !existing);
+  els.existingGameTab.classList.toggle('active', existing);
+  els.newGameTab.setAttribute('aria-pressed', String(!existing));
+  els.existingGameTab.setAttribute('aria-pressed', String(existing));
+}
+
+function persistPlayerName() {
+  playerName = els.playerNameInput.value.trim();
+  localStorageSafeSet('traceballPlayerName', playerName);
+}
+
+function requirePlayerName() {
+  persistPlayerName();
+  if (!playerName) {
+    els.playerNameInput.focus();
+    toast('Add your name first.');
+    return '';
+  }
+  return playerName;
 }
 
 function parseRoomInput(raw) {
@@ -326,17 +364,17 @@ function localSegmentKey(a, b) {
   return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
 }
 
-function join(event) {
-  event.preventDefault();
-  if (!roomId) return toast('Create a game first.');
-  const name = els.nameInput.value.trim();
-  playerName = name;
+function joinOnlinePlayer(name = playerName) {
+  if (!roomId) return toast('Generate or choose a game first.');
+  playerName = String(name || '').trim();
+  if (!playerName) return toast('Add your name first.');
   wantsPlayerSession = true;
-  localStorageSafeSet('traceballPlayerName', name);
-  const joinRoom = () => send({ type: 'join', roomId, name, clientId });
+  localStorageSafeSet('traceballPlayerName', playerName);
+  const joinRoom = () => send({ type: 'join', roomId, name: playerName, clientId });
   if (!socket || socket.readyState > WebSocket.OPEN) connect(joinRoom);
   else if (socket.readyState === WebSocket.CONNECTING) socket.addEventListener('open', joinRoom, { once: true });
   else joinRoom();
+  setMobilePage('play');
 }
 
 function connect(onOpen) {
@@ -472,13 +510,13 @@ function updateRoomText() {
     els.roomText.textContent = 'Local same-screen match — Players face each other and use this device.';
     return;
   }
-  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create an online game to generate an invite link and QR code.';
+  els.roomText.textContent = roomId ? `Room ${roomId}. Use Home to copy the invite, or Play to move.` : 'Choose a name, then generate a new game or join an existing one.';
 }
 
 function updateModePanels() {
   const localVisible = gameMode === 'local' || gameMode === 'local-setup';
   els.localPanel.classList.toggle('hidden', !localVisible);
-  els.joinForm.closest('#joinPanel').classList.toggle('hidden', localVisible);
+  document.querySelector('#joinPanel').classList.toggle('hidden', localVisible);
   els.copyInviteCard.disabled = !inviteUrl;
   els.onlineMode.classList.toggle('active', !localVisible);
   els.localMode.classList.toggle('active', localVisible);

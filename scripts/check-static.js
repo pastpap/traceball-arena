@@ -52,11 +52,20 @@ if (!(navEnd < modeToggle && modeToggle < joinPanel && joinPanel < localPanel)) 
 if (!html.includes('data-home-mode="online"') || !html.includes('data-home-mode="local"')) {
   throw new Error('Home selector must offer Online and Local options.');
 }
-if (!html.includes('id="newRoom"') || !html.includes('>New game</button>')) {
-  throw new Error('Online card must contain a New game button that creates an online room.');
+if (!html.includes('id="onlineActionToggle"') || !html.includes('data-online-action="new"') || !html.includes('data-online-action="existing"')) {
+  throw new Error('Online card must split New game and Existing game into linked sub-tabs.');
+}
+if (!html.includes('id="playerNameInput"') || !html.includes('id="newGamePanel"') || !html.includes('id="existingGamePanel"')) {
+  throw new Error('Online card must have one generic persisted player-name input shared by both online tabs.');
+}
+if (!html.includes('id="generateRoom"') || !html.includes('>Generate</button>')) {
+  throw new Error('New game tab must contain a Generate button that creates and joins an online room.');
 }
 if (!html.includes('id="existingRoomForm"') || !html.includes('id="existingRoomInput"') || !html.includes('>Join game</button>')) {
   throw new Error('Online card must allow safely joining an existing game by pasted invite link or room code.');
+}
+if (html.includes('id="newRoom"') || html.includes('id="joinForm"')) {
+  throw new Error('Online actions must not use the old mixed New game/Join form layout.');
 }
 if (!html.includes('localPanel') || !html.includes('startLocal')) {
   throw new Error('Local selector must reveal the local setup card.');
@@ -90,6 +99,12 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
+if (!app.includes('setOnlineAction') || !app.includes('joinOnlinePlayer') || !app.includes("setMobilePage('play')")) {
+  throw new Error('Client must switch online sub-tabs and navigate final online actions to Play.');
+}
+if (!app.includes('persistPlayerName') || !app.includes('traceballPlayerName') || !app.includes('playerNameInput.value = playerName')) {
+  throw new Error('Generic player name must be initialized from and persisted to localStorage.');
+}
 if (!app.includes('parseRoomInput') || !app.includes('joinExistingRoom') || !app.includes('/api/rooms/') || !app.includes('input.length > 200')) {
   throw new Error('Client must safely parse pasted invite links/codes, cap input length, and check room existence before navigation.');
 }
@@ -118,7 +133,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v8') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v9') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {
