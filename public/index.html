@@ -86,12 +86,15 @@
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
-          <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
-          <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
-            <div class="winner-card">
-              <div class="winner-kicker">Winner</div>
-              <div id="winnerName" class="winner-name">Player</div>
-              <button id="winnerNewRound" class="winner-new-round" type="button">New Round</button>
+          <div class="board-stage">
+            <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
+            <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
+              <div class="winner-card">
+                <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
+                <div class="winner-kicker">Winner</div>
+                <div id="winnerName" class="winner-name">Player</div>
+                <button id="winnerNewRound" class="winner-new-round" type="button">New Round</button>
+              </div>
             </div>
           </div>
           <div class="board-help">Online red-player view rotates. Local games keep the board static; watch the gate turn ball.</div>

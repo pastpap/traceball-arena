@@ -144,6 +144,12 @@ if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfett
 if (!html.includes('id="winnerNewRound"') || !app.includes('winnerNewRound: document.querySelector') || !app.includes("els.winnerNewRound.addEventListener('click', resetRound)") || !css.includes('.winner-new-round') || !css.includes('pointer-events: auto')) {
   throw new Error('Winner banner must include a clickable New Round button wired to resetRound.');
 }
+if (!html.includes('class="board-stage"') || !html.includes('id="winnerClose"') || !app.includes('winnerClose: document.querySelector') || !app.includes("els.winnerClose.addEventListener('click', dismissWinnerOverlay)") || !app.includes('dismissedWinnerKey') || !app.includes('function dismissWinnerOverlay')) {
+  throw new Error('Winner modal must be dismissable and centered over the board stage instead of the whole card.');
+}
+for (const marker of ['.board-stage {', 'position: relative', '.winner-close', 'max-height: min(58%, 430px)', 'overflow-y: auto', 'overflow-wrap: anywhere']) {
+  if (!css.includes(marker)) throw new Error(`Winner modal must stay centered and bounded for long winner names: missing ${marker}`);
+}
 if (!app.includes('function winnerOwnGateY') || !app.includes("return winnerId === 'p1' ? 12 : 0") || app.includes("const winnerGateY = game.winner === 'p1' ? 0 : 12")) {
   throw new Error('Winner confetti must anchor to the winner’s own gate, not the gate they scored into.');
 }
@@ -178,7 +184,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v18') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v19') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

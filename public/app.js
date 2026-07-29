@@ -23,6 +23,7 @@ const els = {
   qr: document.querySelector('#qr'),
   winnerOverlay: document.querySelector('#winnerOverlay'),
   winnerName: document.querySelector('#winnerName'),
+  winnerClose: document.querySelector('#winnerClose'),
   winnerNewRound: document.querySelector('#winnerNewRound'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
@@ -59,6 +60,7 @@ let reconnectTimer = null;
 let reconnectDelay = 1000;
 let intentionalClose = false;
 let lastWinnerKey = '';
+let dismissedWinnerKey = '';
 let confettiUntil = 0;
 let turnMarkerJump = null;
 let legalMoveHintFadeRaf = 0;
@@ -100,6 +102,7 @@ function init() {
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
 
   els.reset.addEventListener('click', resetRound);
+  els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
@@ -551,17 +554,25 @@ function updateWinnerOverlay() {
   if (!winnerId) {
     els.winnerOverlay.classList.add('hidden');
     lastWinnerKey = '';
+    dismissedWinnerKey = '';
     return;
   }
   const winnerName = game.players[winnerId]?.name || (winnerId === 'p1' ? 'Blue' : 'Red');
-  els.winnerName.textContent = winnerName;
-  els.winnerOverlay.classList.remove('hidden');
   const winnerKey = `${roomId || 'local'}:${winnerId}:${game.moves?.length || 0}:${winnerName}`;
   if (winnerKey !== lastWinnerKey) {
     lastWinnerKey = winnerKey;
+    dismissedWinnerKey = '';
     confettiUntil = Date.now() + CONFETTI_MS;
     requestAnimationFrame(animateConfetti);
   }
+  els.winnerName.textContent = winnerName;
+  els.winnerOverlay.classList.toggle('hidden', dismissedWinnerKey === winnerKey);
+}
+
+function dismissWinnerOverlay() {
+  if (!lastWinnerKey) return;
+  dismissedWinnerKey = lastWinnerKey;
+  els.winnerOverlay.classList.add('hidden');
 }
 
 function animateConfetti() {
