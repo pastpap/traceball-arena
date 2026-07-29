@@ -211,7 +211,7 @@ li { margin: .5rem 0; }
   .hero, .join-panel, .mode-grid { grid-template-columns: 1fr; display: grid; }
   .actions, .inline-form { justify-content: stretch; }
   .inline-form { flex-direction: column; }
-  .inline-form input { min-width: 0; }
+  .inline-form input { flex: 0 1 auto; min-width: 0; min-height: 0; }
   .inline-form .primary { width: 100%; }
   .game-layout { grid-template-columns: 1fr; }
   .side { grid-template-columns: 1fr; }
