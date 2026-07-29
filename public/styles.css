@@ -132,6 +132,7 @@ h2 { margin: 0 0 .8rem; }
   position: relative;
   width: min(100%, 720px);
   margin: 0 auto;
+  aspect-ratio: 720 / 920;
 }
 #board {
   display: block;
@@ -141,9 +142,33 @@ h2 { margin: 0 0 .8rem; }
   height: auto;
   margin: 0 auto;
   border-radius: 18px;
-  touch-action: none;
+  touch-action: auto;
   -webkit-user-select: none;
   user-select: none;
+}
+.board-hit-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+.board-hit-target {
+  position: absolute;
+  width: 54px;
+  height: 54px;
+  transform: translate(-50%, -50%);
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 230, 109, .08);
+  box-shadow: 0 0 0 2px rgba(255, 230, 109, .22);
+  pointer-events: auto;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.board-hit-target:active,
+.board-hit-target:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, .72);
+  background: rgba(255, 230, 109, .2);
 }
 .board-help { color: var(--muted); padding: 8px 4px 0; text-align: center; }
 .turn-indicator {

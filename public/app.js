@@ -21,6 +21,7 @@ const els = {
   inviteBox: document.querySelector('#inviteBox'),
   inviteLink: document.querySelector('#inviteLink'),
   qr: document.querySelector('#qr'),
+  boardHitLayer: document.querySelector('#boardHitLayer'),
   winnerOverlay: document.querySelector('#winnerOverlay'),
   winnerName: document.querySelector('#winnerName'),
   winnerClose: document.querySelector('#winnerClose'),
@@ -533,6 +534,13 @@ function boardPress(event) {
   const click = boardSpacePoint(rawClick);
   const target = nearestPoint(click);
   if (!target) return;
+  chooseBoardTarget(target);
+}
+
+function chooseBoardTarget(target) {
+  if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (gameMode !== 'local' && game.turn !== playerId) return toast('Wait for your turn.');
+  if (gameMode !== 'local' && pendingOnlineMove) return toast('Move is syncing…');
   const legal = game.legalMoves.some((p) => p.x === target.x && p.y === target.y);
   if (!legal) return toast('That move is not legal.');
   if (gameMode === 'local') return makeLocalMove(target);
@@ -695,6 +703,7 @@ function currentReplay() {
 }
 
 function draw() {
+  renderBoardHitTargets();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   applyBoardTransform();
@@ -708,6 +717,27 @@ function draw() {
   drawGatePlayerLabels();
   drawTurnGateBall();
   drawWinnerGateConfetti();
+}
+
+function renderBoardHitTargets() {
+  if (!els.boardHitLayer) return;
+  els.boardHitLayer.innerHTML = '';
+  const canMove = game && game.status === 'playing' && replayIndex === null && (gameMode === 'local' || game.turn === playerId) && !pendingOnlineMove;
+  if (!canMove) return;
+  for (const target of game.legalMoves) {
+    const point = displayPoint(target.x, target.y);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'board-hit-target';
+    button.setAttribute('aria-label', `Move to ${target.x},${target.y}`);
+    button.style.left = `${(point.x / canvas.width) * 100}%`;
+    button.style.top = `${(point.y / canvas.height) * 100}%`;
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      chooseBoardTarget(target);
+    });
+    els.boardHitLayer.appendChild(button);
+  }
 }
 
 function applyBoardTransform() {
