@@ -117,6 +117,9 @@ if (!app.includes('joinGeneratedRoom') || !app.includes('joinGeneratedGame') || 
 if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfetti') || !app.includes('confettiUntil') || !app.includes('requestAnimationFrame')) {
   throw new Error('Client must show a winner overlay and animate confetti over the winner gate.');
 }
+if (!app.includes('function winnerOwnGateY') || !app.includes("return winnerId === 'p1' ? 12 : 0") || app.includes("const winnerGateY = game.winner === 'p1' ? 0 : 12")) {
+  throw new Error('Winner confetti must anchor to the winner’s own gate, not the gate they scored into.');
+}
 if (!app.includes('persistPlayerName') || !app.includes('traceballPlayerName') || !app.includes('playerNameInput.value = playerName')) {
   throw new Error('Generic player name must be initialized from and persisted to localStorage.');
 }
@@ -148,7 +151,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v10') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v11') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {

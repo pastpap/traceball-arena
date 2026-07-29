@@ -800,7 +800,7 @@ function drawTurnGateBall() {
 
 function drawWinnerGateConfetti() {
   if (!game || game.status !== 'finished' || Date.now() > confettiUntil) return;
-  const winnerGateY = game.winner === 'p1' ? 0 : 12;
+  const winnerGateY = winnerOwnGateY(game.winner);
   const gate = displayPoint(4, winnerGateY);
   const elapsed = 3200 - Math.max(0, confettiUntil - Date.now());
   const colors = ['#ffe784', '#ffffff', '#11bf46', '#0b7cff', '#ff3b30', '#ff8bd1'];
@@ -820,6 +820,10 @@ function drawWinnerGateConfetti() {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
   ctx.restore();
+}
+
+function winnerOwnGateY(winnerId) {
+  return winnerId === 'p1' ? 12 : 0;
 }
 
 function displayPoint(x, y) {
