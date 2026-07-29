@@ -174,9 +174,9 @@ h2 { margin: 0 0 .8rem; }
 .score-name { display: flex; align-items: center; gap: 10px; min-width: 0; color: white; font-size: clamp(1rem, 2.4vw, 1.2rem); }
 .score-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .red-name { justify-content: flex-end; text-align: right; }
-.score-number { color: white; font-weight: 950; font-size: clamp(2.8rem, 9vw, 5.4rem); line-height: .86; letter-spacing: -.08em; }
-.blue-score { text-align: left; }
-.red-score { text-align: right; }
+.score-number { color: white; font-weight: 950; font-size: clamp(2.8rem, 9vw, 5.4rem); line-height: .86; letter-spacing: -.08em; font-variant-numeric: tabular-nums; justify-self: stretch; }
+.blue-score { text-align: right; }
+.red-score { text-align: left; }
 .score-dash { color: white; align-self: center; font-weight: 900; font-size: clamp(1.8rem, 5vw, 3.4rem); line-height: 1; opacity: .92; }
 .dot { width: 14px; height: 14px; border-radius: 999px; display: inline-block; box-shadow: 0 0 0 5px rgba(255,255,255,.08); }
 .dot.blue { background: var(--blue); }
@@ -207,11 +207,22 @@ li { margin: .5rem 0; }
     linear-gradient(135deg, #ffe784, #f6b92b 42%, #b86c00 100%);
   color: #321d00;
   text-align: center;
+  pointer-events: auto;
   box-shadow: 0 28px 90px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.75);
   animation: winner-pop .38s ease-out;
 }
 .winner-kicker { font-weight: 1000; letter-spacing: .18em; text-transform: uppercase; font-size: clamp(1rem, 3vw, 1.35rem); }
 .winner-name { margin-top: 8px; font-size: clamp(2rem, 8vw, 4.6rem); font-weight: 1000; letter-spacing: -.07em; line-height: .95; }
+.winner-new-round {
+  margin-top: 22px;
+  min-width: min(100%, 220px);
+  padding: .9rem 1.35rem;
+  border: 0;
+  background: #321d00;
+  color: #ffe784;
+  box-shadow: 0 12px 30px rgba(50,29,0,.32);
+}
+.winner-new-round:hover { transform: translateY(-1px); }
 @keyframes winner-pop { from { transform: scale(.88); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 10px 14px; border-radius: 999px; background: rgba(0,0,0,.74); color: white; opacity: 0; pointer-events: none; transition: opacity .18s ease; }
 #toast.show { opacity: 1; }

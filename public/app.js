@@ -23,6 +23,7 @@ const els = {
   qr: document.querySelector('#qr'),
   winnerOverlay: document.querySelector('#winnerOverlay'),
   winnerName: document.querySelector('#winnerName'),
+  winnerNewRound: document.querySelector('#winnerNewRound'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -99,6 +100,7 @@ function init() {
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
 
   els.reset.addEventListener('click', resetRound);
+  els.winnerNewRound.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
   els.replayPrev.addEventListener('click', () => setReplay(Math.max(0, currentReplay() - 1)));

@@ -141,6 +141,9 @@ if (!app.includes('joinGeneratedRoom') || !app.includes('joinGeneratedGame') || 
 if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfetti') || !app.includes('confettiUntil') || !app.includes('requestAnimationFrame')) {
   throw new Error('Client must show a winner overlay and animate confetti over the winner gate.');
 }
+if (!html.includes('id="winnerNewRound"') || !app.includes('winnerNewRound: document.querySelector') || !app.includes("els.winnerNewRound.addEventListener('click', resetRound)") || !css.includes('.winner-new-round') || !css.includes('pointer-events: auto')) {
+  throw new Error('Winner banner must include a clickable New Round button wired to resetRound.');
+}
 if (!app.includes('function winnerOwnGateY') || !app.includes("return winnerId === 'p1' ? 12 : 0") || app.includes("const winnerGateY = game.winner === 'p1' ? 0 : 12")) {
   throw new Error('Winner confetti must anchor to the winner’s own gate, not the gate they scored into.');
 }
@@ -175,10 +178,13 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v17') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v18') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
+}
+for (const marker of ['.blue-score { text-align: right; }', '.red-score { text-align: left; }', 'font-variant-numeric: tabular-nums', 'justify-self: stretch']) {
+  if (!css.includes(marker)) throw new Error(`Match score numbers must justify inward around the center dash: missing ${marker}`);
 }
 
 const readme = readFileSync('README.md', 'utf8');
