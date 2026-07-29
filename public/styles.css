@@ -141,9 +141,7 @@ h2 { margin: 0 0 .8rem; }
   height: auto;
   margin: 0 auto;
   border-radius: 18px;
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
+  touch-action: manipulation;
 }
 .board-help { color: var(--muted); padding: 8px 4px 0; text-align: center; }
 .turn-indicator {
