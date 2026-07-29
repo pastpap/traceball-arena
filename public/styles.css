@@ -189,6 +189,7 @@ li { margin: .5rem 0; }
   body[data-mobile-page="match"] .home-mode-toggle { display: none !important; }
   .mobile-page { display: none !important; }
   .mobile-page.active { display: block !important; }
+  .mobile-page.hidden { display: none !important; }
   .side.mobile-page.active { display: grid !important; }
   button { padding: .72rem .82rem; }
   .join-panel, .mode-card { padding: 12px; margin-bottom: 10px; gap: 12px; border-radius: 20px; }

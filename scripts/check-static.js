@@ -12,6 +12,9 @@ if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
 if (!css.includes('@media (max-width: 640px)')) throw new Error('Mobile layout breakpoint is required.');
 if (!css.includes('.mobile-page { display: none !important; }')) throw new Error('Mobile pages must be split into tabbed panels.');
+if (!css.includes('.mobile-page.hidden { display: none !important; }')) {
+  throw new Error('Hidden Home cards must stay hidden on mobile even when they also have mobile-page active.');
+}
 if (!css.includes('body[data-mobile-page="play"] .board-card')) throw new Error('Mobile play page must prioritize the board viewport.');
 
 const html = readFileSync('public/index.html', 'utf8');
@@ -106,6 +109,6 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v6') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v7') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 console.log('Static build checks passed.');
