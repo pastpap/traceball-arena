@@ -55,7 +55,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'join') {
       const roomId = String(msg.roomId || '').trim() || nanoid(8);
       const game = getOrCreateRoom(roomId);
-      const result = addPlayer(game, msg.name);
+      const result = addPlayer(game, msg.name, msg.clientId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
@@ -68,8 +68,8 @@ wss.on('connection', (ws) => {
       const roomId = String(msg.roomId || '').trim();
       if (!roomId) return send(ws, 'error', { error: 'Room id is required.' });
       getOrCreateRoom(roomId);
+      if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
-      socketState.playerId = null;
       broadcast(roomId);
       return;
     }

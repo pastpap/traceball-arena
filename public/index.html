@@ -18,23 +18,25 @@
           <h1>Traceball Arena</h1>
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
-        <div class="actions">
-          <button id="newRoom" class="primary">Create game</button>
-          <button id="copyInvite">Copy invite</button>
-        </div>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
-        <button type="button" class="mobile-tab active" data-page-target="invite">Invite</button>
+        <button type="button" class="mobile-tab active" data-page-target="invite">Home</button>
         <button type="button" class="mobile-tab" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
+
+      <div id="homeModeToggle" class="home-mode-toggle mobile-page active" data-mobile-page="invite" role="group" aria-label="Home game type">
+        <button id="onlineMode" class="active" type="button" data-home-mode="online" aria-pressed="true">Online</button>
+        <button id="localMode" type="button" data-home-mode="local" aria-pressed="false">Local</button>
+      </div>
 
       <section id="joinPanel" class="card join-panel mobile-page active" data-mobile-page="invite">
         <div>
           <h2>Join this match</h2>
           <p id="roomText">Create a game or open an invite link.</p>
         </div>
+        <button id="newRoom" class="primary" type="button">New game</button>
         <form id="joinForm">
           <input id="nameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
           <button class="primary" type="submit">Join</button>
@@ -44,8 +46,21 @@
           <div>
             <label>Invite link</label>
             <input id="inviteLink" readonly />
+            <button id="copyInviteCard" type="button">Copy invite</button>
           </div>
         </div>
+      </section>
+
+      <section id="localPanel" class="card join-panel local-panel mobile-page hidden" data-mobile-page="invite">
+        <div>
+          <h2>Local same-screen PvP</h2>
+          <p>Players face each other and play on this device. The pitch stays still; the turn ball moves between gates.</p>
+        </div>
+        <form id="localForm">
+          <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
+          <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
+          <button id="startLocal" class="primary" type="submit">Start local match</button>
+        </form>
       </section>
 
       <section class="game-layout">
@@ -53,7 +68,7 @@
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
           <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
-          <div class="board-help">Your side is always at the bottom. Attack upward; the turn badge shows whose move it is.</div>
+          <div class="board-help">Online red-player view rotates. Local games keep the board static; watch the gate turn ball.</div>
           <div class="board-replay replay">
             <h2>Replay</h2>
             <div class="replay-controls">
@@ -70,9 +85,13 @@
           <div class="card scoreboard">
             <h2>Match</h2>
             <div id="status">Waiting…</div>
-            <div class="players">
-              <div><span class="dot blue"></span><strong id="p1">Blue</strong></div>
-              <div><span class="dot red"></span><strong id="p2">Red</strong></div>
+            <div class="players score-strip" aria-label="Room score">
+              <div class="score-name blue-name"><span class="dot blue"></span><strong id="p1">Blue</strong></div>
+              <div class="score-spacer" aria-hidden="true"></div>
+              <div class="score-name red-name"><strong id="p2">Red</strong><span class="dot red"></span></div>
+              <div id="p1Score" class="score-number blue-score">0</div>
+              <div class="score-dash">-</div>
+              <div id="p2Score" class="score-number red-score">0</div>
             </div>
             <button id="reset" class="ghost">New round</button>
           </div>

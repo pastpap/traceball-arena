@@ -16,6 +16,7 @@ export function createGame(roomId) {
     visited: [pointKey(START)],
     segments: [],
     moves: [],
+    score: { p1: 0, p2: 0 },
     winner: null,
     endReason: null,
     createdAt: Date.now(),
@@ -34,6 +35,7 @@ export function publicGame(game) {
     visited: game.visited,
     segments: game.segments,
     moves: game.moves,
+    score: game.score,
     winner: game.winner,
     endReason: game.endReason,
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
@@ -41,15 +43,25 @@ export function publicGame(game) {
   };
 }
 
-export function addPlayer(game, name) {
+export function addPlayer(game, name, clientId) {
   const cleanName = String(name || '').trim().slice(0, 24) || 'Player';
+  const cleanClientId = String(clientId || '').trim().slice(0, 80) || null;
+  if (cleanClientId) {
+    for (const id of ['p1', 'p2']) {
+      if (game.players[id]?.clientId === cleanClientId) {
+        game.players[id].name = cleanName;
+        game.updatedAt = Date.now();
+        return { ok: true, playerId: id, rejoined: true };
+      }
+    }
+  }
   let playerId;
   if (!game.players.p1) {
     playerId = 'p1';
-    game.players.p1 = { id: 'p1', name: cleanName, color: '#0b7cff' };
+    game.players.p1 = { id: 'p1', name: cleanName, color: '#0b7cff', clientId: cleanClientId };
   } else if (!game.players.p2) {
     playerId = 'p2';
-    game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30' };
+    game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30', clientId: cleanClientId };
     game.status = 'playing';
   } else {
     return { ok: false, error: 'Room is already full.' };
@@ -90,8 +102,7 @@ export function makeMove(game, playerId, to) {
   const goal = goalForMove(playerId, target);
   if (goal) {
     game.status = 'finished';
-    game.winner = goal.winner;
-    game.endReason = goal.reason;
+    finishGame(game, goal.winner, goal.reason);
     move.goal = true;
     game.moves.push(move);
     game.updatedAt = Date.now();
@@ -106,8 +117,8 @@ export function makeMove(game, playerId, to) {
   const moves = legalMoves(game);
   if (moves.length === 0) {
     game.status = 'finished';
-    game.winner = otherPlayer(game.turn);
-    game.endReason = `${playerName(game, game.turn)} is stuck — ${playerName(game, otherPlayer(game.turn))} wins.`;
+    const winner = otherPlayer(game.turn);
+    finishGame(game, winner, `${playerName(game, game.turn)} is stuck — ${playerName(game, winner)} wins.`);
   }
   game.updatedAt = Date.now();
   return { ok: true, bounce: getsBounce };
@@ -129,10 +140,20 @@ export function legalMoves(game) {
 
 export function resetGame(game) {
   const players = game.players;
+  const score = { p1: game.score?.p1 || 0, p2: game.score?.p2 || 0 };
   Object.assign(game, createGame(game.roomId));
   game.players = players;
+  game.score = score;
   game.status = players.p1 && players.p2 ? 'playing' : 'waiting';
   return game;
+}
+
+function finishGame(game, winner, reason) {
+  if (game.winner) return;
+  game.winner = winner;
+  game.endReason = reason;
+  game.score = game.score || { p1: 0, p2: 0 };
+  game.score[winner] = (game.score[winner] || 0) + 1;
 }
 
 function playerName(game, id) {
