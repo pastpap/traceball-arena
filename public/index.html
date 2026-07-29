@@ -18,10 +18,6 @@
           <h1>Traceball Arena</h1>
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
-        <div class="actions">
-          <button id="newRoom" class="primary">Create online game</button>
-          <button id="startLocalSetup">Start local game</button>
-        </div>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
@@ -30,11 +26,17 @@
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
 
+      <div id="homeModeToggle" class="home-mode-toggle mobile-page active" data-mobile-page="invite" role="group" aria-label="Home game type">
+        <button id="onlineMode" class="active" type="button" data-home-mode="online" aria-pressed="true">Online</button>
+        <button id="localMode" type="button" data-home-mode="local" aria-pressed="false">Local</button>
+      </div>
+
       <section id="joinPanel" class="card join-panel mobile-page active" data-mobile-page="invite">
         <div>
           <h2>Join this match</h2>
           <p id="roomText">Create a game or open an invite link.</p>
         </div>
+        <button id="newRoom" class="primary" type="button">New game</button>
         <form id="joinForm">
           <input id="nameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
           <button class="primary" type="submit">Join</button>

@@ -28,10 +28,32 @@ if (!html.includes('score-strip') || !html.includes('p1Score') || !html.includes
   throw new Error('Match card must render the traced name/score/name layout.');
 }
 if (html.includes('modeSelect') || html.includes('Choose game type') || html.includes('How do you want to play?')) {
-  throw new Error('Do not render a separate choose-game-type card; use the action pills and swap the Home card content.');
+  throw new Error('Do not render a separate choose-game-type explainer card.');
 }
-if (!html.includes('startLocalSetup') || !html.includes('localPanel') || !html.includes('startLocal')) {
-  throw new Error('Home actions must include a Start local game pill that reveals the local setup card.');
+if (html.includes('id="startLocalSetup"') || html.includes('>Start local game</button>')) {
+  throw new Error('Top-level Start local game button must be removed; Local belongs in the Home selector.');
+}
+const heroStart = html.indexOf('<section class="hero">');
+const navStart = html.indexOf('<nav class="mobile-nav"');
+const heroHtml = html.slice(heroStart, navStart);
+if (heroHtml.includes('Create online game') || heroHtml.includes('Start local game') || heroHtml.includes('class="actions"')) {
+  throw new Error('Hero/top area must not contain Create online game or Start local game buttons.');
+}
+const navEnd = html.indexOf('</nav>', navStart);
+const modeToggle = html.indexOf('id="homeModeToggle"');
+const joinPanel = html.indexOf('id="joinPanel"');
+const localPanel = html.indexOf('id="localPanel"');
+if (!(navEnd < modeToggle && modeToggle < joinPanel && joinPanel < localPanel)) {
+  throw new Error('Home Online/Local selector must sit directly under the Home/Play/Match navigation and above the swapped cards.');
+}
+if (!html.includes('data-home-mode="online"') || !html.includes('data-home-mode="local"')) {
+  throw new Error('Home selector must offer Online and Local options.');
+}
+if (!html.includes('id="newRoom"') || !html.includes('>New game</button>')) {
+  throw new Error('Online card must contain a New game button that creates an online room.');
+}
+if (!html.includes('localPanel') || !html.includes('startLocal')) {
+  throw new Error('Local selector must reveal the local setup card.');
 }
 if (!html.includes('localP1Name') || !html.includes('localP2Name')) {
   throw new Error('Local PvP setup must collect both face-to-face player names.');
@@ -62,8 +84,8 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
-if (!app.includes("gameMode = 'local'") || !app.includes('showLocalSetup') || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
-  throw new Error('Client app must support a local same-screen PvP setup and mode without WebSockets.');
+if (!app.includes("gameMode = 'local'") || !app.includes('setHomeMode') || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
+  throw new Error('Client app must support an Online/Local Home selector and local same-screen PvP without WebSockets.');
 }
 if (!app.includes("return gameMode !== 'local' && playerId === 'p2'")) {
   throw new Error('Local same-screen PvP must keep a static board; only online red-player view may rotate.');
@@ -84,6 +106,6 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v5') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v6') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 console.log('Static build checks passed.');

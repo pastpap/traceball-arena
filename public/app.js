@@ -2,7 +2,8 @@ const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
   newRoom: document.querySelector('#newRoom'),
-  startLocalSetup: document.querySelector('#startLocalSetup'),
+  onlineMode: document.querySelector('#onlineMode'),
+  localMode: document.querySelector('#localMode'),
   localPanel: document.querySelector('#localPanel'),
   localForm: document.querySelector('#localForm'),
   localP1Name: document.querySelector('#localP1Name'),
@@ -62,7 +63,8 @@ function init() {
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.newRoom.addEventListener('click', createRoom);
-  els.startLocalSetup.addEventListener('click', showLocalSetup);
+  els.onlineMode.addEventListener('click', () => setHomeMode('online'));
+  els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
@@ -82,26 +84,33 @@ function init() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeConnection(); });
 }
 
-function showLocalSetup() {
+function setHomeMode(mode) {
+  const nextMode = mode === 'local' ? 'local-setup' : 'online-home';
   intentionalClose = true;
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
-  gameMode = 'local-setup';
-  roomId = null;
-  inviteUrl = '';
+  gameMode = nextMode;
+  if (nextMode === 'local-setup') {
+    roomId = null;
+    inviteUrl = '';
+    els.inviteBox.classList.add('hidden');
+    toast('Add names, then start the local match.');
+  } else if (gameMode !== 'online') {
+    roomId = null;
+    inviteUrl = '';
+    els.inviteBox.classList.add('hidden');
+  }
   playerId = null;
   wantsPlayerSession = false;
   replayIndex = null;
-  if (!game || game.status === 'waiting') game = null;
-  history.pushState({}, '', '/');
-  els.inviteBox.classList.add('hidden');
+  game = null;
+  if (!roomId) history.pushState({}, '', '/');
   updateModePanels();
   updateRoomText();
   updateUi();
   draw();
   setMobilePage('invite');
-  toast('Add names, then start the local match.');
 }
 
 async function createRoom() {
@@ -428,6 +437,10 @@ function updateModePanels() {
   els.localPanel.classList.toggle('hidden', !localVisible);
   els.joinForm.closest('#joinPanel').classList.toggle('hidden', localVisible);
   els.copyInviteCard.disabled = !inviteUrl;
+  els.onlineMode.classList.toggle('active', !localVisible);
+  els.localMode.classList.toggle('active', localVisible);
+  els.onlineMode.setAttribute('aria-pressed', String(!localVisible));
+  els.localMode.setAttribute('aria-pressed', String(localVisible));
 }
 
 async function copyInvite() {
