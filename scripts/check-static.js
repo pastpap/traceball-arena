@@ -98,11 +98,11 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
-if (!app.includes('const MOVE_HINT_ALPHA = 0.34') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
-  throw new Error('Legal-move hint circles must be dimmer and use the current player color instead of universal yellow.');
+if (!app.includes('const MOVE_HINT_ALPHA = 0.52') || !app.includes('const MOVE_HINT_PULSE_MS = 1650') || !app.includes('legalMoveHintAlpha') || !app.includes('animateLegalMoveHints') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
+  throw new Error('Legal-move hint circles must be visible enough, player-colored, and slowly fade in/out instead of using universal yellow.');
 }
-if (!app.includes('const TURN_MARKER_JUMP_MS = 1150') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
-  throw new Error('Turn gate ball must animate more slowly by jumping between gates and changing to the next player color at landing.');
+if (!app.includes('const TURN_MARKER_JUMP_MS = 1400') || !app.includes('const TURN_MARKER_MAX_SCALE = 1.55') || !app.includes('const scale = 1 + Math.sin(Math.PI * t)') || !app.includes('drawTurnMarker(x, y, color, scale)') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
+  throw new Error('Turn gate ball must arc more slowly and grow toward mid-board before shrinking at the other gate.');
 }
 if (!app.includes('const CONFETTI_MS = 4800') || app.includes('confettiUntil = Date.now() + 3200')) {
   throw new Error('Celebration/confetti animation must be slower so players can understand the result.');
@@ -169,7 +169,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v14') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v15') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 const readme = readFileSync('README.md', 'utf8');
 for (const marker of ['## Gameplay', '## Technologies', '## Game-dev evolution', '## Screenshots', 'docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {

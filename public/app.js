@@ -59,12 +59,15 @@ let intentionalClose = false;
 let lastWinnerKey = '';
 let confettiUntil = 0;
 let turnMarkerJump = null;
+let legalMoveHintRaf = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
 const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
-const MOVE_HINT_ALPHA = 0.34;
-const TURN_MARKER_JUMP_MS = 1150;
+const MOVE_HINT_ALPHA = 0.52;
+const MOVE_HINT_PULSE_MS = 1650;
+const TURN_MARKER_JUMP_MS = 1400;
+const TURN_MARKER_MAX_SCALE = 1.55;
 const CONFETTI_MS = 4800;
 
 init();
@@ -833,26 +836,29 @@ function animateTurnMarkerJump() {
 function drawTurnMarkerJump(fallbackTarget) {
   const elapsed = Math.min(TURN_MARKER_JUMP_MS, performance.now() - turnMarkerJump.startedAt);
   const t = easeInOut(elapsed / TURN_MARKER_JUMP_MS);
-  const arc = Math.sin(Math.PI * t) * 82;
+  const arc = Math.sin(Math.PI * t) * 106;
   const x = lerp(turnMarkerJump.from.x, fallbackTarget.x, t);
   const y = lerp(turnMarkerJump.from.y, fallbackTarget.y, t) - arc;
   const color = mixPlayerColors(turnMarkerJump.fromPlayer, turnMarkerJump.toPlayer, Math.min(1, t * 1.18));
-  drawTurnMarker(x, y, color);
+  const scale = 1 + Math.sin(Math.PI * t) * (TURN_MARKER_MAX_SCALE - 1);
+  drawTurnMarker(x, y, color, scale);
 }
 
-function drawTurnMarker(x, y, color) {
+function drawTurnMarker(x, y, color, scale = 1) {
+  const markerRadius = 22 * scale;
+  const ballRadius = 13 * scale;
   ctx.save();
   ctx.shadowColor = color;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 18 * scale;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.arc(x, y, markerRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * scale;
   ctx.stroke();
-  drawSoccerBall(x, y, 13);
+  drawSoccerBall(x, y, ballRadius);
   ctx.restore();
 }
 
@@ -922,18 +928,38 @@ function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
+  const alpha = legalMoveHintAlpha();
   ctx.save();
   ctx.strokeStyle = currentPlayerColor(game.turn);
   ctx.fillStyle = currentPlayerColor(game.turn);
-  ctx.globalAlpha = MOVE_HINT_ALPHA;
+  ctx.globalAlpha = alpha;
   ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 17, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = MOVE_HINT_ALPHA * .22;
+    ctx.globalAlpha = alpha * .26;
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 12, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = MOVE_HINT_ALPHA;
+    ctx.globalAlpha = alpha;
   }
   ctx.restore();
+  requestLegalMoveHintFrame();
+}
+
+function legalMoveHintAlpha(now = performance.now()) {
+  const phase = (now % MOVE_HINT_PULSE_MS) / MOVE_HINT_PULSE_MS;
+  const wave = .5 - Math.cos(phase * Math.PI * 2) / 2;
+  return MOVE_HINT_ALPHA * (.62 + wave * .38);
+}
+
+function requestLegalMoveHintFrame() {
+  if (legalMoveHintRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
+  legalMoveHintRaf = requestAnimationFrame(animateLegalMoveHints);
+}
+
+function animateLegalMoveHints() {
+  legalMoveHintRaf = 0;
+  if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  draw();
+  requestLegalMoveHintFrame();
 }
 
 function gridPoints() {
