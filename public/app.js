@@ -60,13 +60,15 @@ let intentionalClose = false;
 let lastWinnerKey = '';
 let confettiUntil = 0;
 let turnMarkerJump = null;
-let legalMoveHintRaf = 0;
+let legalMoveHintFadeRaf = 0;
+let legalMoveHintStartedAt = 0;
+let legalMoveHintKey = '';
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
 const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
 const MOVE_HINT_ALPHA = 1;
-const MOVE_HINT_PULSE_MS = 2200;
+const MOVE_HINT_FADE_IN_MS = 650;
 const TURN_MARKER_JUMP_MS = 1400;
 const TURN_MARKER_MAX_SCALE = 1.55;
 const CONFETTI_MS = 4800;
@@ -944,10 +946,12 @@ function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
+  syncLegalMoveHintFade();
   const alpha = legalMoveHintAlpha();
+  const hintColor = legalMoveHintColor();
   ctx.save();
-  ctx.strokeStyle = currentPlayerColor(game.turn);
-  ctx.fillStyle = currentPlayerColor(game.turn);
+  ctx.strokeStyle = hintColor;
+  ctx.fillStyle = hintColor;
   ctx.globalAlpha = alpha;
   ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
@@ -957,25 +961,38 @@ function drawLegalMoves() {
     ctx.globalAlpha = alpha;
   }
   ctx.restore();
-  requestLegalMoveHintFrame();
+  scheduleLegalMoveHintFadeFrame(alpha);
+}
+
+function legalMoveHintColor() {
+  return gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d';
 }
 
 function legalMoveHintAlpha(now = performance.now()) {
-  const phase = (now % MOVE_HINT_PULSE_MS) / MOVE_HINT_PULSE_MS;
-  const wave = .5 - Math.cos(phase * Math.PI * 2) / 2;
-  return MOVE_HINT_ALPHA * (.62 + wave * .38);
+  if (!legalMoveHintStartedAt) return MOVE_HINT_ALPHA;
+  const progress = Math.min(1, Math.max(0, (now - legalMoveHintStartedAt) / MOVE_HINT_FADE_IN_MS));
+  const eased = 1 - Math.pow(1 - progress, 3);
+  return MOVE_HINT_ALPHA * eased;
 }
 
-function requestLegalMoveHintFrame() {
-  if (legalMoveHintRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
-  legalMoveHintRaf = requestAnimationFrame(animateLegalMoveHints);
+function syncLegalMoveHintFade() {
+  const nextKey = `${gameMode}:${game.turn}:${game.ball.x},${game.ball.y}:${game.legalMoves.map((p) => `${p.x},${p.y}`).join('|')}`;
+  if (nextKey === legalMoveHintKey) return;
+  startLegalMoveHintFade(nextKey);
 }
 
-function animateLegalMoveHints() {
-  legalMoveHintRaf = 0;
-  if (!game || game.status !== 'playing' || replayIndex !== null) return;
-  draw();
-  requestLegalMoveHintFrame();
+function startLegalMoveHintFade(nextKey) {
+  legalMoveHintKey = nextKey;
+  legalMoveHintStartedAt = performance.now();
+}
+
+function scheduleLegalMoveHintFadeFrame(alpha) {
+  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
+  legalMoveHintFadeRaf = requestAnimationFrame(() => {
+    legalMoveHintFadeRaf = 0;
+    if (!game || game.status !== 'playing' || replayIndex !== null) return;
+    draw();
+  });
 }
 
 function gridPoints() {

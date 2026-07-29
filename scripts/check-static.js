@@ -98,8 +98,11 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
-if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_PULSE_MS = 2200') || !app.includes('legalMoveHintAlpha') || !app.includes('animateLegalMoveHints') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
-  throw new Error('Legal-move hint circles must be full-strength blue/red, player-colored, and slowly fade in/out instead of using universal yellow.');
+if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
+  throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
+}
+if (app.includes('MOVE_HINT_PULSE_MS') || app.includes('animateLegalMoveHints') || app.includes('requestLegalMoveHintFrame') || app.includes('now % MOVE_HINT')) {
+  throw new Error('Legal-move hint circles must not pulse continuously after they have appeared.');
 }
 if (!html.includes('>Incoming game</button>') || html.includes('>Existing game</button>') || !app.includes("setOnlineAction('incoming')") || !app.includes('prefillIncomingInviteFromUrl') || !app.includes('generateRandomPlayerName') || !app.includes('updateInviteVisibility')) {
   throw new Error('Home Online flow must use Incoming game naming, deep-link to Incoming with prefilled invite input, randomize empty player names, and hide invites outside New game.');
@@ -172,7 +175,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v16') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v17') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
