@@ -15,6 +15,12 @@ if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobi
   throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
 }
 if (!css.includes('.mobile-page { display: none !important; }')) throw new Error('Mobile pages must be split into tabbed panels.');
+if (!css.includes('.inline-form input { flex: 1 1 320px; min-width: 260px; }') || !css.includes('.inline-form .primary { flex: 0 0 auto; width: auto; min-width: 170px; }')) {
+  throw new Error('Desktop invite-link input must keep usable width beside the Join game button.');
+}
+if (!css.includes('@media (max-width: 640px)') || !css.includes('.inline-form input { min-width: 0; }')) {
+  throw new Error('Mobile invite-link input must reset min-width so the form can stack cleanly.');
+}
 if (!css.includes('.mobile-page.hidden { display: none !important; }')) {
   throw new Error('Hidden Home cards must stay hidden on mobile even when they also have mobile-page active.');
 }
@@ -151,7 +157,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v11') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v12') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {

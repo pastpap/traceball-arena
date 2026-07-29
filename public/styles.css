@@ -109,7 +109,8 @@ h2 { margin: 0 0 .8rem; }
 }
 .existing-room-form label { color: var(--muted); font-weight: 800; }
 .inline-form { display: flex; gap: 10px; }
-.inline-form input { flex: 1; }
+.inline-form input { flex: 1 1 320px; min-width: 260px; }
+.inline-form .primary { flex: 0 0 auto; width: auto; min-width: 170px; }
 .invite { grid-column: 1 / -1; display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
 .invite img { width: 112px; height: 112px; background: white; border-radius: 12px; padding: 8px; }
 .invite label { display: block; color: var(--muted); margin-bottom: 6px; }
@@ -210,6 +211,8 @@ li { margin: .5rem 0; }
   .hero, .join-panel, .mode-grid { grid-template-columns: 1fr; display: grid; }
   .actions, .inline-form { justify-content: stretch; }
   .inline-form { flex-direction: column; }
+  .inline-form input { min-width: 0; }
+  .inline-form .primary { width: 100%; }
   .game-layout { grid-template-columns: 1fr; }
   .side { grid-template-columns: 1fr; }
 }
@@ -254,6 +257,7 @@ li { margin: .5rem 0; }
 }
 
 @media (max-width: 640px) {
+  .inline-form input { min-width: 0; }
   html, body { min-height: 100dvh; }
   body { background-attachment: fixed; }
   .shell { width: min(100vw - 12px, 440px); min-height: 100dvh; padding-top: 8px; padding-bottom: 8px; }
