@@ -64,8 +64,8 @@ if (!(navEnd < modeToggle && modeToggle < joinPanel && joinPanel < localPanel)) 
 if (!html.includes('data-home-mode="online"') || !html.includes('data-home-mode="local"')) {
   throw new Error('Home selector must offer Online and Local options.');
 }
-if (!html.includes('id="onlineActionToggle"') || !html.includes('data-online-action="new"') || !html.includes('data-online-action="existing"')) {
-  throw new Error('Online card must split New game and Existing game into linked sub-tabs.');
+if (!html.includes('id="onlineActionToggle"') || !html.includes('data-online-action="new"') || !html.includes('data-online-action="incoming"')) {
+  throw new Error('Online card must split New game and Incoming game into linked sub-tabs.');
 }
 if (!html.includes('id="playerNameInput"') || !html.includes('id="newGamePanel"') || !html.includes('id="existingGamePanel"')) {
   throw new Error('Online card must have one generic persisted player-name input shared by both online tabs.');
@@ -98,11 +98,17 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
-if (!app.includes('const MOVE_HINT_ALPHA = 0.34') || !app.includes('currentPlayerColor(game.turn)') || app.includes("ctx.strokeStyle = '#ffe66d'")) {
-  throw new Error('Legal-move hint circles must be dimmer and use the current player color instead of universal yellow.');
+if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
+  throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
 }
-if (!app.includes('const TURN_MARKER_JUMP_MS = 1150') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
-  throw new Error('Turn gate ball must animate more slowly by jumping between gates and changing to the next player color at landing.');
+if (app.includes('MOVE_HINT_PULSE_MS') || app.includes('animateLegalMoveHints') || app.includes('requestLegalMoveHintFrame') || app.includes('now % MOVE_HINT')) {
+  throw new Error('Legal-move hint circles must not pulse continuously after they have appeared.');
+}
+if (!html.includes('>Incoming game</button>') || html.includes('>Existing game</button>') || !app.includes("setOnlineAction('incoming')") || !app.includes('prefillIncomingInviteFromUrl') || !app.includes('generateRandomPlayerName') || !app.includes('updateInviteVisibility')) {
+  throw new Error('Home Online flow must use Incoming game naming, deep-link to Incoming with prefilled invite input, randomize empty player names, and hide invites outside New game.');
+}
+if (!app.includes('const TURN_MARKER_JUMP_MS = 1400') || !app.includes('const TURN_MARKER_MAX_SCALE = 1.55') || !app.includes('const scale = 1 + Math.sin(Math.PI * t)') || !app.includes('drawTurnMarker(x, y, color, scale)') || !app.includes('startTurnMarkerJump') || !app.includes('drawTurnMarkerJump') || !app.includes('mixPlayerColors')) {
+  throw new Error('Turn gate ball must arc more slowly and grow toward mid-board before shrinking at the other gate.');
 }
 if (!app.includes('const CONFETTI_MS = 4800') || app.includes('confettiUntil = Date.now() + 3200')) {
   throw new Error('Celebration/confetti animation must be slower so players can understand the result.');
@@ -134,6 +140,15 @@ if (!app.includes('joinGeneratedRoom') || !app.includes('joinGeneratedGame') || 
 }
 if (!app.includes('updateWinnerOverlay') || !app.includes('drawWinnerGateConfetti') || !app.includes('confettiUntil') || !app.includes('requestAnimationFrame')) {
   throw new Error('Client must show a winner overlay and animate confetti over the winner gate.');
+}
+if (!html.includes('id="winnerNewRound"') || !app.includes('winnerNewRound: document.querySelector') || !app.includes("els.winnerNewRound.addEventListener('click', resetRound)") || !css.includes('.winner-new-round') || !css.includes('pointer-events: auto')) {
+  throw new Error('Winner banner must include a clickable New Round button wired to resetRound.');
+}
+if (!html.includes('class="board-stage"') || !html.includes('id="winnerClose"') || !app.includes('winnerClose: document.querySelector') || !app.includes("els.winnerClose.addEventListener('click', dismissWinnerOverlay)") || !app.includes('dismissedWinnerKey') || !app.includes('function dismissWinnerOverlay')) {
+  throw new Error('Winner modal must be dismissable and centered over the board stage instead of the whole card.');
+}
+for (const marker of ['.board-stage {', 'position: relative', '.winner-close', 'max-height: min(58%, 430px)', 'overflow-y: auto', 'overflow-wrap: anywhere']) {
+  if (!css.includes(marker)) throw new Error(`Winner modal must stay centered and bounded for long winner names: missing ${marker}`);
 }
 if (!app.includes('function winnerOwnGateY') || !app.includes("return winnerId === 'p1' ? 12 : 0") || app.includes("const winnerGateY = game.winner === 'p1' ? 0 : 12")) {
   throw new Error('Winner confetti must anchor to the winner’s own gate, not the gate they scored into.');
@@ -169,7 +184,14 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v14') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v19') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+
+for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
+  if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
+}
+for (const marker of ['.blue-score { text-align: right; }', '.red-score { text-align: left; }', 'font-variant-numeric: tabular-nums', 'justify-self: stretch']) {
+  if (!css.includes(marker)) throw new Error(`Match score numbers must justify inward around the center dash: missing ${marker}`);
+}
 
 const readme = readFileSync('README.md', 'utf8');
 for (const marker of ['## Gameplay', '## Technologies', '## Game-dev evolution', '## Screenshots', 'docs/screenshots/traceball-home.svg', 'docs/screenshots/traceball-play.svg']) {

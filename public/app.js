@@ -23,6 +23,8 @@ const els = {
   qr: document.querySelector('#qr'),
   winnerOverlay: document.querySelector('#winnerOverlay'),
   winnerName: document.querySelector('#winnerName'),
+  winnerClose: document.querySelector('#winnerClose'),
+  winnerNewRound: document.querySelector('#winnerNewRound'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -52,19 +54,26 @@ let game = null;
 let replayIndex = null;
 const clientId = getClientId();
 let wantsPlayerSession = false;
-let playerName = localStorageSafeGet('traceballPlayerName') || '';
+let playerName = localStorageSafeGet('traceballPlayerName') || generateRandomPlayerName();
+let onlineAction = 'new';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let intentionalClose = false;
 let lastWinnerKey = '';
+let dismissedWinnerKey = '';
 let confettiUntil = 0;
 let turnMarkerJump = null;
+let legalMoveHintFadeRaf = 0;
+let legalMoveHintStartedAt = 0;
+let legalMoveHintKey = '';
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
 const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
-const MOVE_HINT_ALPHA = 0.34;
-const TURN_MARKER_JUMP_MS = 1150;
+const MOVE_HINT_ALPHA = 1;
+const MOVE_HINT_FADE_IN_MS = 650;
+const TURN_MARKER_JUMP_MS = 1400;
+const TURN_MARKER_MAX_SCALE = 1.55;
 const CONFETTI_MS = 4800;
 
 init();
@@ -72,8 +81,9 @@ init();
 function init() {
   setMobilePage('invite');
   registerServiceWorker();
-  if (roomId) showInvite();
   els.playerNameInput.value = playerName;
+  if (!localStorageSafeGet('traceballPlayerName')) persistPlayerName();
+  if (roomId) prefillIncomingInviteFromUrl();
   updateModePanels();
   updateRoomText();
   draw();
@@ -81,7 +91,7 @@ function init() {
   els.generateRoom.addEventListener('click', createRoom);
   els.joinGeneratedRoom.addEventListener('click', joinGeneratedGame);
   els.newGameTab.addEventListener('click', () => setOnlineAction('new'));
-  els.existingGameTab.addEventListener('click', () => setOnlineAction('existing'));
+  els.existingGameTab.addEventListener('click', () => setOnlineAction('incoming'));
   els.playerNameInput.addEventListener('input', persistPlayerName);
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
@@ -92,6 +102,8 @@ function init() {
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
 
   els.reset.addEventListener('click', resetRound);
+  els.winnerClose.addEventListener('click', dismissWinnerOverlay);
+  els.winnerNewRound.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
   els.replayStart.addEventListener('click', () => setReplay(0));
   els.replayPrev.addEventListener('click', () => setReplay(Math.max(0, currentReplay() - 1)));
@@ -135,6 +147,7 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
+  setOnlineAction('new');
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
   openOnlineRoom(data.roomId, data.url, 'Game generated. Copy the invite, then join when ready.');
@@ -161,13 +174,26 @@ async function joinExistingRoom(event) {
 }
 
 function setOnlineAction(action) {
-  const existing = action === 'existing';
-  els.newGamePanel.classList.toggle('hidden', existing);
-  els.existingGamePanel.classList.toggle('hidden', !existing);
-  els.newGameTab.classList.toggle('active', !existing);
-  els.existingGameTab.classList.toggle('active', existing);
-  els.newGameTab.setAttribute('aria-pressed', String(!existing));
-  els.existingGameTab.setAttribute('aria-pressed', String(existing));
+  onlineAction = action === 'incoming' ? 'incoming' : 'new';
+  const incoming = onlineAction === 'incoming';
+  els.newGamePanel.classList.toggle('hidden', incoming);
+  els.existingGamePanel.classList.toggle('hidden', !incoming);
+  els.newGameTab.classList.toggle('active', !incoming);
+  els.existingGameTab.classList.toggle('active', incoming);
+  els.newGameTab.setAttribute('aria-pressed', String(!incoming));
+  els.existingGameTab.setAttribute('aria-pressed', String(incoming));
+  updateInviteVisibility();
+}
+
+function prefillIncomingInviteFromUrl() {
+  inviteUrl = `${location.origin}/room/${roomId}`;
+  els.existingRoomInput.value = inviteUrl;
+  setOnlineAction('incoming');
+}
+
+function updateInviteVisibility() {
+  const show = Boolean(inviteUrl) && onlineAction === 'new' && gameMode !== 'local-setup';
+  els.inviteBox.classList.toggle('hidden', !show);
 }
 
 function persistPlayerName() {
@@ -528,17 +554,25 @@ function updateWinnerOverlay() {
   if (!winnerId) {
     els.winnerOverlay.classList.add('hidden');
     lastWinnerKey = '';
+    dismissedWinnerKey = '';
     return;
   }
   const winnerName = game.players[winnerId]?.name || (winnerId === 'p1' ? 'Blue' : 'Red');
-  els.winnerName.textContent = winnerName;
-  els.winnerOverlay.classList.remove('hidden');
   const winnerKey = `${roomId || 'local'}:${winnerId}:${game.moves?.length || 0}:${winnerName}`;
   if (winnerKey !== lastWinnerKey) {
     lastWinnerKey = winnerKey;
+    dismissedWinnerKey = '';
     confettiUntil = Date.now() + CONFETTI_MS;
     requestAnimationFrame(animateConfetti);
   }
+  els.winnerName.textContent = winnerName;
+  els.winnerOverlay.classList.toggle('hidden', dismissedWinnerKey === winnerKey);
+}
+
+function dismissWinnerOverlay() {
+  if (!lastWinnerKey) return;
+  dismissedWinnerKey = lastWinnerKey;
+  els.winnerOverlay.classList.add('hidden');
 }
 
 function animateConfetti() {
@@ -550,9 +584,9 @@ function animateConfetti() {
 
 function showInvite() {
   inviteUrl = `${location.origin}/room/${roomId}`;
-  els.inviteBox.classList.remove('hidden');
   els.inviteLink.value = inviteUrl;
   els.qr.src = `/api/qr?url=${encodeURIComponent(inviteUrl)}`;
+  updateInviteVisibility();
 }
 
 function updateRoomText() {
@@ -833,26 +867,29 @@ function animateTurnMarkerJump() {
 function drawTurnMarkerJump(fallbackTarget) {
   const elapsed = Math.min(TURN_MARKER_JUMP_MS, performance.now() - turnMarkerJump.startedAt);
   const t = easeInOut(elapsed / TURN_MARKER_JUMP_MS);
-  const arc = Math.sin(Math.PI * t) * 82;
+  const arc = Math.sin(Math.PI * t) * 106;
   const x = lerp(turnMarkerJump.from.x, fallbackTarget.x, t);
   const y = lerp(turnMarkerJump.from.y, fallbackTarget.y, t) - arc;
   const color = mixPlayerColors(turnMarkerJump.fromPlayer, turnMarkerJump.toPlayer, Math.min(1, t * 1.18));
-  drawTurnMarker(x, y, color);
+  const scale = 1 + Math.sin(Math.PI * t) * (TURN_MARKER_MAX_SCALE - 1);
+  drawTurnMarker(x, y, color, scale);
 }
 
-function drawTurnMarker(x, y, color) {
+function drawTurnMarker(x, y, color, scale = 1) {
+  const markerRadius = 22 * scale;
+  const ballRadius = 13 * scale;
   ctx.save();
   ctx.shadowColor = color;
-  ctx.shadowBlur = 18;
+  ctx.shadowBlur = 18 * scale;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, 22, 0, Math.PI * 2);
+  ctx.arc(x, y, markerRadius, 0, Math.PI * 2);
   ctx.fill();
   ctx.shadowBlur = 0;
   ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * scale;
   ctx.stroke();
-  drawSoccerBall(x, y, 13);
+  drawSoccerBall(x, y, ballRadius);
   ctx.restore();
 }
 
@@ -922,18 +959,53 @@ function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
+  syncLegalMoveHintFade();
+  const alpha = legalMoveHintAlpha();
+  const hintColor = legalMoveHintColor();
   ctx.save();
-  ctx.strokeStyle = currentPlayerColor(game.turn);
-  ctx.fillStyle = currentPlayerColor(game.turn);
-  ctx.globalAlpha = MOVE_HINT_ALPHA;
+  ctx.strokeStyle = hintColor;
+  ctx.fillStyle = hintColor;
+  ctx.globalAlpha = alpha;
   ctx.lineWidth = 4;
   for (const p of game.legalMoves) {
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 17, 0, Math.PI * 2); ctx.stroke();
-    ctx.globalAlpha = MOVE_HINT_ALPHA * .22;
+    ctx.globalAlpha = alpha * .26;
     ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), 12, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = MOVE_HINT_ALPHA;
+    ctx.globalAlpha = alpha;
   }
   ctx.restore();
+  scheduleLegalMoveHintFadeFrame(alpha);
+}
+
+function legalMoveHintColor() {
+  return gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d';
+}
+
+function legalMoveHintAlpha(now = performance.now()) {
+  if (!legalMoveHintStartedAt) return MOVE_HINT_ALPHA;
+  const progress = Math.min(1, Math.max(0, (now - legalMoveHintStartedAt) / MOVE_HINT_FADE_IN_MS));
+  const eased = 1 - Math.pow(1 - progress, 3);
+  return MOVE_HINT_ALPHA * eased;
+}
+
+function syncLegalMoveHintFade() {
+  const nextKey = `${gameMode}:${game.turn}:${game.ball.x},${game.ball.y}:${game.legalMoves.map((p) => `${p.x},${p.y}`).join('|')}`;
+  if (nextKey === legalMoveHintKey) return;
+  startLegalMoveHintFade(nextKey);
+}
+
+function startLegalMoveHintFade(nextKey) {
+  legalMoveHintKey = nextKey;
+  legalMoveHintStartedAt = performance.now();
+}
+
+function scheduleLegalMoveHintFadeFrame(alpha) {
+  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
+  legalMoveHintFadeRaf = requestAnimationFrame(() => {
+    legalMoveHintFadeRaf = 0;
+    if (!game || game.status !== 'playing' || replayIndex !== null) return;
+    draw();
+  });
 }
 
 function gridPoints() {
@@ -1010,6 +1082,13 @@ function localStorageSafeGet(key) {
 
 function localStorageSafeSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
+}
+
+function generateRandomPlayerName() {
+  const adjectives = ['Neon', 'Turbo', 'Cosmic', 'Lucky', 'Zigzag', 'Pixel', 'Rocket', 'Nimble', 'Thunder', 'Glitch'];
+  const nouns = ['Striker', 'Ranger', 'Falcon', 'Comet', 'Dribbler', 'Phantom', 'Kicker', 'Ace', 'Tiger', 'Wizard'];
+  const pick = (items) => items[Math.floor(Math.random() * items.length)];
+  return `${pick(adjectives)} ${pick(nouns)}`;
 }
 
 function getClientId() {
