@@ -1,9 +1,9 @@
-const CACHE_NAME = 'traceball-arena-v19';
+const CACHE_NAME = 'traceball-arena-v20';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
-  '/app.js',
+  '/dist/app.js',
   '/icon.svg',
   '/manifest.webmanifest',
 ];
@@ -21,7 +21,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
