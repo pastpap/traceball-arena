@@ -34,31 +34,33 @@
       <section id="joinPanel" class="card join-panel mobile-page active" data-mobile-page="invite">
         <div class="online-header">
           <h2>Online game</h2>
-          <p id="roomText">Choose a name, then generate a new game or join an existing one.</p>
+          <p id="roomText">Choose a name, then generate a new game or join an incoming one.</p>
         </div>
-        <label class="player-name-field" for="playerNameInput">
-          <span>Your name</span>
-          <input id="playerNameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
-        </label>
-        <div id="onlineActionToggle" class="online-action-toggle" role="group" aria-label="Online game action">
-          <button id="newGameTab" class="active" type="button" data-online-action="new" aria-pressed="true">New game</button>
-          <button id="existingGameTab" type="button" data-online-action="existing" aria-pressed="false">Existing game</button>
+        <div class="online-form-stack">
+          <label class="player-name-field" for="playerNameInput">
+            <span>Your name</span>
+            <input id="playerNameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
+          </label>
+          <div id="onlineActionToggle" class="online-action-toggle" role="group" aria-label="Online game action">
+            <button id="newGameTab" class="active" type="button" data-online-action="new" aria-pressed="true">New game</button>
+            <button id="existingGameTab" type="button" data-online-action="incoming" aria-pressed="false">Incoming game</button>
+          </div>
+          <section id="newGamePanel" class="online-action-panel" data-online-action-panel="new">
+            <p>Generate a room first, copy or share the invite, then join when you are ready to play.</p>
+            <button id="generateRoom" class="primary" type="button">Generate</button>
+            <button id="joinGeneratedRoom" class="ghost hidden" type="button">Join generated game</button>
+          </section>
+          <section id="existingGamePanel" class="online-action-panel hidden" data-online-action-panel="incoming">
+            <form id="existingRoomForm" class="existing-room-form">
+              <label for="existingRoomInput">Invite link or room code</label>
+              <div class="inline-form">
+                <input id="existingRoomInput" autocomplete="off" maxlength="200" placeholder="Paste invite link or room code" />
+                <button class="primary" type="submit">Join game</button>
+              </div>
+            </form>
+          </section>
         </div>
-        <section id="newGamePanel" class="online-action-panel" data-online-action-panel="new">
-          <p>Generate a room first, copy or share the invite, then join when you are ready to play.</p>
-          <button id="generateRoom" class="primary" type="button">Generate</button>
-          <button id="joinGeneratedRoom" class="ghost hidden" type="button">Join generated game</button>
-        </section>
-        <section id="existingGamePanel" class="online-action-panel hidden" data-online-action-panel="existing">
-          <form id="existingRoomForm" class="existing-room-form">
-            <label for="existingRoomInput">Invite link or room code</label>
-            <div class="inline-form">
-              <input id="existingRoomInput" autocomplete="off" maxlength="200" placeholder="Paste invite link or room code" />
-              <button class="primary" type="submit">Join game</button>
-            </div>
-          </form>
-        </section>
-        <div id="inviteBox" class="invite hidden">
+        <div id="inviteBox" class="invite hidden" data-visible-for="new-game">
           <img id="qr" alt="Invite QR code" />
           <div>
             <label>Invite link</label>

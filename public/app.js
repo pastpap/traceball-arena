@@ -52,7 +52,8 @@ let game = null;
 let replayIndex = null;
 const clientId = getClientId();
 let wantsPlayerSession = false;
-let playerName = localStorageSafeGet('traceballPlayerName') || '';
+let playerName = localStorageSafeGet('traceballPlayerName') || generateRandomPlayerName();
+let onlineAction = 'new';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
 let intentionalClose = false;
@@ -64,8 +65,8 @@ let legalMoveHintRaf = 0;
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
 const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
-const MOVE_HINT_ALPHA = 0.52;
-const MOVE_HINT_PULSE_MS = 1650;
+const MOVE_HINT_ALPHA = 1;
+const MOVE_HINT_PULSE_MS = 2200;
 const TURN_MARKER_JUMP_MS = 1400;
 const TURN_MARKER_MAX_SCALE = 1.55;
 const CONFETTI_MS = 4800;
@@ -75,8 +76,9 @@ init();
 function init() {
   setMobilePage('invite');
   registerServiceWorker();
-  if (roomId) showInvite();
   els.playerNameInput.value = playerName;
+  if (!localStorageSafeGet('traceballPlayerName')) persistPlayerName();
+  if (roomId) prefillIncomingInviteFromUrl();
   updateModePanels();
   updateRoomText();
   draw();
@@ -84,7 +86,7 @@ function init() {
   els.generateRoom.addEventListener('click', createRoom);
   els.joinGeneratedRoom.addEventListener('click', joinGeneratedGame);
   els.newGameTab.addEventListener('click', () => setOnlineAction('new'));
-  els.existingGameTab.addEventListener('click', () => setOnlineAction('existing'));
+  els.existingGameTab.addEventListener('click', () => setOnlineAction('incoming'));
   els.playerNameInput.addEventListener('input', persistPlayerName);
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
@@ -138,6 +140,7 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
+  setOnlineAction('new');
   const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   const data = await res.json();
   openOnlineRoom(data.roomId, data.url, 'Game generated. Copy the invite, then join when ready.');
@@ -164,13 +167,26 @@ async function joinExistingRoom(event) {
 }
 
 function setOnlineAction(action) {
-  const existing = action === 'existing';
-  els.newGamePanel.classList.toggle('hidden', existing);
-  els.existingGamePanel.classList.toggle('hidden', !existing);
-  els.newGameTab.classList.toggle('active', !existing);
-  els.existingGameTab.classList.toggle('active', existing);
-  els.newGameTab.setAttribute('aria-pressed', String(!existing));
-  els.existingGameTab.setAttribute('aria-pressed', String(existing));
+  onlineAction = action === 'incoming' ? 'incoming' : 'new';
+  const incoming = onlineAction === 'incoming';
+  els.newGamePanel.classList.toggle('hidden', incoming);
+  els.existingGamePanel.classList.toggle('hidden', !incoming);
+  els.newGameTab.classList.toggle('active', !incoming);
+  els.existingGameTab.classList.toggle('active', incoming);
+  els.newGameTab.setAttribute('aria-pressed', String(!incoming));
+  els.existingGameTab.setAttribute('aria-pressed', String(incoming));
+  updateInviteVisibility();
+}
+
+function prefillIncomingInviteFromUrl() {
+  inviteUrl = `${location.origin}/room/${roomId}`;
+  els.existingRoomInput.value = inviteUrl;
+  setOnlineAction('incoming');
+}
+
+function updateInviteVisibility() {
+  const show = Boolean(inviteUrl) && onlineAction === 'new' && gameMode !== 'local-setup';
+  els.inviteBox.classList.toggle('hidden', !show);
 }
 
 function persistPlayerName() {
@@ -553,9 +569,9 @@ function animateConfetti() {
 
 function showInvite() {
   inviteUrl = `${location.origin}/room/${roomId}`;
-  els.inviteBox.classList.remove('hidden');
   els.inviteLink.value = inviteUrl;
   els.qr.src = `/api/qr?url=${encodeURIComponent(inviteUrl)}`;
+  updateInviteVisibility();
 }
 
 function updateRoomText() {
@@ -1036,6 +1052,13 @@ function localStorageSafeGet(key) {
 
 function localStorageSafeSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
+}
+
+function generateRandomPlayerName() {
+  const adjectives = ['Neon', 'Turbo', 'Cosmic', 'Lucky', 'Zigzag', 'Pixel', 'Rocket', 'Nimble', 'Thunder', 'Glitch'];
+  const nouns = ['Striker', 'Ranger', 'Falcon', 'Comet', 'Dribbler', 'Phantom', 'Kicker', 'Ace', 'Tiger', 'Wizard'];
+  const pick = (items) => items[Math.floor(Math.random() * items.length)];
+  return `${pick(adjectives)} ${pick(nouns)}`;
 }
 
 function getClientId() {
