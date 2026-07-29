@@ -18,20 +18,26 @@ const html = readFileSync('public/index.html', 'utf8');
 if (!html.includes('data-page-target="play"') || !html.includes('data-mobile-page="invite"') || !html.includes('data-mobile-page="match"')) {
   throw new Error('Mobile page navigation markup is required.');
 }
-const inviteTab = html.indexOf('data-page-target="invite"');
+const homeTab = html.indexOf('>Home</button>');
 const playTab = html.indexOf('data-page-target="play"');
 const matchTab = html.indexOf('data-page-target="match"');
-if (!(inviteTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Invite, Play, Match.');
+if (!(homeTab >= 0 && homeTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Home, Play, Match.');
+if (html.includes('>Invite</button>')) throw new Error('Invite tab must be renamed to Home.');
 if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
 if (!html.includes('score-strip') || !html.includes('p1Score') || !html.includes('p2Score')) {
   throw new Error('Match card must render the traced name/score/name layout.');
 }
-if (!html.includes('modeSelect') || !html.includes('startLocal') || !html.includes('mode-card')) {
-  throw new Error('Start screen must let players choose online room or local same-screen PvP.');
+if (html.includes('modeSelect') || html.includes('Choose game type') || html.includes('How do you want to play?')) {
+  throw new Error('Do not render a separate choose-game-type card; use the action pills and swap the Home card content.');
+}
+if (!html.includes('startLocalSetup') || !html.includes('localPanel') || !html.includes('startLocal')) {
+  throw new Error('Home actions must include a Start local game pill that reveals the local setup card.');
 }
 if (!html.includes('localP1Name') || !html.includes('localP2Name')) {
   throw new Error('Local PvP setup must collect both face-to-face player names.');
 }
+if (!html.includes('copyInviteCard')) throw new Error('Copy invite button must live inside the Join this match card.');
+if (html.includes('id="copyInvite"')) throw new Error('Top-level copy invite button must be removed.');
 if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manifest" href="/manifest.webmanifest"')) {
   throw new Error('Favicon and PWA manifest links are required.');
 }
@@ -56,14 +62,17 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
-if (!app.includes("gameMode = 'local'") || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
-  throw new Error('Client app must support a local same-screen PvP mode without WebSockets.');
+if (!app.includes("gameMode = 'local'") || !app.includes('showLocalSetup') || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
+  throw new Error('Client app must support a local same-screen PvP setup and mode without WebSockets.');
 }
-if (!app.includes("return gameMode === 'local' ? game?.turn === 'p2' : playerId === 'p2'")) {
-  throw new Error('Local PvP must rotate the board to the active same-screen player.');
+if (!app.includes("return gameMode !== 'local' && playerId === 'p2'")) {
+  throw new Error('Local same-screen PvP must keep a static board; only online red-player view may rotate.');
 }
-if (!app.includes('Local same-screen PvP') || !app.includes('Face-to-face mode')) {
-  throw new Error('Local PvP UI copy must explain face-to-face same-screen play.');
+if (app.includes("gameMode === 'local' ? game?.turn === 'p2'")) {
+  throw new Error('Local PvP must not rotate the pitch by active turn.');
+}
+if (!app.includes('Local same-screen PvP') || !app.includes('Players face each other')) {
+  throw new Error('Local PvP UI copy must explain static face-to-face same-screen play.');
 }
 
 const manifest = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));
@@ -75,6 +84,6 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v4') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v5') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
 
 console.log('Static build checks passed.');

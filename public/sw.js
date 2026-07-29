@@ -1,4 +1,4 @@
-const CACHE_NAME = 'traceball-arena-v4';
+const CACHE_NAME = 'traceball-arena-v5';
 const APP_SHELL = [
   '/',
   '/index.html',

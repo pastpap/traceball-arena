@@ -2,12 +2,12 @@ const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
   newRoom: document.querySelector('#newRoom'),
-  modeOnline: document.querySelector('#modeOnline'),
-  modeSelect: document.querySelector('#modeSelect'),
+  startLocalSetup: document.querySelector('#startLocalSetup'),
+  localPanel: document.querySelector('#localPanel'),
   localForm: document.querySelector('#localForm'),
   localP1Name: document.querySelector('#localP1Name'),
   localP2Name: document.querySelector('#localP2Name'),
-  copyInvite: document.querySelector('#copyInvite'),
+  copyInviteCard: document.querySelector('#copyInviteCard'),
   joinForm: document.querySelector('#joinForm'),
   nameInput: document.querySelector('#nameInput'),
   roomText: document.querySelector('#roomText'),
@@ -37,7 +37,7 @@ const mobilePages = [...document.querySelectorAll('.mobile-page')];
 let socket;
 let roomId = location.pathname.startsWith('/room/') ? location.pathname.split('/').pop() : null;
 let inviteUrl = roomId ? `${location.origin}/room/${roomId}` : '';
-let gameMode = roomId ? 'online' : 'select';
+let gameMode = roomId ? 'online' : 'online-home';
 let playerId = null;
 let game = null;
 let replayIndex = null;
@@ -62,9 +62,9 @@ function init() {
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.newRoom.addEventListener('click', createRoom);
-  els.modeOnline.addEventListener('click', createRoom);
+  els.startLocalSetup.addEventListener('click', showLocalSetup);
   els.localForm.addEventListener('submit', startLocalGame);
-  els.copyInvite.addEventListener('click', copyInvite);
+  els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
   els.joinForm.addEventListener('submit', join);
@@ -80,6 +80,28 @@ function init() {
   window.addEventListener('focus', wakeConnection);
   window.addEventListener('pageshow', wakeConnection);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) wakeConnection(); });
+}
+
+function showLocalSetup() {
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  gameMode = 'local-setup';
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  replayIndex = null;
+  if (!game || game.status === 'waiting') game = null;
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('invite');
+  toast('Add names, then start the local match.');
 }
 
 async function createRoom() {
@@ -360,8 +382,8 @@ function updateUi() {
     els.p2.textContent = 'Waiting for red';
     els.p1Score.textContent = '0';
     els.p2Score.textContent = '0';
-    els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Choose Online room or Local same-screen PvP.';
-    els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Pick a game type to start.';
+    els.status.textContent = roomId ? 'Choose a name to join this room.' : 'Use Home to create an online game or start a local match.';
+    els.playStatus.textContent = roomId ? 'Join this room, then play full-screen here.' : 'Use Home to start a match.';
     els.replayRange.max = 0;
     els.replayRange.value = 0;
     els.replayText.textContent = 'Replay appears once moves are made.';
@@ -394,18 +416,18 @@ function showInvite() {
 }
 
 function updateRoomText() {
-  if (gameMode === 'local') {
-    els.roomText.textContent = 'Local same-screen match — both players use this device.';
+  if (gameMode === 'local' || gameMode === 'local-setup') {
+    els.roomText.textContent = 'Local same-screen match — Players face each other and use this device.';
     return;
   }
-  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create an online game or start a local same-screen match.';
+  els.roomText.textContent = roomId ? `Room ${roomId}. Share it, then both players join with a name.` : 'Create an online game to generate an invite link and QR code.';
 }
 
 function updateModePanels() {
-  const selecting = gameMode === 'select';
-  els.modeSelect.classList.toggle('hidden', !selecting);
-  els.joinForm.closest('#joinPanel').classList.toggle('hidden', gameMode === 'local' || selecting);
-  els.copyInvite.disabled = gameMode !== 'online' || !inviteUrl;
+  const localVisible = gameMode === 'local' || gameMode === 'local-setup';
+  els.localPanel.classList.toggle('hidden', !localVisible);
+  els.joinForm.closest('#joinPanel').classList.toggle('hidden', localVisible);
+  els.copyInviteCard.disabled = !inviteUrl;
 }
 
 async function copyInvite() {
@@ -431,7 +453,7 @@ function updateTurnIndicator() {
   const colorName = turn === 'p1' ? 'Blue' : 'Red';
   const name = player?.name || colorName;
   const orientation = gameMode === 'local'
-    ? `${colorName} at bottom now — Face-to-face mode`
+    ? 'Static board — follow the turn ball between gates'
     : playerId ? `${playerId === 'p1' ? 'Blue' : 'Red'} at bottom` : 'Spectator view: blue at bottom';
   els.turnIndicator.textContent = game.status === 'playing'
     ? `${colorName} turn — ${name}${gameMode !== 'local' && turn === playerId ? ' — you attack upward' : ''} · ${orientation}`
@@ -655,7 +677,7 @@ function drawSoccerBall(x, y, radius) {
   ctx.fillStyle = '#111'; ctx.font = `${Math.round(radius * 1.33)}px system-ui`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('⚽', x, y + 1);
 }
 
-function isPlayerInverted() { return gameMode === 'local' ? game?.turn === 'p2' : playerId === 'p2'; }
+function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; }
 
 function drawLegalMoves() {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;

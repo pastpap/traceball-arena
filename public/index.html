@@ -20,33 +20,12 @@
         </div>
         <div class="actions">
           <button id="newRoom" class="primary">Create online game</button>
-          <button id="copyInvite">Copy invite</button>
-        </div>
-      </section>
-
-      <section id="modeSelect" class="card mode-card mobile-page active" data-mobile-page="invite">
-        <div>
-          <p class="eyebrow">Choose game type</p>
-          <h2>How do you want to play?</h2>
-          <p>Use Online room for WebSocket invite play, or Local same-screen PvP when two players sit face to face on one device.</p>
-        </div>
-        <div class="mode-grid">
-          <button id="modeOnline" type="button" class="mode-option primary">
-            <strong>Online room</strong>
-            <span>Generate a link and QR code for a friend.</span>
-          </button>
-          <form id="localForm" class="mode-option local-setup">
-            <strong>Local same-screen PvP</strong>
-            <span>Face-to-face mode: the board rotates to the active player each turn.</span>
-            <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
-            <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
-            <button id="startLocal" class="primary" type="submit">Start local match</button>
-          </form>
+          <button id="startLocalSetup">Start local game</button>
         </div>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
-        <button type="button" class="mobile-tab active" data-page-target="invite">Invite</button>
+        <button type="button" class="mobile-tab active" data-page-target="invite">Home</button>
         <button type="button" class="mobile-tab" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
@@ -65,8 +44,21 @@
           <div>
             <label>Invite link</label>
             <input id="inviteLink" readonly />
+            <button id="copyInviteCard" type="button">Copy invite</button>
           </div>
         </div>
+      </section>
+
+      <section id="localPanel" class="card join-panel local-panel mobile-page hidden" data-mobile-page="invite">
+        <div>
+          <h2>Local same-screen PvP</h2>
+          <p>Players face each other and play on this device. The pitch stays still; the turn ball moves between gates.</p>
+        </div>
+        <form id="localForm">
+          <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
+          <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
+          <button id="startLocal" class="primary" type="submit">Start local match</button>
+        </form>
       </section>
 
       <section class="game-layout">
@@ -74,7 +66,7 @@
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
           <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
-          <div class="board-help">Your side is always at the bottom. Attack upward; the turn badge shows whose move it is.</div>
+          <div class="board-help">Online red-player view rotates. Local games keep the board static; watch the gate turn ball.</div>
           <div class="board-replay replay">
             <h2>Replay</h2>
             <div class="replay-controls">
