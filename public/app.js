@@ -1059,20 +1059,7 @@ function isBlockedCornerCut(from, to) {
 }
 function screenX(x) { return margin + x * ((canvas.width - margin * 2) / (board.width - 1)); }
 function screenY(y) { return margin + y * ((canvas.height - margin * 2) / (board.height - 1)); }
-function roundRect(context, x, y, w, h, r) {
-  const radius = Math.max(0, Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2));
-  context.beginPath();
-  context.moveTo(x + radius, y);
-  context.lineTo(x + w - radius, y);
-  context.quadraticCurveTo(x + w, y, x + w, y + radius);
-  context.lineTo(x + w, y + h - radius);
-  context.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
-  context.lineTo(x + radius, y + h);
-  context.quadraticCurveTo(x, y + h, x, y + h - radius);
-  context.lineTo(x, y + radius);
-  context.quadraticCurveTo(x, y, x + radius, y);
-  context.closePath();
-}
+function roundRect(context, x, y, w, h, r) { context.beginPath(); context.roundRect(x, y, w, h, r); }
 function toast(message) { els.toast.textContent = message; els.toast.classList.add('show'); setTimeout(() => els.toast.classList.remove('show'), 2300); }
 
 function registerServiceWorker() {
@@ -1108,8 +1095,7 @@ function getClientId() {
   const key = 'traceballClientId';
   let id = localStorageSafeGet(key);
   if (!id) {
-    const cryptoApi = window.crypto;
-    id = cryptoApi && cryptoApi.randomUUID ? cryptoApi.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
     localStorageSafeSet(key, id);
   }
   return id;
