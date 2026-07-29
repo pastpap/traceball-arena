@@ -113,11 +113,20 @@ if (!bundle.includes('traceballPlayerName')) throw new Error('Transpiled bundle 
 if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
   throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
 }
-if (app.includes('context.roundRect(') || !app.includes('function roundRect') || !app.includes('quadraticCurveTo')) {
+if (!app.includes('function roundRect') || !app.includes('quadraticCurveTo')) {
   throw new Error('Canvas rounded rectangles must use a manual path fallback because iPadOS 15 Safari does not support context.roundRect.');
 }
 if (!app.includes('window.crypto') || app.includes('crypto.randomUUID ?')) {
   throw new Error('Client id generation must guard window.crypto for older Safari-compatible browsers.');
+}
+if (app.includes("canvas.addEventListener('click', boardClick);") || !app.includes("canvas.addEventListener('pointerup', boardPointerUp)") || !app.includes("canvas.addEventListener('touchend', boardTouchEnd, { passive: false })") || !app.includes('event.preventDefault()') || !app.includes('lastBoardPointerAt')) {
+  throw new Error('Board input must use immediate pointer/touch handlers with prevented synthetic clicks instead of delayed click-only canvas input.');
+}
+if (!app.includes('pendingOnlineMove') || !app.includes('Move is syncing') || !app.includes('clearPendingOnlineMove')) {
+  throw new Error('Online board moves must lock while waiting for the server state echo to avoid stale/delayed taps sending the previous move.');
+}
+if (!css.includes('touch-action: none;') || !css.includes('-webkit-user-select: none;')) {
+  throw new Error('Canvas board must disable browser touch gestures/selection so taps map directly to board points.');
 }
 if (app.includes('MOVE_HINT_PULSE_MS') || app.includes('animateLegalMoveHints') || app.includes('requestLegalMoveHintFrame') || app.includes('now % MOVE_HINT')) {
   throw new Error('Legal-move hint circles must not pulse continuously after they have appeared.');
@@ -202,7 +211,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v21') || !sw.includes('/dist/app.js') || sw.includes("'/app.js'") || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must refresh and cache the transpiled app shell for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v22') || !sw.includes('/dist/app.js') || sw.includes("'/app.js'") || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must refresh and cache the transpiled app shell for installed iPhone apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

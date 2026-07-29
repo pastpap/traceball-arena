@@ -66,6 +66,8 @@ let turnMarkerJump = null;
 let legalMoveHintFadeRaf = 0;
 let legalMoveHintStartedAt = 0;
 let legalMoveHintKey = '';
+let pendingOnlineMove = null;
+let lastBoardPointerAt = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -104,7 +106,9 @@ function init() {
   els.reset.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
-  canvas.addEventListener('click', boardClick);
+  if (window.PointerEvent) canvas.addEventListener('pointerup', boardPointerUp);
+  canvas.addEventListener('touchend', boardTouchEnd, { passive: false });
+  canvas.addEventListener('click', boardClickFallback);
   els.replayStart.addEventListener('click', () => setReplay(0));
   els.replayPrev.addEventListener('click', () => setReplay(Math.max(0, currentReplay() - 1)));
   els.replayNext.addEventListener('click', () => setReplay(Math.min((game?.moves?.length || 0), currentReplay() + 1)));
@@ -435,11 +439,15 @@ function connect(onOpen) {
     }
     if (msg.type === 'state') {
       applyRemoteGameState(msg.game);
+      clearPendingOnlineMove();
       if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
       updateUi();
       draw();
     }
-    if (msg.type === 'error') toast(msg.error);
+    if (msg.type === 'error') {
+      clearPendingOnlineMove();
+      toast(msg.error);
+    }
   });
   socket.addEventListener('close', () => {
     if (socket !== activeSocket) return;
@@ -482,13 +490,42 @@ function wakeConnection() {
 }
 
 function send(payload) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) return toast('Not connected yet.');
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
+    toast('Not connected yet.');
+    return false;
+  }
   socket.send(JSON.stringify(payload));
+  return true;
 }
 
-function boardClick(event) {
+function boardPointerUp(event) {
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  event.preventDefault();
+  lastBoardPointerAt = Date.now();
+  boardPress(event);
+}
+
+function boardTouchEnd(event) {
+  if (window.PointerEvent) return;
+  event.preventDefault();
+  const touch = event.changedTouches && event.changedTouches[0];
+  if (!touch) return;
+  lastBoardPointerAt = Date.now();
+  boardPress(touch);
+}
+
+function boardClickFallback(event) {
+  if (Date.now() - lastBoardPointerAt < 700) {
+    event.preventDefault();
+    return;
+  }
+  boardPress(event);
+}
+
+function boardPress(event) {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
   if (gameMode !== 'local' && game.turn !== playerId) return toast('Wait for your turn.');
+  if (gameMode !== 'local' && pendingOnlineMove) return toast('Move is syncing…');
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
   const scaleY = canvas.height / rect.height;
@@ -499,7 +536,11 @@ function boardClick(event) {
   const legal = game.legalMoves.some((p) => p.x === target.x && p.y === target.y);
   if (!legal) return toast('That move is not legal.');
   if (gameMode === 'local') return makeLocalMove(target);
-  send({ type: 'move', to: target });
+  if (send({ type: 'move', to: target })) pendingOnlineMove = { from: { ...game.ball }, to: target, moveCount: game.moves.length };
+}
+
+function clearPendingOnlineMove() {
+  pendingOnlineMove = null;
 }
 
 function nearestPoint(click) {
