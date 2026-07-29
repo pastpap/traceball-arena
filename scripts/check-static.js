@@ -55,6 +55,9 @@ if (!html.includes('data-home-mode="online"') || !html.includes('data-home-mode=
 if (!html.includes('id="newRoom"') || !html.includes('>New game</button>')) {
   throw new Error('Online card must contain a New game button that creates an online room.');
 }
+if (!html.includes('id="existingRoomForm"') || !html.includes('id="existingRoomInput"') || !html.includes('>Join game</button>')) {
+  throw new Error('Online card must allow safely joining an existing game by pasted invite link or room code.');
+}
 if (!html.includes('localPanel') || !html.includes('startLocal')) {
   throw new Error('Local selector must reveal the local setup card.');
 }
@@ -87,6 +90,12 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
+if (!app.includes('parseRoomInput') || !app.includes('joinExistingRoom') || !app.includes('/api/rooms/') || !app.includes('input.length > 200')) {
+  throw new Error('Client must safely parse pasted invite links/codes, cap input length, and check room existence before navigation.');
+}
+if (!app.includes('url.origin !== location.origin') || !app.includes('/^[A-Za-z0-9_-]{6,32}$/')) {
+  throw new Error('Pasted room links must be same-origin and room codes must use a strict allowlist.');
+}
 if (!app.includes("gameMode = 'local'") || !app.includes('setHomeMode') || !app.includes('startLocalGame') || !app.includes('makeLocalMove')) {
   throw new Error('Client app must support an Online/Local Home selector and local same-screen PvP without WebSockets.');
 }
@@ -109,6 +118,11 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v7') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v8') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+
+const server = readFileSync('src/server.js', 'utf8');
+if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {
+  throw new Error('Server must expose a safe direct room lookup for pasted links/codes.');
+}
 
 console.log('Static build checks passed.');

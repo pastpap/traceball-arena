@@ -37,6 +37,13 @@
           <p id="roomText">Create a game or open an invite link.</p>
         </div>
         <button id="newRoom" class="primary" type="button">New game</button>
+        <form id="existingRoomForm" class="existing-room-form">
+          <label for="existingRoomInput">Join existing game</label>
+          <div class="inline-form">
+            <input id="existingRoomInput" autocomplete="off" maxlength="200" placeholder="Paste invite link or room code" />
+            <button type="submit">Join game</button>
+          </div>
+        </form>
         <form id="joinForm">
           <input id="nameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" required />
           <button class="primary" type="submit">Join</button>

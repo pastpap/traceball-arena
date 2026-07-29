@@ -8,6 +8,8 @@ const els = {
   localForm: document.querySelector('#localForm'),
   localP1Name: document.querySelector('#localP1Name'),
   localP2Name: document.querySelector('#localP2Name'),
+  existingRoomForm: document.querySelector('#existingRoomForm'),
+  existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
   joinForm: document.querySelector('#joinForm'),
   nameInput: document.querySelector('#nameInput'),
@@ -51,6 +53,7 @@ let intentionalClose = false;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
+const ROOM_CODE_RE = /^[A-Za-z0-9_-]{6,32}$/;
 
 init();
 
@@ -66,6 +69,7 @@ function init() {
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
+  els.existingRoomForm.addEventListener('submit', joinExistingRoom);
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
@@ -114,6 +118,47 @@ function setHomeMode(mode) {
 }
 
 async function createRoom() {
+  const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  const data = await res.json();
+  openOnlineRoom(data.roomId, data.url, 'Game created. Choose a name to join.');
+}
+
+async function joinExistingRoom(event) {
+  event.preventDefault();
+  const parsed = parseRoomInput(els.existingRoomInput.value);
+  if (!parsed.ok) return toast(parsed.error);
+  const res = await fetch(`/api/rooms/${encodeURIComponent(parsed.roomId)}`, { cache: 'no-store' });
+  if (res.status === 404) return toast('Game not found or expired.');
+  if (!res.ok) return toast('Could not check that game. Try again.');
+  const data = await res.json();
+  openOnlineRoom(data.roomId, data.url, 'Game found. Choose a name to join.');
+}
+
+function parseRoomInput(raw) {
+  const input = String(raw || '').trim();
+  if (!input) return { ok: false, error: 'Paste a Traceball invite link or room code.' };
+  if (input.length > 200) return { ok: false, error: 'That invite is too long.' };
+  let candidate = input;
+  const looksLikeLink = /^[a-z][a-z\d+.-]*:/i.test(input) || input.startsWith('/');
+  if (looksLikeLink) {
+    let url;
+    try {
+      url = new URL(input, location.origin);
+    } catch {
+      return { ok: false, error: 'That invite link is not valid.' };
+    }
+    if (url.origin !== location.origin) return { ok: false, error: 'Only Traceball invite links from this app can be joined.' };
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (parts.length !== 2 || parts[0] !== 'room') return { ok: false, error: 'Paste a Traceball room link or room code.' };
+    candidate = decodeURIComponent(parts[1]);
+  } else if (input.includes('/') || input.includes(':')) {
+    return { ok: false, error: 'Paste a Traceball room link or room code.' };
+  }
+  if (!ROOM_CODE_RE.test(candidate)) return { ok: false, error: 'That room code looks invalid.' };
+  return { ok: true, roomId: candidate };
+}
+
+function openOnlineRoom(nextRoomId, nextUrl, message) {
   intentionalClose = true;
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
@@ -122,12 +167,10 @@ async function createRoom() {
   game = null;
   replayIndex = null;
   wantsPlayerSession = false;
-  const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
-  const data = await res.json();
-  roomId = data.roomId;
+  roomId = nextRoomId;
   gameMode = 'online';
-  inviteUrl = data.url || `${location.origin}/room/${roomId}`;
-  history.pushState({}, '', `/room/${roomId}`);
+  inviteUrl = nextUrl || `${location.origin}/room/${roomId}`;
+  history.pushState({}, '', `/room/${encodeURIComponent(roomId)}`);
   showInvite();
   updateRoomText();
   updateModePanels();
@@ -135,7 +178,7 @@ async function createRoom() {
   draw();
   connect(() => watchCurrentRoom());
   setMobilePage('invite');
-  toast('Game created. Choose a name to join.');
+  toast(message);
 }
 
 function startLocalGame(event) {

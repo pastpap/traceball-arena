@@ -80,6 +80,16 @@ h2 { margin: 0 0 .8rem; }
 .local-setup input { margin-top: 2px; }
 #joinForm { display: flex; gap: 10px; }
 #localForm { display: grid; gap: 10px; }
+.existing-room-form {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.existing-room-form label { color: var(--muted); font-weight: 800; }
+.inline-form { display: flex; gap: 10px; }
+.inline-form input { flex: 1; }
 .invite { grid-column: 1 / -1; display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: center; padding-top: 10px; border-top: 1px solid var(--line); }
 .invite img { width: 112px; height: 112px; background: white; border-radius: 12px; padding: 8px; }
 .invite label { display: block; color: var(--muted); margin-bottom: 6px; }
@@ -152,8 +162,8 @@ li { margin: .5rem 0; }
 
 @media (max-width: 860px) {
   .hero, .join-panel, .mode-grid { grid-template-columns: 1fr; display: grid; }
-  .actions, #joinForm { justify-content: stretch; }
-  #joinForm { flex-direction: column; }
+  .actions, #joinForm, .inline-form { justify-content: stretch; }
+  #joinForm, .inline-form { flex-direction: column; }
   .game-layout { grid-template-columns: 1fr; }
   .side { grid-template-columns: 1fr; }
 }
