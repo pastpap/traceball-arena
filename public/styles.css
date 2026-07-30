@@ -130,7 +130,8 @@ h2 { margin: 0 0 .8rem; }
 .board-card { position: relative; padding: clamp(8px, 1.4vw, 14px); width: min(100%, 760px); justify-self: center; }
 .board-stage {
   position: relative;
-  width: min(100%, 720px);
+  --board-fit-width: min(100%, 720px);
+  width: var(--board-fit-width);
   margin: 0 auto;
 }
 #board {
@@ -297,7 +298,11 @@ li { margin: .5rem 0; }
     align-items: center;
   }
   .play-status { display: block; margin: 0 2px 8px; padding: 8px 10px; border-radius: 14px; background: rgba(0,0,0,.2); color: var(--muted); text-align: center; line-height: 1.3; }
-  #board { width: min(100%, 720px); max-height: calc(100dvh - 255px); object-fit: contain; }
+  .board-stage {
+    --board-fit-width: min(100%, 720px, calc((100dvh - 255px) * 720 / 920));
+    width: var(--board-fit-width);
+  }
+  #board { width: 100%; }
 }
 
 @media (max-width: 640px) {
@@ -366,9 +371,7 @@ li { margin: .5rem 0; }
   }
   #board {
     border-radius: 14px;
-    width: min(100%, 720px);
-    max-height: calc(100dvh - 255px);
-    object-fit: contain;
+    width: 100%;
   }
   .turn-indicator { margin-bottom: 7px; padding: 7px 9px; font-size: .78rem; line-height: 1.25; }
   .board-replay { margin-top: 7px; padding: 8px; border-radius: 14px; }

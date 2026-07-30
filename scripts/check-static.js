@@ -10,6 +10,11 @@ if (railway.deploy.healthcheckPath !== '/api/health') throw new Error('Railway h
 const css = readFileSync('public/styles.css', 'utf8');
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
+if (css.includes('object-fit: contain')) throw new Error('Canvas must not use object-fit: contain because it letterboxes the visual bitmap inside a larger click box.');
+if (/#board\s*\{[^}]*max-height:/s.test(css)) throw new Error('Canvas itself must not be max-height constrained; constrain the board-stage width instead so hit testing and pixels share one box.');
+if (!css.includes('--board-fit-width: min(100%, 720px, calc((100dvh - 255px) * 720 / 920))')) {
+  throw new Error('Mobile/tablet board-stage must shrink by available height while preserving the 720/920 clickable box.');
+}
 if (!css.includes('@media (max-width: 640px)')) throw new Error('Mobile layout breakpoint is required.');
 if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobile-page="play"] .board-card')) {
   throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
