@@ -1,4 +1,4 @@
-const CACHE_NAME = 'traceball-arena-v19';
+const CACHE_NAME = 'traceball-arena-v20';
 const APP_SHELL = [
   '/',
   '/index.html',
@@ -28,13 +28,16 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return;
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/ws') || url.pathname.startsWith('/api/')) return;
 
   event.respondWith(
     fetch(request)
       .then((response) => {
+        if (!response.ok || response.type !== 'basic') return response;
         const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+        event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
         return response;
       })
       .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))

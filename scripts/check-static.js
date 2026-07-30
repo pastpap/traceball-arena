@@ -132,6 +132,13 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
+const serviceWorker = readFileSync('public/sw.js', 'utf8');
+if (!serviceWorker.includes("url.protocol !== 'http:' && url.protocol !== 'https:'") || !serviceWorker.includes('url.origin !== self.location.origin')) {
+  throw new Error('Service worker must ignore extension/cross-origin requests before fetch/cache handling.');
+}
+if (!serviceWorker.includes("response.type !== 'basic'") || !serviceWorker.includes('event.waitUntil(caches.open(CACHE_NAME)')) {
+  throw new Error('Service worker may only persist safe same-origin responses and must keep cache writes alive.');
+}
 if (!app.includes('setOnlineAction') || !app.includes('joinOnlinePlayer') || !app.includes("setMobilePage('play')")) {
   throw new Error('Client must switch online sub-tabs and navigate final online actions to Play.');
 }
@@ -184,7 +191,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v19') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v20') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
