@@ -44,6 +44,11 @@ const matchTab = html.indexOf('data-page-target="match"');
 if (!(homeTab >= 0 && homeTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Home, Play, Match.');
 if (html.includes('>Invite</button>')) throw new Error('Invite tab must be renamed to Home.');
 if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
+if (html.includes('class="board-help"')) throw new Error('Play page must not spend vertical board space on a separate bottom helper message.');
+if (/\.play-status\s*\{[^}]*display:\s*block/s.test(css)) throw new Error('Play page must use one visible top status line, not a separate play-status banner.');
+if (!css.includes('white-space: nowrap') || !css.includes('text-overflow: ellipsis')) {
+  throw new Error('The single board status line must stay compact and one-line.');
+}
 if (!html.includes('score-strip') || !html.includes('p1Score') || !html.includes('p2Score')) {
   throw new Error('Match card must render the traced name/score/name layout.');
 }

@@ -627,16 +627,17 @@ async function copyInviteFromField() {
 }
 
 function updateTurnIndicator() {
-  const turn = game?.turn;
-  const player = game?.players?.[turn];
+  const turn = game && game.turn;
+  const player = game && game.players && game.players[turn];
   const colorName = turn === 'p1' ? 'Blue' : 'Red';
-  const name = player?.name || colorName;
-  const orientation = gameMode === 'local'
-    ? 'Static board — follow the turn ball between gates'
-    : playerId ? `${playerId === 'p1' ? 'Blue' : 'Red'} at bottom` : 'Spectator view: blue at bottom';
-  els.turnIndicator.textContent = game.status === 'playing'
-    ? `${colorName} turn — ${name}${gameMode !== 'local' && turn === playerId ? ' — you attack upward' : ''} · ${orientation}`
-    : `${game.status === 'finished' ? 'Match finished' : 'Waiting'} · ${orientation}`;
+  const name = player && player.name ? player.name : colorName;
+  let message;
+  if (!game || game.status === 'waiting') message = 'Waiting for players';
+  else if (game.status === 'finished') message = `Match finished — ${game.players[game.winner]?.name || game.winner} wins`;
+  else if (gameMode === 'local') message = `${colorName} turn — ${name} · pass screen across`;
+  else if (turn === playerId) message = `${colorName} turn — your move`;
+  else message = `${colorName} turn — waiting for ${name}`;
+  els.turnIndicator.textContent = message;
   els.turnIndicator.className = `turn-indicator ${turn === 'p2' ? 'red' : 'blue'}`;
 }
 
