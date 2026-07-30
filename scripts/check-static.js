@@ -10,6 +10,11 @@ if (railway.deploy.healthcheckPath !== '/api/health') throw new Error('Railway h
 const css = readFileSync('public/styles.css', 'utf8');
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
+if (css.includes('object-fit: contain')) throw new Error('Canvas must not use object-fit: contain because it letterboxes the visual bitmap inside a larger click box.');
+if (/#board\s*\{[^}]*max-height:/s.test(css)) throw new Error('Canvas itself must not be max-height constrained; constrain the board-stage width instead so hit testing and pixels share one box.');
+if (!css.includes('--board-fit-width: min(100%, 720px, calc((100dvh - 255px) * 720 / 920))')) {
+  throw new Error('Mobile/tablet board-stage must shrink by available height while preserving the 720/920 clickable box.');
+}
 if (!css.includes('@media (max-width: 640px)')) throw new Error('Mobile layout breakpoint is required.');
 if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobile-page="play"] .board-card')) {
   throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
@@ -39,6 +44,11 @@ const matchTab = html.indexOf('data-page-target="match"');
 if (!(homeTab >= 0 && homeTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Home, Play, Match.');
 if (html.includes('>Invite</button>')) throw new Error('Invite tab must be renamed to Home.');
 if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
+if (html.includes('class="board-help"')) throw new Error('Play page must not spend vertical board space on a separate bottom helper message.');
+if (/\.play-status\s*\{[^}]*display:\s*block/s.test(css)) throw new Error('Play page must use one visible top status line, not a separate play-status banner.');
+if (!css.includes('white-space: nowrap') || !css.includes('text-overflow: ellipsis')) {
+  throw new Error('The single board status line must stay compact and one-line.');
+}
 if (!html.includes('score-strip') || !html.includes('p1Score') || !html.includes('p2Score')) {
   throw new Error('Match card must render the traced name/score/name layout.');
 }
@@ -132,6 +142,13 @@ if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !ap
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
 if (!app.includes("navigator.serviceWorker.register('/sw.js')")) throw new Error('PWA service worker registration is required.');
+const serviceWorker = readFileSync('public/sw.js', 'utf8');
+if (!serviceWorker.includes("url.protocol !== 'http:' && url.protocol !== 'https:'") || !serviceWorker.includes('url.origin !== self.location.origin')) {
+  throw new Error('Service worker must ignore extension/cross-origin requests before fetch/cache handling.');
+}
+if (!serviceWorker.includes("response.type !== 'basic'") || !serviceWorker.includes('event.waitUntil(caches.open(CACHE_NAME)')) {
+  throw new Error('Service worker may only persist safe same-origin responses and must keep cache writes alive.');
+}
 if (!app.includes('setOnlineAction') || !app.includes('joinOnlinePlayer') || !app.includes("setMobilePage('play')")) {
   throw new Error('Client must switch online sub-tabs and navigate final online actions to Play.');
 }
@@ -184,7 +201,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v19') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed iPhone apps.');
+if (!sw.includes('traceball-arena-v20') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
