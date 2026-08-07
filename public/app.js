@@ -28,6 +28,7 @@ const els = {
   winnerClose: document.querySelector('#winnerClose'),
   winnerNewRound: document.querySelector('#winnerNewRound'),
   pauseGame: document.querySelector('#pauseGame'),
+  playPauseGame: document.querySelector('#playPauseGame'),
   pauseOverlay: document.querySelector('#pauseOverlay'),
   pauseTitle: document.querySelector('#pauseTitle'),
   pauseMessage: document.querySelector('#pauseMessage'),
@@ -77,6 +78,7 @@ let legalMoveHintStartedAt = 0;
 let legalMoveHintKey = '';
 let clockRaf = 0;
 let lastTimeoutKey = '';
+let localTimeoutTimer = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -117,6 +119,7 @@ function init() {
 
   els.reset.addEventListener('click', resetRound);
   els.pauseGame.addEventListener('click', pauseRound);
+  els.playPauseGame.addEventListener('click', pauseRound);
   els.resumeGame.addEventListener('click', resumeRound);
   els.pauseNewRound.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
@@ -140,6 +143,7 @@ function setHomeMode(mode) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   gameMode = nextMode;
   if (nextMode === 'local-setup') {
     roomId = null;
@@ -286,6 +290,7 @@ function openOnlineRoom(nextRoomId, nextUrl, message) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   playerId = null;
   game = null;
   replayIndex = null;
@@ -310,6 +315,7 @@ function startLocalGame(event) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   roomId = null;
   inviteUrl = '';
   playerId = null;
@@ -327,6 +333,7 @@ function startLocalGame(event) {
   updateRoomText();
   updateUi();
   draw();
+  scheduleLocalTurnTimeout();
   setMobilePage('play');
   toast('Local same-screen PvP started.');
 }
@@ -339,6 +346,7 @@ function resetRound() {
     replayIndex = null;
     updateUi();
     draw();
+    scheduleLocalTurnTimeout();
     toast('New local round.');
     return;
   }
@@ -377,6 +385,7 @@ function pauseLocalGame(reason = 'manual', byPlayerId = null) {
   if (!game || game.status !== 'playing') return;
   game.status = 'paused';
   game.turnStartedAt = null;
+  clearLocalTurnTimeout();
   game.pause = {
     reason,
     byPlayerId,
@@ -435,6 +444,7 @@ function makeLocalMove(to) {
   if (goal) {
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = goal.winner;
     game.endReason = goal.reason;
     game.score[goal.winner] = (game.score[goal.winner] || 0) + 1;
@@ -457,6 +467,7 @@ function makeLocalMove(to) {
     const winner = otherLocalPlayer(game.turn);
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = winner;
     game.endReason = `${game.players[game.turn]?.name || game.turn} is stuck — ${game.players[winner]?.name || winner} wins.`;
     game.score[winner] = (game.score[winner] || 0) + 1;
@@ -489,6 +500,23 @@ function localIsLegalTarget(localGame, to) {
 function restartLocalTurnClock() {
   if (!game || game.status !== 'playing') return;
   game.turnStartedAt = game.moveTimeLimitMs > 0 ? Date.now() : null;
+  scheduleLocalTurnTimeout();
+}
+
+function clearLocalTurnTimeout() {
+  clearTimeout(localTimeoutTimer);
+  localTimeoutTimer = 0;
+}
+
+function scheduleLocalTurnTimeout() {
+  clearLocalTurnTimeout();
+  if (!game || gameMode !== 'local' || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
+  const delay = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now() + 30);
+  localTimeoutTimer = setTimeout(() => {
+    localTimeoutTimer = 0;
+    if (expireLocalTurnIfNeeded()) return;
+    scheduleLocalTurnTimeout();
+  }, delay);
 }
 
 function expireLocalTurnIfNeeded() {
@@ -509,6 +537,7 @@ function expireLocalTurnIfNeeded() {
   if (game.legalMoves.length === 0) {
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = timedOutPlayer;
     game.endReason = `${game.players[nextPlayer]?.name || nextPlayer} is stuck after ${game.players[timedOutPlayer]?.name || timedOutPlayer} timed out — ${game.players[timedOutPlayer]?.name || timedOutPlayer} wins.`;
     game.score[timedOutPlayer] = (game.score[timedOutPlayer] || 0) + 1;
@@ -740,6 +769,7 @@ function updatePauseOverlay() {
   els.pauseOverlay.classList.toggle('hidden', !paused);
   document.querySelector('.board-stage')?.classList.toggle('paused', paused);
   els.pauseGame.disabled = !game || game.status !== 'playing' || (gameMode !== 'local' && !playerId);
+  els.playPauseGame.disabled = els.pauseGame.disabled;
   els.resumeGame.disabled = !paused || (gameMode !== 'local' && !playerId);
   if (!paused) return;
   const pause = game.pause || {};

@@ -195,6 +195,12 @@ h2 { margin: 0 0 .8rem; }
   text-overflow: ellipsis;
 }
 .turn-indicator.red { background: rgba(255, 59, 48, .18); }
+.play-pause-button {
+  display: none;
+  width: min(100%, 240px);
+  margin: 0 auto 8px;
+  padding: .62rem .85rem;
+}
 .board-replay {
   width: min(100%, 720px);
   margin: 12px auto 0;
@@ -336,6 +342,7 @@ li { margin: .5rem 0; }
     align-items: center;
   }
   .play-status { display: none !important; }
+  .play-pause-button { display: block; }
   .board-stage {
     --board-fit-width: min(100%, 720px, calc((100dvh - 255px) * 720 / 920));
     width: var(--board-fit-width);
@@ -397,6 +404,7 @@ li { margin: .5rem 0; }
     align-items: center;
   }
   .play-status { display: none !important; }
+  .play-pause-button { display: block; margin-bottom: 6px; padding: .58rem .78rem; }
   #board {
     border-radius: 14px;
     width: 100%;
