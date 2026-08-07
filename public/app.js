@@ -13,6 +13,8 @@ const els = {
   localForm: document.querySelector('#localForm'),
   localP1Name: document.querySelector('#localP1Name'),
   localP2Name: document.querySelector('#localP2Name'),
+  onlineMoveTimer: document.querySelector('#onlineMoveTimer'),
+  localMoveTimer: document.querySelector('#localMoveTimer'),
   existingRoomForm: document.querySelector('#existingRoomForm'),
   existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
@@ -66,6 +68,8 @@ let turnMarkerJump = null;
 let legalMoveHintFadeRaf = 0;
 let legalMoveHintStartedAt = 0;
 let legalMoveHintKey = '';
+let clockRaf = 0;
+let lastTimeoutKey = '';
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -75,6 +79,8 @@ const MOVE_HINT_FADE_IN_MS = 650;
 const TURN_MARKER_JUMP_MS = 1400;
 const TURN_MARKER_MAX_SCALE = 1.55;
 const CONFETTI_MS = 4800;
+const MOVE_TIMER_VALUES = [0, 5, 10, 15, 20, 30];
+const DEFAULT_MOVE_TIMER_SECONDS = 15;
 
 init();
 
@@ -82,6 +88,7 @@ function init() {
   setMobilePage('invite');
   registerServiceWorker();
   els.playerNameInput.value = playerName;
+  initMoveTimerSelects();
   if (!localStorageSafeGet('traceballPlayerName')) persistPlayerName();
   if (roomId) prefillIncomingInviteFromUrl();
   updateModePanels();
@@ -148,7 +155,13 @@ function setHomeMode(mode) {
 
 async function createRoom() {
   setOnlineAction('new');
-  const res = await fetch('/api/rooms', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+  const moveTimeLimitSeconds = selectedMoveTimerSeconds(els.onlineMoveTimer);
+  localStorageSafeSet('traceballMoveTimerSeconds', String(moveTimeLimitSeconds));
+  const res = await fetch('/api/rooms', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ moveTimeLimitSeconds }),
+  });
   const data = await res.json();
   openOnlineRoom(data.roomId, data.url, 'Game generated. Copy the invite, then join when ready.');
 }
@@ -209,6 +222,29 @@ function requirePlayerName() {
     return '';
   }
   return playerName;
+}
+
+function initMoveTimerSelects() {
+  const saved = selectedStoredMoveTimerSeconds();
+  if (els.onlineMoveTimer) els.onlineMoveTimer.value = String(saved);
+  if (els.localMoveTimer) els.localMoveTimer.value = String(saved);
+  els.onlineMoveTimer?.addEventListener('change', () => localStorageSafeSet('traceballMoveTimerSeconds', String(selectedMoveTimerSeconds(els.onlineMoveTimer))));
+  els.localMoveTimer?.addEventListener('change', () => localStorageSafeSet('traceballMoveTimerSeconds', String(selectedMoveTimerSeconds(els.localMoveTimer))));
+}
+
+function selectedStoredMoveTimerSeconds() {
+  const saved = Number(localStorageSafeGet('traceballMoveTimerSeconds'));
+  return MOVE_TIMER_VALUES.includes(saved) ? saved : DEFAULT_MOVE_TIMER_SECONDS;
+}
+
+function selectedMoveTimerSeconds(select) {
+  const value = Number(select?.value);
+  return MOVE_TIMER_VALUES.includes(value) ? value : DEFAULT_MOVE_TIMER_SECONDS;
+}
+
+function moveTimerLabel(ms) {
+  if (!ms) return 'timer off';
+  return `${Math.round(ms / 1000)}s clock`;
 }
 
 function parseRoomInput(raw) {
@@ -272,7 +308,9 @@ function startLocalGame(event) {
   gameMode = 'local';
   const p1Name = cleanLocalName(els.localP1Name.value, 'Blue');
   const p2Name = cleanLocalName(els.localP2Name.value, 'Red');
-  game = createLocalGame(p1Name, p2Name, game?.score);
+  const moveTimeLimitSeconds = selectedMoveTimerSeconds(els.localMoveTimer);
+  localStorageSafeSet('traceballMoveTimerSeconds', String(moveTimeLimitSeconds));
+  game = createLocalGame(p1Name, p2Name, game?.score, moveTimeLimitSeconds * 1000);
   history.pushState({}, '', '/');
   els.inviteBox.classList.add('hidden');
   updateModePanels();
@@ -287,7 +325,7 @@ function resetRound() {
   if (gameMode === 'local') {
     const p1Name = game?.players?.p1?.name || cleanLocalName(els.localP1Name.value, 'Blue');
     const p2Name = game?.players?.p2?.name || cleanLocalName(els.localP2Name.value, 'Red');
-    game = createLocalGame(p1Name, p2Name, game?.score);
+    game = createLocalGame(p1Name, p2Name, game?.score, game?.moveTimeLimitMs || 0);
     replayIndex = null;
     updateUi();
     draw();
@@ -297,7 +335,7 @@ function resetRound() {
   send({ type: 'reset' });
 }
 
-function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }) {
+function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimitMs = 0) {
   const localGame = {
     roomId: 'local',
     status: 'playing',
@@ -313,6 +351,9 @@ function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }) {
     score: { p1: score?.p1 || 0, p2: score?.p2 || 0 },
     winner: null,
     endReason: null,
+    moveTimeLimitMs,
+    turnStartedAt: moveTimeLimitMs > 0 ? Date.now() : null,
+    lastTimeout: null,
     legalMoves: [],
   };
   localGame.legalMoves = localLegalMoves(localGame);
@@ -321,6 +362,7 @@ function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }) {
 
 function makeLocalMove(to) {
   if (!game || game.status !== 'playing') return;
+  if (expireLocalTurnIfNeeded()) return;
   const player = game.turn;
   const from = { ...game.ball };
   const target = { x: Number(to.x), y: Number(to.y) };
@@ -335,6 +377,7 @@ function makeLocalMove(to) {
   const goal = localGoalForMove(player, target);
   if (goal) {
     game.status = 'finished';
+    game.turnStartedAt = null;
     game.winner = goal.winner;
     game.endReason = goal.reason;
     game.score[goal.winner] = (game.score[goal.winner] || 0) + 1;
@@ -351,10 +394,12 @@ function makeLocalMove(to) {
   game.moves.push(move);
   if (!getsBounce) game.turn = otherLocalPlayer(player);
   if (game.turn !== player && game.status === 'playing') startTurnMarkerJump(player, game.turn);
+  restartLocalTurnClock();
   game.legalMoves = localLegalMoves(game);
   if (game.legalMoves.length === 0) {
     const winner = otherLocalPlayer(game.turn);
     game.status = 'finished';
+    game.turnStartedAt = null;
     game.winner = winner;
     game.endReason = `${game.players[game.turn]?.name || game.turn} is stuck — ${game.players[winner]?.name || winner} wins.`;
     game.score[winner] = (game.score[winner] || 0) + 1;
@@ -382,6 +427,36 @@ function localIsLegalTarget(localGame, to) {
     && !localGame.segments.includes(localSegmentKey(localGame.ball, to))
     && !isTracedMarginSegment(localGame.ball, to)
     && !isBlockedCornerCut(localGame.ball, to);
+}
+
+function restartLocalTurnClock() {
+  if (!game || game.status !== 'playing') return;
+  game.turnStartedAt = game.moveTimeLimitMs > 0 ? Date.now() : null;
+}
+
+function expireLocalTurnIfNeeded() {
+  if (!game || gameMode !== 'local' || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return false;
+  if (Date.now() - game.turnStartedAt < game.moveTimeLimitMs) return false;
+  const timedOutPlayer = game.turn;
+  const nextPlayer = otherLocalPlayer(timedOutPlayer);
+  game.turn = nextPlayer;
+  game.lastTimeout = { playerId: timedOutPlayer, at: Date.now(), ball: { ...game.ball } };
+  game.legalMoves = localLegalMoves(game);
+  if (game.legalMoves.length === 0) {
+    game.status = 'finished';
+    game.turnStartedAt = null;
+    game.winner = timedOutPlayer;
+    game.endReason = `${game.players[nextPlayer]?.name || nextPlayer} is stuck after ${game.players[timedOutPlayer]?.name || timedOutPlayer} timed out — ${game.players[timedOutPlayer]?.name || timedOutPlayer} wins.`;
+    game.score[timedOutPlayer] = (game.score[timedOutPlayer] || 0) + 1;
+  } else {
+    restartLocalTurnClock();
+    startTurnMarkerJump(timedOutPlayer, nextPlayer);
+    toast(`${game.players[timedOutPlayer]?.name || timedOutPlayer} timed out — ${game.players[nextPlayer]?.name || nextPlayer}'s turn.`);
+  }
+  replayIndex = null;
+  updateUi();
+  draw();
+  return true;
 }
 
 function localGoalForMove(player, target) {
@@ -454,6 +529,14 @@ function applyRemoteGameState(nextGame) {
   const previousTurn = game?.turn;
   const previousStatus = game?.status;
   game = nextGame;
+  const timeout = game.lastTimeout;
+  const timeoutKey = timeout ? `${timeout.playerId}:${timeout.at}` : '';
+  if (timeoutKey && timeoutKey !== lastTimeoutKey) {
+    lastTimeoutKey = timeoutKey;
+    const timedOutName = game.players[timeout.playerId]?.name || timeout.playerId;
+    const turnName = game.players[game.turn]?.name || game.turn;
+    toast(`${timedOutName} timed out — ${turnName}'s turn.`);
+  }
   if (previousStatus === 'playing' && game.status === 'playing' && previousTurn && previousTurn !== game.turn) {
     startTurnMarkerJump(previousTurn, game.turn);
   }
@@ -537,9 +620,9 @@ function updateUi() {
   els.p1Score.textContent = score.p1 || 0;
   els.p2Score.textContent = score.p2 || 0;
   const turnName = game.players[game.turn]?.name || game.turn;
-  if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — pass the screen across or play face to face.`;
+  if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — ${moveTimerLabel(game.moveTimeLimitMs)}.`;
   else if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
-  else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'}`;
+  else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'} ${moveTimerLabel(game.moveTimeLimitMs)}.`;
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
   updateWinnerOverlay();
@@ -547,6 +630,7 @@ function updateUi() {
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
+  syncClockAnimation();
 }
 
 function updateWinnerOverlay() {
@@ -580,6 +664,23 @@ function animateConfetti() {
     draw();
     requestAnimationFrame(animateConfetti);
   }
+}
+
+function syncClockAnimation() {
+  if (clockRaf || !shouldAnimateClock()) return;
+  const tick = () => {
+    clockRaf = 0;
+    if (!shouldAnimateClock()) return;
+    if (gameMode === 'local') expireLocalTurnIfNeeded();
+    updateTurnIndicator();
+    draw();
+    clockRaf = requestAnimationFrame(tick);
+  };
+  clockRaf = requestAnimationFrame(tick);
+}
+
+function shouldAnimateClock() {
+  return Boolean(game && game.status === 'playing' && game.moveTimeLimitMs > 0 && game.turnStartedAt && replayIndex === null);
 }
 
 function showInvite() {
@@ -667,6 +768,7 @@ function draw() {
   ctx.restore();
   drawGatePlayerLabels();
   drawTurnGateBall();
+  drawMoveClock();
   drawWinnerGateConfetti();
 }
 
@@ -886,6 +988,82 @@ function turnMarkerSpot(player) {
     x: Math.min(canvas.width - 26, Math.max(leftPost.x, rightPost.x) + 34),
     y: center.y,
   };
+}
+
+function turnClockSpot(player) {
+  const ownGateMarginY = player === 'p1' ? 12 : 0;
+  const leftPost = displayPoint(3, ownGateMarginY);
+  const rightPost = displayPoint(5, ownGateMarginY);
+  const center = displayPoint(4, ownGateMarginY);
+  return {
+    x: Math.max(26, Math.min(leftPost.x, rightPost.x) - 54),
+    y: center.y,
+  };
+}
+
+function drawMoveClock() {
+  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt || replayIndex !== null) return;
+  const spot = turnClockSpot(game.turn);
+  const remaining = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now());
+  const seconds = Math.max(0, Math.ceil(remaining / 1000));
+  const warning = remaining <= Math.min(5000, game.moveTimeLimitMs * .34);
+  const danger = remaining <= 3000;
+  const color = danger ? '#ff3b30' : warning ? '#ffe66d' : '#8dffae';
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 8, 3, .78)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  roundRect(ctx, spot.x - 39, spot.y - 21, 78, 42, 10);
+  ctx.fill();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = danger ? 16 : 9;
+  ctx.stroke();
+  drawSevenSegmentNumber(String(seconds).padStart(2, '0'), spot.x - 25, spot.y - 15, color);
+  ctx.restore();
+}
+
+function drawSevenSegmentNumber(text, x, y, color) {
+  let cursor = x;
+  for (const char of text) {
+    drawSevenSegmentDigit(char, cursor, y, 19, 30, color);
+    cursor += 25;
+  }
+}
+
+function drawSevenSegmentDigit(char, x, y, w, h, color) {
+  const segments = {
+    0: ['a', 'b', 'c', 'd', 'e', 'f'],
+    1: ['b', 'c'],
+    2: ['a', 'b', 'g', 'e', 'd'],
+    3: ['a', 'b', 'g', 'c', 'd'],
+    4: ['f', 'g', 'b', 'c'],
+    5: ['a', 'f', 'g', 'c', 'd'],
+    6: ['a', 'f', 'g', 'e', 'c', 'd'],
+    7: ['a', 'b', 'c'],
+    8: ['a', 'b', 'c', 'd', 'e', 'f', 'g'],
+    9: ['a', 'b', 'c', 'd', 'f', 'g'],
+  }[char] || [];
+  const t = 4;
+  const half = h / 2;
+  const segmentRects = {
+    a: [x + t, y, w - t * 2, t],
+    b: [x + w - t, y + t, t, half - t],
+    c: [x + w - t, y + half, t, half - t],
+    d: [x + t, y + h - t, w - t * 2, t],
+    e: [x, y + half, t, half - t],
+    f: [x, y + t, t, half - t],
+    g: [x + t, y + half - t / 2, w - t * 2, t],
+  };
+  ctx.fillStyle = 'rgba(141,255,174,.11)';
+  for (const rect of Object.values(segmentRects)) {
+    roundRect(ctx, ...rect, 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = color;
+  for (const key of segments) {
+    roundRect(ctx, ...segmentRects[key], 2);
+    ctx.fill();
+  }
 }
 
 function startTurnMarkerJump(fromPlayer, toPlayer) {

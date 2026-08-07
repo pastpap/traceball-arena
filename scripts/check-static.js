@@ -141,6 +141,18 @@ if (!app.includes("playerId === 'p2'") || !app.includes('applyBoardTransform') |
 if (!app.includes('drawTurnGateBall') || !app.includes('ownGateMarginY') || !app.includes('Math.max(leftPost.x, rightPost.x) + 34')) {
   throw new Error('Current-turn gate ball marker must be drawn on the right side of the active gate.');
 }
+if (!html.includes('id="onlineMoveTimer"') || !html.includes('id="localMoveTimer"') || !html.includes('5 seconds') || !html.includes('30 seconds')) {
+  throw new Error('Move timer setup must offer off, 5, 10, 15, 20, and 30 second levels for online and local games.');
+}
+if (!app.includes('function drawMoveClock') || !app.includes('function drawSevenSegmentDigit') || !app.includes('turnClockSpot') || !app.includes('Math.min(leftPost.x, rightPost.x) - 54')) {
+  throw new Error('Move timer must render as a retro digital clock on the opposite side of the active gate marker.');
+}
+if (!app.includes('selectedMoveTimerSeconds') || !app.includes('moveTimeLimitSeconds') || !app.includes('expireLocalTurnIfNeeded')) {
+  throw new Error('Client must create rooms/local games with configurable move timers and enforce local timeouts.');
+}
+if (!html.includes('If time expires, no line is drawn') || !html.includes('each move or bounce gets a fresh clock')) {
+  throw new Error('Rules must explain timer resets and timeout turn-passing.');
+}
 if (!app.includes('drawGatePlayerLabels') || !app.includes('drawGoalMesh') || !app.includes("game.score?.[id]")) {
   throw new Error('Gate labels, light in-gate mesh, and room score rendering are required.');
 }
@@ -210,7 +222,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v21') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
+if (!sw.includes('traceball-arena-v22') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
@@ -230,6 +242,9 @@ for (const shot of ['docs/screenshots/traceball-home.svg', 'docs/screenshots/tra
 const server = readFileSync('src/server.js', 'utf8');
 if (!server.includes("app.get('/api/rooms/:roomId'") || !server.includes('safeRoomId')) {
   throw new Error('Server must expose a safe direct room lookup for pasted links/codes.');
+}
+if (!server.includes('applyTurnTimeout') || !server.includes('scheduleRoomTimeout') || !server.includes('moveTimeLimitSeconds')) {
+  throw new Error('Server must enforce online move timers authoritatively and accept room timer configuration.');
 }
 
 console.log('Static build checks passed.');

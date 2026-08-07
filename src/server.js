@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { addPlayer, createGame, makeMove, publicGame, resetGame } from './game.js';
+import { addPlayer, applyTurnTimeout, createGame, makeMove, normalizeMoveTimeLimitMs, publicGame, resetGame } from './game.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -13,6 +13,7 @@ const server = createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 const rooms = new Map();
 const sockets = new Map();
+const roomTimers = new Map();
 const appShellPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
 
 app.use(express.static('public', { extensions: ['html'] }));
@@ -23,16 +24,18 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/rooms', express.json(), (req, res) => {
   const roomId = nanoid(8);
-  const game = createGame(roomId);
+  const moveTimeLimitMs = normalizeMoveTimeLimitMs(Number(req.body?.moveTimeLimitSeconds) * 1000, 15000);
+  const game = createGame(roomId, { moveTimeLimitMs });
   rooms.set(roomId, game);
-  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)) });
+  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)), moveTimeLimitMs: game.moveTimeLimitMs });
 });
 
 app.get('/api/rooms/:roomId', (req, res) => {
   const roomId = safeRoomId(req.params.roomId);
   if (!roomId) return res.status(400).json({ error: 'Invalid room code.' });
-  if (!rooms.has(roomId)) return res.status(404).json({ error: 'Game not found or expired.' });
-  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)) });
+  const game = rooms.get(roomId);
+  if (!game) return res.status(404).json({ error: 'Game not found or expired.' });
+  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)), moveTimeLimitMs: game.moveTimeLimitMs || 0 });
 });
 
 app.get('/api/qr', async (req, res) => {
@@ -90,6 +93,10 @@ wss.on('connection', (ws) => {
     if (!game) return send(ws, 'error', { error: 'Join a room first.' });
 
     if (msg.type === 'move') {
+      if (applyTurnTimeout(game).ok) {
+        broadcast(socketState.roomId);
+        return send(ws, 'error', { error: 'Time expired — turn passed.' });
+      }
       const result = makeMove(game, socketState.playerId, msg.to);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       broadcast(socketState.roomId);
@@ -109,15 +116,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-function getOrCreateRoom(roomId) {
-  let game = rooms.get(roomId);
-  if (!game) {
-    game = createGame(roomId);
-    rooms.set(roomId, game);
-  }
-  return game;
-}
-
 function safeRoomId(value) {
   const roomId = String(value || '').trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
@@ -126,12 +124,29 @@ function safeRoomId(value) {
 function broadcast(roomId) {
   const game = rooms.get(roomId);
   if (!game) return;
+  applyTurnTimeout(game);
   const payload = { game: publicGame(game) };
   for (const [client, state] of sockets.entries()) {
     if (state.roomId === roomId && client.readyState === client.OPEN) {
       send(client, 'state', payload);
     }
   }
+  scheduleRoomTimeout(roomId);
+}
+
+function scheduleRoomTimeout(roomId) {
+  clearTimeout(roomTimers.get(roomId));
+  roomTimers.delete(roomId);
+  const game = rooms.get(roomId);
+  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
+  const delay = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now() + 30);
+  const timer = setTimeout(() => {
+    const current = rooms.get(roomId);
+    if (!current) return;
+    if (applyTurnTimeout(current).ok) broadcast(roomId);
+    else scheduleRoomTimeout(roomId);
+  }, delay);
+  roomTimers.set(roomId, timer);
 }
 
 function send(ws, type, payload) {

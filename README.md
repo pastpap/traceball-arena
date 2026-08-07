@@ -18,6 +18,7 @@ Live app: https://traceball-arena-production.up.railway.app
 - 8-direction movement with no repeated segments.
 - Bounce/continue turns from already visited points, boundary points, and black gate-mouth center dots.
 - Goals, own goals, stuck-loss detection, cumulative room/local score, and new-round reset.
+- Configurable per-move clock: off, 5, 10, 15, 20, or 30 seconds; timeout passes the turn without drawing a line.
 - Client-side replay controls live with the board. No accounts and no persistent database.
 - Responsive layout: desktop uses a board + match side panel; phones/tablets use Home / Play / Match tabs.
 
@@ -30,6 +31,7 @@ Traceball is a turn-based grid football game:
 - A traced segment cannot be used twice in either direction.
 - Landing on a fresh point usually passes the turn to the other player.
 - Landing on a previously visited point, boundary point, or black gate-mouth center dot gives a bounce, so the same player continues.
+- If the per-move clock is enabled, every move or bounce starts a fresh timer; a timeout draws no line, leaves the ball where it is, and passes the turn.
 - Entering the opponent gate scores and ends the round.
 - Entering your own gate is an own goal and gives the round to the opponent.
 - If the player to move has no legal move, they are stuck and lose the round.
