@@ -86,6 +86,16 @@
           <h2>Local same-screen PvP</h2>
           <p>Players face each other and play on this device. The pitch stays still; the turn ball moves between gates.</p>
         </div>
+        <section id="resumeLocalCard" class="resume-local-card hidden" aria-live="polite">
+          <div>
+            <strong>Paused local game</strong>
+            <p id="resumeLocalText">Resume the saved same-device game.</p>
+          </div>
+          <div class="resume-local-actions">
+            <button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button>
+            <button id="discardLocalSaved" class="ghost" type="button">Discard</button>
+          </div>
+        </section>
         <form id="localForm">
           <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
           <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
@@ -174,6 +184,16 @@
               <li>Either joined player can pause or resume during a round.</li>
               <li>If you are stuck, you lose.</li>
             </ul>
+          </div>
+          <div class="card history-card">
+            <div class="history-header">
+              <div>
+                <h2>History</h2>
+                <p>Saved on this device for local and online games.</p>
+              </div>
+              <button id="clearHistory" class="ghost" type="button">Clear</button>
+            </div>
+            <div id="historyList" class="history-list">Finished games will appear here.</div>
           </div>
         </aside>
       </section>

@@ -127,6 +127,19 @@ h2 { margin: 0 0 .8rem; }
 .invite label { display: block; color: var(--muted); margin-bottom: 6px; }
 #copyInviteCard { width: 100%; margin-top: 10px; }
 .local-panel p { margin: 0; color: var(--muted); line-height: 1.45; }
+.resume-local-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(141,255,174,.35);
+  border-radius: 18px;
+  background: rgba(17, 191, 70, .12);
+}
+.resume-local-card strong { display: block; margin-bottom: 4px; }
+.resume-local-actions { display: grid; gap: 8px; min-width: 170px; }
+.resume-local-actions .ghost { margin-top: 0; }
 .hidden { display: none !important; }
 .game-layout { display: grid; grid-template-columns: minmax(0, 760px) minmax(280px, 330px); justify-content: center; align-items: start; gap: 16px; }
 .board-card { position: relative; padding: clamp(8px, 1.4vw, 14px); width: min(100%, 760px); justify-self: center; }
@@ -237,6 +250,23 @@ li { margin: .5rem 0; }
 .replay-controls button { padding: .55rem .35rem; }
 #replayRange { margin-top: 12px; accent-color: var(--green); }
 #replayText { color: var(--muted); margin-bottom: 0; }
+.history-header { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.history-header h2 { margin-bottom: .25rem; }
+.history-header p { margin: 0; color: var(--muted); line-height: 1.35; font-size: .9rem; }
+.history-header .ghost { width: auto; margin-top: 0; padding: .55rem .8rem; }
+.history-list { display: grid; gap: 8px; color: var(--muted); }
+.history-item {
+  display: grid;
+  gap: 8px;
+  padding: 11px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 14px;
+  background: rgba(0,0,0,.16);
+}
+.history-item-title { display: flex; justify-content: space-between; gap: 8px; color: white; font-weight: 900; }
+.history-meta { font-size: .82rem; line-height: 1.35; }
+.history-item button { padding: .55rem .7rem; }
+.history-empty { color: var(--muted); font-size: .9rem; line-height: 1.35; }
 .winner-overlay {
   position: absolute;
   inset: 0;
@@ -386,6 +416,8 @@ li { margin: .5rem 0; }
   .side.mobile-page.active { display: grid !important; }
   button { padding: .72rem .82rem; }
   .join-panel, .mode-card { padding: 16px; margin-bottom: 12px; gap: 14px; border-radius: 20px; }
+  .resume-local-card { grid-template-columns: 1fr; }
+  .resume-local-actions { min-width: 0; }
   .online-form-stack { padding: 14px; gap: 14px; border-radius: 18px; }
   .online-action-panel { padding: 16px; }
   .mode-grid { gap: 10px; margin-top: 10px; }

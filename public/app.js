@@ -1,3 +1,11 @@
+import {
+  HISTORY_STORAGE_KEY,
+  SUSPENDED_LOCAL_STORAGE_KEY,
+  restoreSuspendedLocalGame,
+  makeSuspendedLocalGame,
+  upsertGameHistory,
+} from './history.js';
+
 const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
@@ -15,6 +23,10 @@ const els = {
   localP2Name: document.querySelector('#localP2Name'),
   onlineMoveTimer: document.querySelector('#onlineMoveTimer'),
   localMoveTimer: document.querySelector('#localMoveTimer'),
+  resumeLocalCard: document.querySelector('#resumeLocalCard'),
+  resumeLocalText: document.querySelector('#resumeLocalText'),
+  resumeLocalSaved: document.querySelector('#resumeLocalSaved'),
+  discardLocalSaved: document.querySelector('#discardLocalSaved'),
   existingRoomForm: document.querySelector('#existingRoomForm'),
   existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
@@ -48,6 +60,8 @@ const els = {
   replayEnd: document.querySelector('#replayEnd'),
   replayRange: document.querySelector('#replayRange'),
   replayText: document.querySelector('#replayText'),
+  historyList: document.querySelector('#historyList'),
+  clearHistory: document.querySelector('#clearHistory'),
   turnIndicator: document.querySelector('#turnIndicator'),
   toast: document.querySelector('#toast'),
 };
@@ -79,6 +93,7 @@ let legalMoveHintKey = '';
 let clockRaf = 0;
 let lastTimeoutKey = '';
 let localTimeoutTimer = 0;
+let viewedHistoryGame = false;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -102,6 +117,8 @@ function init() {
   if (roomId) prefillIncomingInviteFromUrl();
   updateModePanels();
   updateRoomText();
+  renderHistoryPanel();
+  renderSuspendedLocalCard();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.generateRoom.addEventListener('click', createRoom);
@@ -112,6 +129,8 @@ function init() {
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
+  els.resumeLocalSaved.addEventListener('click', resumeSavedLocalGame);
+  els.discardLocalSaved.addEventListener('click', discardSavedLocalGame);
   els.existingRoomForm.addEventListener('submit', joinExistingRoom);
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
@@ -130,6 +149,8 @@ function init() {
   els.replayNext.addEventListener('click', () => setReplay(Math.min((game?.moves?.length || 0), currentReplay() + 1)));
   els.replayEnd.addEventListener('click', () => setReplay(game?.moves?.length || 0));
   els.replayRange.addEventListener('input', () => setReplay(Number(els.replayRange.value)));
+  els.historyList.addEventListener('click', historyListClick);
+  els.clearHistory.addEventListener('click', clearGameHistory);
   mobileTabs.forEach((tab) => tab.addEventListener('click', () => setMobilePage(tab.dataset.pageTarget)));
   window.addEventListener('online', wakeConnection);
   window.addEventListener('focus', wakeConnection);
@@ -157,11 +178,13 @@ function setHomeMode(mode) {
   }
   playerId = null;
   wantsPlayerSession = false;
+  viewedHistoryGame = false;
   replayIndex = null;
   game = null;
   if (!roomId) history.pushState({}, '', '/');
   updateModePanels();
   updateRoomText();
+  renderSuspendedLocalCard();
   updateUi();
   draw();
   setMobilePage('invite');
@@ -293,6 +316,7 @@ function openOnlineRoom(nextRoomId, nextUrl, message) {
   clearLocalTurnTimeout();
   playerId = null;
   game = null;
+  viewedHistoryGame = false;
   replayIndex = null;
   wantsPlayerSession = false;
   roomId = nextRoomId;
@@ -320,17 +344,20 @@ function startLocalGame(event) {
   inviteUrl = '';
   playerId = null;
   wantsPlayerSession = false;
+  viewedHistoryGame = false;
   replayIndex = null;
   gameMode = 'local';
   const p1Name = cleanLocalName(els.localP1Name.value, 'Blue');
   const p2Name = cleanLocalName(els.localP2Name.value, 'Red');
   const moveTimeLimitSeconds = selectedMoveTimerSeconds(els.localMoveTimer);
   localStorageSafeSet('traceballMoveTimerSeconds', String(moveTimeLimitSeconds));
+  localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
   game = createLocalGame(p1Name, p2Name, game?.score, moveTimeLimitSeconds * 1000);
   history.pushState({}, '', '/');
   els.inviteBox.classList.add('hidden');
   updateModePanels();
   updateRoomText();
+  renderSuspendedLocalCard();
   updateUi();
   draw();
   scheduleLocalTurnTimeout();
@@ -339,10 +366,12 @@ function startLocalGame(event) {
 }
 
 function resetRound() {
+  if (gameMode === 'history') return toast('Saved replays are read-only. Start a new match from Home.');
   if (gameMode === 'local') {
     const p1Name = game?.players?.p1?.name || cleanLocalName(els.localP1Name.value, 'Blue');
     const p2Name = game?.players?.p2?.name || cleanLocalName(els.localP2Name.value, 'Red');
     game = createLocalGame(p1Name, p2Name, game?.score, game?.moveTimeLimitMs || 0);
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
     replayIndex = null;
     updateUi();
     draw();
@@ -371,6 +400,8 @@ function resumeRound() {
     game.turn = game.pause?.resumeTurn || game.turn;
     game.pause = null;
     game.consecutiveTimeouts = 0;
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+    renderSuspendedLocalCard();
     restartLocalTurnClock();
     updateUi();
     draw();
@@ -393,6 +424,7 @@ function pauseLocalGame(reason = 'manual', byPlayerId = null) {
     resumeTurn: game.turn,
   };
   replayIndex = null;
+  saveSuspendedLocalGame();
   updateUi();
   draw();
 }
@@ -422,6 +454,132 @@ function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimit
   };
   localGame.legalMoves = localLegalMoves(localGame);
   return localGame;
+}
+
+function saveSuspendedLocalGame() {
+  const suspended = makeSuspendedLocalGame(game, { mode: gameMode, savedAt: Date.now() });
+  if (!suspended) return;
+  localStorageJsonSet(SUSPENDED_LOCAL_STORAGE_KEY, suspended);
+  renderSuspendedLocalCard();
+}
+
+function renderSuspendedLocalCard() {
+  const suspended = restoreSuspendedLocalGame(localStorageJsonGet(SUSPENDED_LOCAL_STORAGE_KEY));
+  els.resumeLocalCard.classList.toggle('hidden', !suspended);
+  if (!suspended) return;
+  const saved = formatHistoryDate(suspended.savedAt);
+  const p1 = suspended.game.players.p1?.name || 'Blue';
+  const p2 = suspended.game.players.p2?.name || 'Red';
+  const turnName = suspended.game.players[suspended.game.turn]?.name || suspended.game.turn;
+  els.resumeLocalText.textContent = `${p1} vs ${p2} · ${turnName} to move · saved ${saved}.`;
+}
+
+function resumeSavedLocalGame() {
+  const suspended = restoreSuspendedLocalGame(localStorageJsonGet(SUSPENDED_LOCAL_STORAGE_KEY));
+  if (!suspended) {
+    renderSuspendedLocalCard();
+    return toast('No paused local game saved.');
+  }
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  clearLocalTurnTimeout();
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  viewedHistoryGame = false;
+  gameMode = 'local';
+  game = suspended.game;
+  replayIndex = null;
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('play');
+  toast('Paused local game restored.');
+}
+
+function discardSavedLocalGame() {
+  localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+  renderSuspendedLocalCard();
+  toast('Paused local game discarded.');
+}
+
+function saveFinishedGameIfNeeded() {
+  if (!game || game.status !== 'finished' || viewedHistoryGame) return;
+  const history = localStorageJsonGet(HISTORY_STORAGE_KEY, []);
+  const nextHistory = upsertGameHistory(history, game, { mode: gameMode === 'local' ? 'local' : 'online', roomId: roomId || game.roomId || 'local', savedAt: Date.now() });
+  localStorageJsonSet(HISTORY_STORAGE_KEY, nextHistory);
+  if (gameMode === 'local') {
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+    renderSuspendedLocalCard();
+  }
+  renderHistoryPanel();
+}
+
+function renderHistoryPanel() {
+  const history = localStorageJsonGet(HISTORY_STORAGE_KEY, []);
+  els.clearHistory.disabled = history.length === 0;
+  if (!history.length) {
+    els.historyList.innerHTML = '<p class="history-empty">Finished games will appear here. Online games are saved on every device that sees the result.</p>';
+    return;
+  }
+  els.historyList.innerHTML = history.slice(0, 8).map((entry, index) => historyItemHtml(entry, index)).join('');
+}
+
+function historyItemHtml(entry, index) {
+  const winnerName = entry.players?.[entry.winner]?.name || entry.winner || 'Unknown';
+  const p1 = entry.players?.p1?.name || 'Blue';
+  const p2 = entry.players?.p2?.name || 'Red';
+  const score = `${entry.score?.p1 || 0}-${entry.score?.p2 || 0}`;
+  return `<article class="history-item">
+    <div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div>
+    <div class="history-meta">${escapeHtml(entry.mode)} · ${escapeHtml(p1)} vs ${escapeHtml(p2)} · ${entry.moveCount || 0} moves · ${escapeHtml(formatHistoryDate(entry.playedAt))}</div>
+    <button type="button" data-history-index="${index}">Replay</button>
+  </article>`;
+}
+
+function historyListClick(event) {
+  const button = event.target.closest('[data-history-index]');
+  if (!button) return;
+  const index = Number(button.dataset.historyIndex);
+  const entry = localStorageJsonGet(HISTORY_STORAGE_KEY, [])[index];
+  if (!entry?.game) return toast('That saved game could not be loaded.');
+  loadHistoryReplay(entry);
+}
+
+function loadHistoryReplay(entry) {
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  clearLocalTurnTimeout();
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  viewedHistoryGame = true;
+  gameMode = 'history';
+  game = entry.game;
+  replayIndex = 0;
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('play');
+  toast('Loaded saved replay.');
+}
+
+function clearGameHistory() {
+  localStorageSafeRemove(HISTORY_STORAGE_KEY);
+  renderHistoryPanel();
+  toast('Game history cleared on this device.');
 }
 
 function makeLocalMove(to) {
@@ -718,6 +876,7 @@ function updateUi() {
     return;
   }
   const score = game.score || { p1: 0, p2: 0 };
+  saveFinishedGameIfNeeded();
   els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
   els.p2.textContent = game.players.p2?.name || 'Waiting for red';
   els.p1Score.textContent = score.p1 || 0;
@@ -770,6 +929,9 @@ function updatePauseOverlay() {
   document.querySelector('.board-stage')?.classList.toggle('paused', paused);
   els.pauseGame.disabled = !game || game.status !== 'playing' || (gameMode !== 'local' && !playerId);
   els.playPauseGame.disabled = els.pauseGame.disabled;
+  els.reset.disabled = gameMode === 'history' || (!game && !playerId);
+  els.pauseNewRound.disabled = gameMode === 'history';
+  els.winnerNewRound.disabled = gameMode === 'history';
   els.resumeGame.disabled = !paused || (gameMode !== 'local' && !playerId);
   if (!paused) return;
   const pause = game.pause || {};
@@ -822,6 +984,10 @@ function showInvite() {
 }
 
 function updateRoomText() {
+  if (gameMode === 'history') {
+    els.roomText.textContent = 'Viewing a saved replay from this device. Start or join a match from Home when ready.';
+    return;
+  }
   if (gameMode === 'local' || gameMode === 'local-setup') {
     els.roomText.textContent = 'Local same-screen match — Players face each other and use this device.';
     return;
@@ -1442,6 +1608,29 @@ function localStorageSafeGet(key) {
 
 function localStorageSafeSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
+}
+
+function localStorageSafeRemove(key) {
+  try { localStorage.removeItem(key); } catch {}
+}
+
+function localStorageJsonGet(key, fallback = null) {
+  const raw = localStorageSafeGet(key);
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+function localStorageJsonSet(key, value) {
+  localStorageSafeSet(key, JSON.stringify(value));
+}
+
+function formatHistoryDate(value) {
+  const date = new Date(Number(value) || Date.now());
+  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
 }
 
 function generateRandomPlayerName() {
