@@ -803,14 +803,14 @@ function drawFlags() {
   ];
   for (const p of flags) {
     const x = screenX(p.x), y = screenY(p.y);
-    const dirX = p.x ? -1 : 1;
+    const dirX = p.x ? 1 : -1;
     const dirY = p.y < 6 ? -1 : 1;
     const hoist = { x: x + dirX * 18, y: y + dirY * 48 };
     const poleVector = { x: hoist.x - x, y: hoist.y - y };
     const poleLength = Math.hypot(poleVector.x, poleVector.y);
     const poleUnit = { x: poleVector.x / poleLength, y: poleVector.y / poleLength };
     let flagNormal = { x: -poleUnit.y, y: poleUnit.x };
-    if (flagNormal.y * dirY > 0) {
+    if (flagNormal.x * dirX < 0) {
       flagNormal = { x: -flagNormal.x, y: -flagNormal.y };
     }
     const flagBaseHalf = 13;

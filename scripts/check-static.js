@@ -111,8 +111,8 @@ const app = readFileSync('public/app.js', 'utf8');
 if (!app.includes('ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBottom - insetTop)') || !app.includes('ctx.clip()')) {
   throw new Error('Goal net mesh must be clipped inside the gate side frames.');
 }
-if (!app.includes('Math.hypot(poleVector.x, poleVector.y)') || !app.includes('ctx.moveTo(baseA.x, baseA.y)') || !app.includes('ctx.lineTo(baseB.x, baseB.y)') || !app.includes('flagNormal.y * dirY > 0')) {
-  throw new Error('Corner flag base must align with the angled pole and hang from the pole rotation without center mirroring.');
+if (!app.includes('const dirX = p.x ? 1 : -1') || !app.includes('Math.hypot(poleVector.x, poleVector.y)') || !app.includes('ctx.moveTo(baseA.x, baseA.y)') || !app.includes('ctx.lineTo(baseB.x, baseB.y)') || !app.includes('flagNormal.x * dirX < 0')) {
+  throw new Error('Corner flags must keep the original outward-leaning pole positions and hang on the outside face of the angled pole.');
 }
 if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
   throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
