@@ -110,6 +110,18 @@
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
           <div class="board-stage">
             <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
+            <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+              <div class="pause-card">
+                <div class="pause-kicker">Paused</div>
+                <h2 id="pauseTitle">Game paused</h2>
+                <p id="pauseMessage">Board hidden while paused.</p>
+                <p id="pauseTurn">Turn resumes here.</p>
+                <div class="pause-actions">
+                  <button id="resumeGame" class="primary" type="button">Resume game</button>
+                  <button id="pauseNewRound" class="ghost" type="button">New round</button>
+                </div>
+              </div>
+            </div>
             <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
               <div class="winner-card">
                 <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
@@ -143,6 +155,7 @@
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">0</div>
             </div>
+            <button id="pauseGame" class="ghost">Pause game</button>
             <button id="reset" class="ghost">New round</button>
           </div>
           <div class="card rules">
@@ -156,6 +169,8 @@
               <li>Score in the opponent gate. Own gate = own goal.</li>
               <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
               <li>If time expires, no line is drawn; the ball stays put and the turn passes.</li>
+              <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+              <li>Either joined player can pause or resume during a round.</li>
               <li>If you are stuck, you lose.</li>
             </ul>
           </div>

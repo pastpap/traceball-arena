@@ -145,7 +145,39 @@ h2 { margin: 0 0 .8rem; }
   margin: 0 auto;
   border-radius: 18px;
   touch-action: manipulation;
+  transition: filter .16s ease, opacity .16s ease;
 }
+.board-stage.paused #board {
+  filter: blur(18px) saturate(.7) brightness(.62);
+}
+.pause-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background: radial-gradient(circle at center, rgba(0, 0, 0, .2), rgba(0, 0, 0, .58));
+}
+.pause-card {
+  width: min(92%, 430px);
+  padding: clamp(22px, 5vw, 38px);
+  border: 2px solid rgba(255,255,255,.68);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 22% 12%, rgba(141,255,174,.32), transparent 24%),
+    linear-gradient(145deg, rgba(3, 28, 10, .96), rgba(7, 74, 22, .96));
+  color: var(--text);
+  text-align: center;
+  box-shadow: 0 28px 90px rgba(0,0,0,.62), inset 0 1px 0 rgba(255,255,255,.2);
+  animation: winner-pop .28s ease-out;
+}
+.pause-kicker { color: #8dffae; font-weight: 1000; letter-spacing: .18em; text-transform: uppercase; }
+.pause-card h2 { margin: .35rem 0 .7rem; }
+.pause-card p { margin: .45rem 0; color: var(--muted); line-height: 1.42; }
+.pause-card #pauseTurn { color: white; font-weight: 900; }
+.pause-actions { display: grid; gap: 10px; margin-top: 18px; }
+.pause-actions .ghost { margin-top: 0; }
 .board-help { display: none; }
 .turn-indicator {
   margin: 0 auto 8px;

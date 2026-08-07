@@ -27,6 +27,13 @@ const els = {
   winnerName: document.querySelector('#winnerName'),
   winnerClose: document.querySelector('#winnerClose'),
   winnerNewRound: document.querySelector('#winnerNewRound'),
+  pauseGame: document.querySelector('#pauseGame'),
+  pauseOverlay: document.querySelector('#pauseOverlay'),
+  pauseTitle: document.querySelector('#pauseTitle'),
+  pauseMessage: document.querySelector('#pauseMessage'),
+  pauseTurn: document.querySelector('#pauseTurn'),
+  resumeGame: document.querySelector('#resumeGame'),
+  pauseNewRound: document.querySelector('#pauseNewRound'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -109,6 +116,9 @@ function init() {
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
 
   els.reset.addEventListener('click', resetRound);
+  els.pauseGame.addEventListener('click', pauseRound);
+  els.resumeGame.addEventListener('click', resumeRound);
+  els.pauseNewRound.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
@@ -335,6 +345,49 @@ function resetRound() {
   send({ type: 'reset' });
 }
 
+function pauseRound() {
+  if (!game || game.status !== 'playing') return toast('Game is not playing.');
+  if (gameMode === 'local') {
+    pauseLocalGame('manual', null);
+    toast('Game paused.');
+    return;
+  }
+  if (!playerId) return toast('Join as a player to pause.');
+  send({ type: 'pause' });
+}
+
+function resumeRound() {
+  if (!game || game.status !== 'paused') return toast('Game is not paused.');
+  if (gameMode === 'local') {
+    game.status = 'playing';
+    game.turn = game.pause?.resumeTurn || game.turn;
+    game.pause = null;
+    game.consecutiveTimeouts = 0;
+    restartLocalTurnClock();
+    updateUi();
+    draw();
+    toast('Game resumed.');
+    return;
+  }
+  if (!playerId) return toast('Join as a player to resume.');
+  send({ type: 'resume' });
+}
+
+function pauseLocalGame(reason = 'manual', byPlayerId = null) {
+  if (!game || game.status !== 'playing') return;
+  game.status = 'paused';
+  game.turnStartedAt = null;
+  game.pause = {
+    reason,
+    byPlayerId,
+    pausedAt: Date.now(),
+    resumeTurn: game.turn,
+  };
+  replayIndex = null;
+  updateUi();
+  draw();
+}
+
 function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimitMs = 0) {
   const localGame = {
     roomId: 'local',
@@ -354,6 +407,8 @@ function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimit
     moveTimeLimitMs,
     turnStartedAt: moveTimeLimitMs > 0 ? Date.now() : null,
     lastTimeout: null,
+    consecutiveTimeouts: 0,
+    pause: null,
     legalMoves: [],
   };
   localGame.legalMoves = localLegalMoves(localGame);
@@ -364,6 +419,8 @@ function makeLocalMove(to) {
   if (!game || game.status !== 'playing') return;
   if (expireLocalTurnIfNeeded()) return;
   const player = game.turn;
+  game.consecutiveTimeouts = 0;
+  game.pause = null;
   const from = { ...game.ball };
   const target = { x: Number(to.x), y: Number(to.y) };
   if (!localIsLegalTarget(game, target)) return toast('That move is not legal.');
@@ -438,9 +495,16 @@ function expireLocalTurnIfNeeded() {
   if (!game || gameMode !== 'local' || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return false;
   if (Date.now() - game.turnStartedAt < game.moveTimeLimitMs) return false;
   const timedOutPlayer = game.turn;
+  const now = Date.now();
+  game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
+  if ((game.consecutiveTimeouts || 0) >= 1) {
+    pauseLocalGame('idle', timedOutPlayer);
+    toast('Both players timed out. Game paused.');
+    return true;
+  }
   const nextPlayer = otherLocalPlayer(timedOutPlayer);
+  game.consecutiveTimeouts = 1;
   game.turn = nextPlayer;
-  game.lastTimeout = { playerId: timedOutPlayer, at: Date.now(), ball: { ...game.ball } };
   game.legalMoves = localLegalMoves(game);
   if (game.legalMoves.length === 0) {
     game.status = 'finished';
@@ -534,9 +598,18 @@ function applyRemoteGameState(nextGame) {
   if (timeoutKey && timeoutKey !== lastTimeoutKey) {
     lastTimeoutKey = timeoutKey;
     const timedOutName = game.players[timeout.playerId]?.name || timeout.playerId;
-    const turnName = game.players[game.turn]?.name || game.turn;
-    toast(`${timedOutName} timed out — ${turnName}'s turn.`);
+    if (game.status === 'paused' && game.pause?.reason === 'idle') {
+      toast(`Both players timed out. Game paused.`);
+    } else {
+      const turnName = game.players[game.turn]?.name || game.turn;
+      toast(`${timedOutName} timed out — ${turnName}'s turn.`);
+    }
   }
+  if (previousStatus === 'playing' && game.status === 'paused' && game.pause?.reason === 'manual') {
+    const pausedBy = game.players[game.pause?.byPlayerId]?.name || game.pause?.byPlayerId;
+    toast(pausedBy ? `Game paused by ${pausedBy}.` : 'Game paused.');
+  }
+  if (previousStatus === 'paused' && game.status === 'playing') toast('Game resumed.');
   if (previousStatus === 'playing' && game.status === 'playing' && previousTurn && previousTurn !== game.turn) {
     startTurnMarkerJump(previousTurn, game.turn);
   }
@@ -612,6 +685,7 @@ function updateUi() {
     els.replayText.textContent = 'Replay appears once moves are made.';
     els.turnIndicator.textContent = 'Waiting for players';
     els.turnIndicator.className = 'turn-indicator';
+    updatePauseOverlay();
     return;
   }
   const score = game.score || { p1: 0, p2: 0 };
@@ -623,9 +697,11 @@ function updateUi() {
   if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — ${moveTimerLabel(game.moveTimeLimitMs)}.`;
   else if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
   else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'} ${moveTimerLabel(game.moveTimeLimitMs)}.`;
+  else if (game.status === 'paused') els.status.textContent = pauseStatusText();
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
   updateWinnerOverlay();
+  updatePauseOverlay();
   updateTurnIndicator();
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
@@ -657,6 +733,31 @@ function dismissWinnerOverlay() {
   if (!lastWinnerKey) return;
   dismissedWinnerKey = lastWinnerKey;
   els.winnerOverlay.classList.add('hidden');
+}
+
+function updatePauseOverlay() {
+  const paused = game?.status === 'paused';
+  els.pauseOverlay.classList.toggle('hidden', !paused);
+  document.querySelector('.board-stage')?.classList.toggle('paused', paused);
+  els.pauseGame.disabled = !game || game.status !== 'playing' || (gameMode !== 'local' && !playerId);
+  els.resumeGame.disabled = !paused || (gameMode !== 'local' && !playerId);
+  if (!paused) return;
+  const pause = game.pause || {};
+  const turnName = game.players[game.turn]?.name || game.turn;
+  const byName = pause.byPlayerId ? game.players[pause.byPlayerId]?.name || pause.byPlayerId : '';
+  els.pauseTitle.textContent = pause.reason === 'idle' ? 'Game paused for inactivity' : 'Game paused';
+  els.pauseMessage.textContent = pause.reason === 'idle'
+    ? 'Both players timed out. Board hidden while paused.'
+    : byName ? `Paused by ${byName}. Board hidden while paused.` : 'Board hidden while paused.';
+  els.pauseTurn.textContent = `${turnName} to move when resumed.`;
+}
+
+function pauseStatusText() {
+  if (!game) return 'Game paused.';
+  const turnName = game.players[game.turn]?.name || game.turn;
+  if (game.pause?.reason === 'idle') return `Both players timed out. Game paused — ${turnName} to move when resumed.`;
+  const byName = game.pause?.byPlayerId ? game.players[game.pause.byPlayerId]?.name || game.pause.byPlayerId : null;
+  return `${byName ? `Paused by ${byName}.` : 'Game paused.'} ${turnName} to move when resumed.`;
 }
 
 function animateConfetti() {
@@ -734,6 +835,7 @@ function updateTurnIndicator() {
   const name = player && player.name ? player.name : colorName;
   let message;
   if (!game || game.status === 'waiting') message = 'Waiting for players';
+  else if (game.status === 'paused') message = `Paused — ${name} resumes`;
   else if (game.status === 'finished') message = `Match finished — ${game.players[game.winner]?.name || game.winner} wins`;
   else if (gameMode === 'local') message = `${colorName} turn — ${name} · pass screen across`;
   else if (turn === playerId) message = `${colorName} turn — your move`;

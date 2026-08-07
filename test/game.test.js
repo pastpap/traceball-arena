@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, applyTurnTimeout, createGame, legalMoves, makeMove } from '../src/game.js';
+import { addPlayer, applyTurnTimeout, createGame, legalMoves, makeMove, pauseGame, resumeGame } from '../src/game.js';
 
 function readyGame() {
   const game = createGame('room-test');
@@ -80,10 +80,46 @@ describe('traceball rules', () => {
     expect(result.ok).toBe(true);
     expect(result.timedOutPlayer).toBe('p1');
     expect(game.turn).toBe('p2');
+    expect(game.consecutiveTimeouts).toBe(1);
     expect(game.ball).toEqual({ x: 4, y: 6 });
     expect(game.segments).toHaveLength(0);
     expect(game.moves).toHaveLength(0);
     expect(game.turnStartedAt).toBe(6000);
+  });
+
+  it('pauses instead of passing back after two consecutive timeouts', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(applyTurnTimeout(game, 6000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    const second = applyTurnTimeout(game, 11000);
+
+    expect(second).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
+    expect(game.status).toBe('paused');
+    expect(game.turn).toBe('p2');
+    expect(game.turnStartedAt).toBe(null);
+    expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p2', resumeTurn: 'p2' });
+    expect(game.ball).toEqual({ x: 4, y: 6 });
+    expect(game.segments).toHaveLength(0);
+  });
+
+  it('resumes paused games on the same turn with a fresh timer', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(pauseGame(game, { reason: 'manual', byPlayerId: 'p1', now: 2000 }).ok).toBe(true);
+    expect(game.status).toBe('paused');
+    expect(game.turn).toBe('p1');
+    expect(game.turnStartedAt).toBe(null);
+
+    expect(resumeGame(game, 3000).ok).toBe(true);
+    expect(game.status).toBe('playing');
+    expect(game.turn).toBe('p1');
+    expect(game.turnStartedAt).toBe(3000);
+    expect(game.pause).toBe(null);
+    expect(game.consecutiveTimeouts).toBe(0);
   });
 
   it('rejects a move that arrives after the server-side timer deadline', () => {

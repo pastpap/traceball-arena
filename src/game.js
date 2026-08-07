@@ -24,6 +24,8 @@ export function createGame(roomId, options = {}) {
     moveTimeLimitMs: normalizeMoveTimeLimitMs(options.moveTimeLimitMs ?? secondsToMs(options.moveTimeLimitSeconds), DEFAULT_MOVE_TIME_LIMIT_MS),
     turnStartedAt: null,
     lastTimeout: null,
+    consecutiveTimeouts: 0,
+    pause: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -46,6 +48,8 @@ export function publicGame(game) {
     moveTimeLimitMs: game.moveTimeLimitMs || 0,
     turnStartedAt: game.turnStartedAt,
     lastTimeout: game.lastTimeout || null,
+    consecutiveTimeouts: game.consecutiveTimeouts || 0,
+    pause: game.pause || null,
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
     board: { width: WIDTH, height: HEIGHT, goalXMin: GOAL_X_MIN, goalXMax: GOAL_X_MAX },
   };
@@ -84,6 +88,8 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   if (hasTurnTimedOut(game, now)) return { ok: false, error: 'Time expired.', timeout: true };
   if (game.turn !== playerId) return { ok: false, error: 'Not your turn.' };
 
+  game.consecutiveTimeouts = 0;
+  game.pause = null;
   const from = game.ball;
   const target = normalizePoint(to);
   if (!target) return { ok: false, error: 'Invalid target.' };
@@ -185,10 +191,17 @@ export function hasTurnTimedOut(game, now = Date.now()) {
 export function applyTurnTimeout(game, now = Date.now()) {
   if (!hasTurnTimedOut(game, now)) return { ok: false };
   const timedOutPlayer = game.turn;
-  const nextPlayer = otherPlayer(timedOutPlayer);
-  game.turn = nextPlayer;
   game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
   game.updatedAt = now;
+
+  if ((game.consecutiveTimeouts || 0) >= 1) {
+    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now });
+    return { ok: true, timedOutPlayer, paused: true };
+  }
+
+  const nextPlayer = otherPlayer(timedOutPlayer);
+  game.consecutiveTimeouts = 1;
+  game.turn = nextPlayer;
   const moves = legalMoves(game);
   if (moves.length === 0) {
     game.status = 'finished';
@@ -198,6 +211,31 @@ export function applyTurnTimeout(game, now = Date.now()) {
     startTurnClock(game, now);
   }
   return { ok: true, timedOutPlayer, nextPlayer };
+}
+
+export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now() } = {}) {
+  if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
+  game.status = 'paused';
+  game.turnStartedAt = null;
+  game.pause = {
+    reason,
+    byPlayerId,
+    pausedAt: now,
+    resumeTurn: game.turn,
+  };
+  game.updatedAt = now;
+  return { ok: true };
+}
+
+export function resumeGame(game, now = Date.now()) {
+  if (game.status !== 'paused') return { ok: false, error: 'Game is not paused.' };
+  game.status = 'playing';
+  game.turn = game.pause?.resumeTurn || game.turn;
+  game.pause = null;
+  game.consecutiveTimeouts = 0;
+  startTurnClock(game, now);
+  game.updatedAt = now;
+  return { ok: true };
 }
 
 function finishGame(game, winner, reason) {

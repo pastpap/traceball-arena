@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { addPlayer, applyTurnTimeout, createGame, makeMove, normalizeMoveTimeLimitMs, publicGame, resetGame } from './game.js';
+import { addPlayer, applyTurnTimeout, createGame, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -93,11 +93,28 @@ wss.on('connection', (ws) => {
     if (!game) return send(ws, 'error', { error: 'Join a room first.' });
 
     if (msg.type === 'move') {
-      if (applyTurnTimeout(game).ok) {
+      const timeout = applyTurnTimeout(game);
+      if (timeout.ok) {
         broadcast(socketState.roomId);
-        return send(ws, 'error', { error: 'Time expired — turn passed.' });
+        return send(ws, 'error', { error: timeout.paused ? 'Both players timed out — game paused.' : 'Time expired — turn passed.' });
       }
       const result = makeMove(game, socketState.playerId, msg.to);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'pause') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can pause.' });
+      const result = pauseGame(game, { reason: 'manual', byPlayerId: socketState.playerId });
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'resume') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can resume.' });
+      const result = resumeGame(game);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       broadcast(socketState.roomId);
       return;
