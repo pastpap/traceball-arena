@@ -851,9 +851,14 @@ function drawPoints(moves) {
   for (const m of moves) visited.add(`${m.to.x},${m.to.y}`);
   for (const p of gridPoints()) {
     const hit = visited.has(`${p.x},${p.y}`);
-    ctx.fillStyle = hit ? '#0b7cff' : '#f5fff7';
-    ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), hit ? 10 : 7, 0, Math.PI * 2); ctx.fill();
-    if (hit) { ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2; ctx.stroke(); }
+    const gateBounce = isGateMouthBouncePoint(p);
+    ctx.fillStyle = hit ? '#0b7cff' : gateBounce ? '#050505' : '#f5fff7';
+    ctx.beginPath(); ctx.arc(screenX(p.x), screenY(p.y), hit ? 10 : gateBounce ? 8 : 7, 0, Math.PI * 2); ctx.fill();
+    if (hit || gateBounce) {
+      ctx.strokeStyle = hit ? 'rgba(255,255,255,.45)' : 'rgba(255,255,255,.82)';
+      ctx.lineWidth = gateBounce ? 2.5 : 2;
+      ctx.stroke();
+    }
   }
 }
 
@@ -1070,6 +1075,10 @@ function isOnBoardOrGoal(p) {
 
 function isBoundaryPoint(p) {
   return p.x === 0 || p.x === board.width - 1 || p.y === 1 || p.y === board.height - 2;
+}
+
+function isGateMouthBouncePoint(p) {
+  return p.x === 4 && (p.y === 1 || p.y === board.height - 2);
 }
 
 function isTracedMarginSegment(from, to) {

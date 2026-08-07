@@ -57,6 +57,19 @@ describe('traceball rules', () => {
     expect(legalMoves(game)).not.toContainEqual({ x: 2, y: 1 });
   });
 
+  it('grants a bounce on the unvisited gate-mouth center point', () => {
+    const game = readyGame();
+    game.ball = { x: 4, y: 2 };
+    game.visited.push('4,2');
+    game.turn = 'p1';
+
+    const result = makeMove(game, 'p1', { x: 4, y: 1 });
+
+    expect(result.ok).toBe(true);
+    expect(result.bounce).toBe(true);
+    expect(game.turn).toBe('p1');
+  });
+
   it('ends as a goal when entering the opponent gate', () => {
     const game = readyGame();
     game.ball = { x: 4, y: 1 };

@@ -114,6 +114,9 @@ if (!app.includes('ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBo
 if (!app.includes('const dirX = p.x ? 1 : -1') || !app.includes('Math.hypot(poleVector.x, poleVector.y)') || !app.includes('ctx.moveTo(baseA.x, baseA.y)') || !app.includes('ctx.lineTo(baseB.x, baseB.y)') || !app.includes('flagNormal.x * dirX < 0')) {
   throw new Error('Corner flags must keep the original outward-leaning pole positions and hang on the outside face of the angled pole.');
 }
+if (!app.includes('function isGateMouthBouncePoint') || !app.includes("gateBounce ? '#050505'") || !html.includes('black gate-mouth dot') || !html.includes('already a bounce point')) {
+  throw new Error('Gate-mouth center bounce dots must be visually black and explained in the rules.');
+}
 if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
   throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
 }
@@ -207,7 +210,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v20') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
+if (!sw.includes('traceball-arena-v21') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

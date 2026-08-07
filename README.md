@@ -16,7 +16,7 @@ Live app: https://traceball-arena-production.up.railway.app
 - Friend joins from the link, chooses a name, and the match starts through WebSockets.
 - Local same-screen PvP for two players on one device, without room creation or sockets.
 - 8-direction movement with no repeated segments.
-- Bounce/continue turns from already visited points and boundary points.
+- Bounce/continue turns from already visited points, boundary points, and black gate-mouth center dots.
 - Goals, own goals, stuck-loss detection, cumulative room/local score, and new-round reset.
 - Client-side replay controls live with the board. No accounts and no persistent database.
 - Responsive layout: desktop uses a board + match side panel; phones/tablets use Home / Play / Match tabs.
@@ -29,7 +29,7 @@ Traceball is a turn-based grid football game:
 - On your turn, move one point in any of 8 directions: up, down, left, right, or diagonally.
 - A traced segment cannot be used twice in either direction.
 - Landing on a fresh point usually passes the turn to the other player.
-- Landing on a previously visited point or a boundary point gives a bounce, so the same player continues.
+- Landing on a previously visited point, boundary point, or black gate-mouth center dot gives a bounce, so the same player continues.
 - Entering the opponent gate scores and ends the round.
 - Entering your own gate is an own goal and gives the round to the opponent.
 - If the player to move has no legal move, they are stuck and lose the round.
@@ -37,6 +37,7 @@ Traceball is a turn-based grid football game:
 Visual feedback:
 
 - Legal move circles are dimmed and use the current player color instead of generic yellow.
+- Black dots in the middle of the gate lines mark special bounce points: they continue the mover's turn even before being visited.
 - The turn marker ball sits next to the current player's home gate.
 - When the turn changes, the marker jumps across the board and changes color as it reaches the next gate.
 - Winner state appears as a golden overlay with confetti at the winner's own gate.
@@ -104,7 +105,7 @@ The server binds to `process.env.PORT`. `railway.json` configures:
 ## Rules implemented for this MVP
 
 - The ball starts at midfield.
-- Players alternate unless the mover lands on an already visited point or wall/boundary point, which grants a bounce and another move.
+- Players alternate unless the mover lands on an already visited point, wall/boundary point, or black gate-mouth center dot, which grants a bounce and another move.
 - Movement is one grid step in any of 8 directions.
 - A segment can never be used twice in either direction.
 - Entering the opponent gate scores and ends the game.
