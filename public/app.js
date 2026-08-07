@@ -736,17 +736,24 @@ function drawGoal(y) {
 
 function drawGoalMesh(x1, x2, backY, mouthY) {
   const top = backY < mouthY;
-  const insetTop = top ? backY + 7 : mouthY + 7;
-  const insetBottom = top ? mouthY - 7 : backY - 7;
+  const insetTop = top ? backY + 9 : mouthY + 9;
+  const insetBottom = top ? mouthY - 9 : backY - 9;
+  const postInset = 11;
+  const innerLeft = x1 + postInset;
+  const innerRight = x2 - postInset;
+  const meshHeight = Math.abs(insetBottom - insetTop);
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBottom - insetTop);
+  ctx.clip();
   ctx.strokeStyle = 'rgba(255,255,255,.18)';
   ctx.lineWidth = 1;
-  for (let x = x1 + 6; x <= x2 + 16; x += 12) {
-    ctx.beginPath(); ctx.moveTo(x, insetTop); ctx.lineTo(x - 28, insetBottom); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 28, insetTop); ctx.lineTo(x, insetBottom); ctx.stroke();
+  for (let x = innerLeft - meshHeight; x <= innerRight + meshHeight; x += 12) {
+    ctx.beginPath(); ctx.moveTo(x, insetTop); ctx.lineTo(x + meshHeight, insetBottom); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + meshHeight, insetTop); ctx.lineTo(x, insetBottom); ctx.stroke();
   }
   for (let meshY = insetTop + 8; meshY < insetBottom; meshY += 12) {
-    ctx.beginPath(); ctx.moveTo(x1 + 5, meshY); ctx.lineTo(x2 - 5, meshY); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(innerLeft, meshY); ctx.lineTo(innerRight, meshY); ctx.stroke();
   }
   ctx.restore();
 }
@@ -788,10 +795,33 @@ function drawGatePlayerLabel(id, gateY) {
 }
 
 function drawFlags() {
-  for (const p of [{x:0,y:1,c:'#ff3b30'},{x:8,y:1,c:'#ff3b30'},{x:0,y:11,c:'#0b7cff'},{x:8,y:11,c:'#0b7cff'}]) {
+  const flags = [
+    { x: 0, y: 1, c: '#ff3b30' },
+    { x: 8, y: 1, c: '#ff3b30' },
+    { x: 0, y: 11, c: '#0b7cff' },
+    { x: 8, y: 11, c: '#0b7cff' },
+  ];
+  for (const p of flags) {
     const x = screenX(p.x), y = screenY(p.y);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (p.x ? 18 : -18), y + (p.y < 6 ? -48 : 48)); ctx.stroke();
-    ctx.fillStyle = p.c; ctx.beginPath(); ctx.moveTo(x + (p.x ? 18 : -18), y + (p.y < 6 ? -48 : 48)); ctx.lineTo(x + (p.x ? 48 : -48), y + (p.y < 6 ? -39 : 39)); ctx.lineTo(x + (p.x ? 18 : -18), y + (p.y < 6 ? -28 : 28)); ctx.fill();
+    const dirX = p.x ? 1 : -1;
+    const dirY = p.y < 6 ? -1 : 1;
+    const hoist = { x: x + dirX * 18, y: y + dirY * 48 };
+    const flagHalfHeight = 12;
+    const flagTip = { x: hoist.x + dirX * 34, y: hoist.y };
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(hoist.x, hoist.y);
+    ctx.stroke();
+    ctx.fillStyle = p.c;
+    ctx.beginPath();
+    ctx.moveTo(hoist.x, hoist.y - flagHalfHeight);
+    ctx.lineTo(flagTip.x, flagTip.y);
+    ctx.lineTo(hoist.x, hoist.y + flagHalfHeight);
+    ctx.closePath();
+    ctx.fill();
   }
 }
 

@@ -108,6 +108,12 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
+if (!app.includes('ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBottom - insetTop)') || !app.includes('ctx.clip()')) {
+  throw new Error('Goal net mesh must be clipped inside the gate side frames.');
+}
+if (!app.includes('const hoist = { x: x + dirX * 18, y: y + dirY * 48 }') || !app.includes('ctx.lineTo(hoist.x, hoist.y)')) {
+  throw new Error('Corner flags must attach to the pole hoist point instead of floating beside the pole.');
+}
 if (!app.includes('const MOVE_HINT_ALPHA = 1') || !app.includes('const MOVE_HINT_FADE_IN_MS = 650') || !app.includes('legalMoveHintStartedAt') || !app.includes('startLegalMoveHintFade') || !app.includes('legalMoveHintColor') || !app.includes("gameMode === 'local' ? currentPlayerColor(game.turn) : '#ffe66d'")) {
   throw new Error('Legal-move hint circles must fade in once, use blue/red only in local same-screen mode, and keep yellow hints online.');
 }
