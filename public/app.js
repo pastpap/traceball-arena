@@ -806,8 +806,19 @@ function drawFlags() {
     const dirX = p.x ? 1 : -1;
     const dirY = p.y < 6 ? -1 : 1;
     const hoist = { x: x + dirX * 18, y: y + dirY * 48 };
-    const flagHalfHeight = 12;
-    const flagTip = { x: hoist.x + dirX * 34, y: hoist.y };
+    const poleVector = { x: hoist.x - x, y: hoist.y - y };
+    const poleLength = Math.hypot(poleVector.x, poleVector.y);
+    const poleUnit = { x: poleVector.x / poleLength, y: poleVector.y / poleLength };
+    let inwardNormal = { x: -poleUnit.y, y: poleUnit.x };
+    const toCenter = { x: canvas.width / 2 - hoist.x, y: canvas.height / 2 - hoist.y };
+    if (inwardNormal.x * toCenter.x + inwardNormal.y * toCenter.y < 0) {
+      inwardNormal = { x: -inwardNormal.x, y: -inwardNormal.y };
+    }
+    const flagBaseHalf = 13;
+    const flagDepth = 30;
+    const baseA = { x: hoist.x - poleUnit.x * flagBaseHalf, y: hoist.y - poleUnit.y * flagBaseHalf };
+    const baseB = { x: hoist.x + poleUnit.x * flagBaseHalf, y: hoist.y + poleUnit.y * flagBaseHalf };
+    const flagTip = { x: hoist.x + inwardNormal.x * flagDepth, y: hoist.y + inwardNormal.y * flagDepth };
     ctx.strokeStyle = '#fff';
     ctx.lineWidth = 4;
     ctx.lineCap = 'round';
@@ -817,9 +828,9 @@ function drawFlags() {
     ctx.stroke();
     ctx.fillStyle = p.c;
     ctx.beginPath();
-    ctx.moveTo(hoist.x, hoist.y - flagHalfHeight);
+    ctx.moveTo(baseA.x, baseA.y);
     ctx.lineTo(flagTip.x, flagTip.y);
-    ctx.lineTo(hoist.x, hoist.y + flagHalfHeight);
+    ctx.lineTo(baseB.x, baseB.y);
     ctx.closePath();
     ctx.fill();
   }
