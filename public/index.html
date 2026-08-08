@@ -86,6 +86,16 @@
           <h2>Local same-screen PvP</h2>
           <p>Players face each other and play on this device. The pitch stays still; the turn ball moves between gates.</p>
         </div>
+        <section id="resumeLocalCard" class="resume-local-card hidden" aria-live="polite">
+          <div>
+            <strong>Paused local game</strong>
+            <p id="resumeLocalText">Resume the saved same-device game.</p>
+          </div>
+          <div class="resume-local-actions">
+            <button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button>
+            <button id="discardLocalSaved" class="ghost" type="button">Discard</button>
+          </div>
+        </section>
         <form id="localForm">
           <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
           <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
@@ -108,8 +118,21 @@
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
+          <button id="playPauseGame" class="play-pause-button ghost" type="button">Pause game</button>
           <div class="board-stage">
             <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
+            <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+              <div class="pause-card">
+                <div class="pause-kicker">Paused</div>
+                <h2 id="pauseTitle">Game paused</h2>
+                <p id="pauseMessage">Board hidden while paused.</p>
+                <p id="pauseTurn">Turn resumes here.</p>
+                <div class="pause-actions">
+                  <button id="resumeGame" class="primary" type="button">Resume game</button>
+                  <button id="pauseNewRound" class="ghost" type="button">New round</button>
+                </div>
+              </div>
+            </div>
             <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
               <div class="winner-card">
                 <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
@@ -143,6 +166,7 @@
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">0</div>
             </div>
+            <button id="pauseGame" class="ghost">Pause game</button>
             <button id="reset" class="ghost">New round</button>
           </div>
           <div class="card rules">
@@ -156,8 +180,20 @@
               <li>Score in the opponent gate. Own gate = own goal.</li>
               <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
               <li>If time expires, no line is drawn; the ball stays put and the turn passes.</li>
+              <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+              <li>Either joined player can pause or resume during a round.</li>
               <li>If you are stuck, you lose.</li>
             </ul>
+          </div>
+          <div class="card history-card">
+            <div class="history-header">
+              <div>
+                <h2>History</h2>
+                <p>Saved on this device for local and online games.</p>
+              </div>
+              <button id="clearHistory" class="ghost" type="button">Clear</button>
+            </div>
+            <div id="historyList" class="history-list">Finished games will appear here.</div>
           </div>
         </aside>
       </section>

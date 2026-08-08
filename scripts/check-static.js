@@ -150,6 +150,12 @@ if (!app.includes('function drawMoveClock') || !app.includes('function drawSeven
 if (!app.includes('selectedMoveTimerSeconds') || !app.includes('moveTimeLimitSeconds') || !app.includes('expireLocalTurnIfNeeded')) {
   throw new Error('Client must create rooms/local games with configurable move timers and enforce local timeouts.');
 }
+if (!html.includes('id="pauseOverlay"') || !html.includes('id="playPauseGame"') || !css.includes('.board-stage.paused #board') || !css.includes('.play-pause-button {')) {
+  throw new Error('Pause UI must include a visible Play-page pause control and a blurred board overlay.');
+}
+if (!app.includes('scheduleLocalTurnTimeout') || !app.includes('localTimeoutTimer') || !app.includes('Both players timed out. Game paused.')) {
+  throw new Error('Local mode must schedule idle timeout auto-pause without waiting for a board click.');
+}
 if (!html.includes('If time expires, no line is drawn') || !html.includes('each move or bounce gets a fresh clock')) {
   throw new Error('Rules must explain timer resets and timeout turn-passing.');
 }
@@ -222,7 +228,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v22') || !sw.includes('SKIP_WAITING')) throw new Error('PWA service worker must force an app-shell refresh for installed apps.');
+if (!sw.includes('traceball-arena-v25') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
