@@ -47,6 +47,17 @@
           </div>
           <section id="newGamePanel" class="online-action-panel" data-online-action-panel="new">
             <p>Generate a room first, copy or share the invite, then join when you are ready to play.</p>
+            <label class="timer-setting" for="onlineMoveTimer">
+              <span>Move timer</span>
+              <select id="onlineMoveTimer">
+                <option value="0">Off</option>
+                <option value="5">5 seconds</option>
+                <option value="10">10 seconds</option>
+                <option value="15" selected>15 seconds</option>
+                <option value="20">20 seconds</option>
+                <option value="30">30 seconds</option>
+              </select>
+            </label>
             <button id="generateRoom" class="primary" type="button">Generate</button>
             <button id="joinGeneratedRoom" class="ghost hidden" type="button">Join generated game</button>
           </section>
@@ -78,6 +89,17 @@
         <form id="localForm">
           <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
           <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
+          <label class="timer-setting" for="localMoveTimer">
+            <span>Move timer</span>
+            <select id="localMoveTimer">
+              <option value="0">Off</option>
+              <option value="5">5 seconds</option>
+              <option value="10">10 seconds</option>
+              <option value="15" selected>15 seconds</option>
+              <option value="20">20 seconds</option>
+              <option value="30">30 seconds</option>
+            </select>
+          </label>
           <button id="startLocal" class="primary" type="submit">Start local match</button>
         </form>
       </section>
@@ -129,8 +151,11 @@
               <li>Move one point in any of 8 directions.</li>
               <li>No line segment can be reused.</li>
               <li>Margin lines are already traced; only margin points may be used.</li>
-              <li>Landing on a visited point or wall gives another move.</li>
+              <li>Landing on a visited point, wall, or black gate-mouth dot gives another move.</li>
+              <li>The black dot in the middle of each gate line is already a bounce point, even before anyone visits it.</li>
               <li>Score in the opponent gate. Own gate = own goal.</li>
+              <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
+              <li>If time expires, no line is drawn; the ball stays put and the turn passes.</li>
               <li>If you are stuck, you lose.</li>
             </ul>
           </div>

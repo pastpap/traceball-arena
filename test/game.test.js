@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, createGame, legalMoves, makeMove } from '../src/game.js';
+import { addPlayer, applyTurnTimeout, createGame, legalMoves, makeMove } from '../src/game.js';
 
 function readyGame() {
   const game = createGame('room-test');
@@ -55,6 +55,48 @@ describe('traceball rules', () => {
 
     expect(legalMoves(game)).toContainEqual({ x: 4, y: 1 });
     expect(legalMoves(game)).not.toContainEqual({ x: 2, y: 1 });
+  });
+
+  it('grants a bounce on the unvisited gate-mouth center point', () => {
+    const game = readyGame();
+    game.ball = { x: 4, y: 2 };
+    game.visited.push('4,2');
+    game.turn = 'p1';
+
+    const result = makeMove(game, 'p1', { x: 4, y: 1 });
+
+    expect(result.ok).toBe(true);
+    expect(result.bounce).toBe(true);
+    expect(game.turn).toBe('p1');
+  });
+
+  it('passes the turn on timeout without drawing a line or moving the ball', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    const result = applyTurnTimeout(game, 6000);
+
+    expect(result.ok).toBe(true);
+    expect(result.timedOutPlayer).toBe('p1');
+    expect(game.turn).toBe('p2');
+    expect(game.ball).toEqual({ x: 4, y: 6 });
+    expect(game.segments).toHaveLength(0);
+    expect(game.moves).toHaveLength(0);
+    expect(game.turnStartedAt).toBe(6000);
+  });
+
+  it('rejects a move that arrives after the server-side timer deadline', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    const result = makeMove(game, 'p1', { x: 5, y: 6 }, 6001);
+
+    expect(result.ok).toBe(false);
+    expect(result.timeout).toBe(true);
+    expect(game.ball).toEqual({ x: 4, y: 6 });
+    expect(game.segments).toHaveLength(0);
   });
 
   it('ends as a goal when entering the opponent gate', () => {

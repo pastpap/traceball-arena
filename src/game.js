@@ -5,8 +5,10 @@ export const BOTTOM_GOAL_Y = HEIGHT - 1;
 export const GOAL_X_MIN = 3;
 export const GOAL_X_MAX = 5;
 export const START = { x: 4, y: 6 };
+export const MOVE_TIME_LIMIT_OPTIONS_MS = [0, 5000, 10000, 15000, 20000, 30000];
+export const DEFAULT_MOVE_TIME_LIMIT_MS = 15000;
 
-export function createGame(roomId) {
+export function createGame(roomId, options = {}) {
   const game = {
     roomId,
     status: 'waiting',
@@ -19,6 +21,9 @@ export function createGame(roomId) {
     score: { p1: 0, p2: 0 },
     winner: null,
     endReason: null,
+    moveTimeLimitMs: normalizeMoveTimeLimitMs(options.moveTimeLimitMs ?? secondsToMs(options.moveTimeLimitSeconds), DEFAULT_MOVE_TIME_LIMIT_MS),
+    turnStartedAt: null,
+    lastTimeout: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -38,6 +43,9 @@ export function publicGame(game) {
     score: game.score,
     winner: game.winner,
     endReason: game.endReason,
+    moveTimeLimitMs: game.moveTimeLimitMs || 0,
+    turnStartedAt: game.turnStartedAt,
+    lastTimeout: game.lastTimeout || null,
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
     board: { width: WIDTH, height: HEIGHT, goalXMin: GOAL_X_MIN, goalXMax: GOAL_X_MAX },
   };
@@ -63,6 +71,7 @@ export function addPlayer(game, name, clientId) {
     playerId = 'p2';
     game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30', clientId: cleanClientId };
     game.status = 'playing';
+    startTurnClock(game);
   } else {
     return { ok: false, error: 'Room is already full.' };
   }
@@ -70,8 +79,9 @@ export function addPlayer(game, name, clientId) {
   return { ok: true, playerId };
 }
 
-export function makeMove(game, playerId, to) {
+export function makeMove(game, playerId, to, now = Date.now()) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
+  if (hasTurnTimedOut(game, now)) return { ok: false, error: 'Time expired.', timeout: true };
   if (game.turn !== playerId) return { ok: false, error: 'Not your turn.' };
 
   const from = game.ball;
@@ -96,16 +106,17 @@ export function makeMove(game, playerId, to) {
     to: target,
     segment,
     bounce: false,
-    at: Date.now(),
+    at: now,
   };
 
   const goal = goalForMove(playerId, target);
   if (goal) {
     game.status = 'finished';
+    game.turnStartedAt = null;
     finishGame(game, goal.winner, goal.reason);
     move.goal = true;
     game.moves.push(move);
-    game.updatedAt = Date.now();
+    game.updatedAt = now;
     return { ok: true, gameOver: true };
   }
 
@@ -117,10 +128,13 @@ export function makeMove(game, playerId, to) {
   const moves = legalMoves(game);
   if (moves.length === 0) {
     game.status = 'finished';
+    game.turnStartedAt = null;
     const winner = otherPlayer(game.turn);
     finishGame(game, winner, `${playerName(game, game.turn)} is stuck — ${playerName(game, winner)} wins.`);
+  } else {
+    startTurnClock(game, now);
   }
-  game.updatedAt = Date.now();
+  game.updatedAt = now;
   return { ok: true, bounce: getsBounce };
 }
 
@@ -141,11 +155,49 @@ export function legalMoves(game) {
 export function resetGame(game) {
   const players = game.players;
   const score = { p1: game.score?.p1 || 0, p2: game.score?.p2 || 0 };
-  Object.assign(game, createGame(game.roomId));
+  const moveTimeLimitMs = game.moveTimeLimitMs || 0;
+  Object.assign(game, createGame(game.roomId, { moveTimeLimitMs }));
   game.players = players;
   game.score = score;
   game.status = players.p1 && players.p2 ? 'playing' : 'waiting';
+  if (game.status === 'playing') startTurnClock(game);
   return game;
+}
+
+export function normalizeMoveTimeLimitMs(value, fallback = 0) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return fallback;
+  const rounded = Math.round(raw);
+  return MOVE_TIME_LIMIT_OPTIONS_MS.includes(rounded) ? rounded : fallback;
+}
+
+export function startTurnClock(game, now = Date.now()) {
+  game.turnStartedAt = game.status === 'playing' && game.moveTimeLimitMs > 0 ? now : null;
+}
+
+export function hasTurnTimedOut(game, now = Date.now()) {
+  return game.status === 'playing'
+    && game.moveTimeLimitMs > 0
+    && Number.isFinite(game.turnStartedAt)
+    && now - game.turnStartedAt >= game.moveTimeLimitMs;
+}
+
+export function applyTurnTimeout(game, now = Date.now()) {
+  if (!hasTurnTimedOut(game, now)) return { ok: false };
+  const timedOutPlayer = game.turn;
+  const nextPlayer = otherPlayer(timedOutPlayer);
+  game.turn = nextPlayer;
+  game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
+  game.updatedAt = now;
+  const moves = legalMoves(game);
+  if (moves.length === 0) {
+    game.status = 'finished';
+    game.turnStartedAt = null;
+    finishGame(game, timedOutPlayer, `${playerName(game, nextPlayer)} is stuck after ${playerName(game, timedOutPlayer)} timed out — ${playerName(game, timedOutPlayer)} wins.`);
+  } else {
+    startTurnClock(game, now);
+  }
+  return { ok: true, timedOutPlayer, nextPlayer };
 }
 
 function finishGame(game, winner, reason) {
@@ -166,6 +218,11 @@ export function otherPlayer(id) {
 
 export function pointKey(p) {
   return `${p.x},${p.y}`;
+}
+
+function secondsToMs(seconds) {
+  if (seconds === undefined || seconds === null || seconds === '') return undefined;
+  return Number(seconds) * 1000;
 }
 
 function normalizePoint(to) {
