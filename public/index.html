@@ -13,11 +13,14 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <div>
+        <div class="hero-copy">
           <p class="eyebrow">Realtime paper-soccer</p>
           <h1>Traceball Arena</h1>
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
+        <button id="appMenuButton" class="app-menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenuOverlay">
+          <span aria-hidden="true">☰</span>
+        </button>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
@@ -118,7 +121,7 @@
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
-          <button id="playPauseGame" class="play-pause-button ghost" type="button">Pause game</button>
+          <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
           <div class="board-stage">
             <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
             <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
@@ -198,6 +201,41 @@
         </aside>
       </section>
     </main>
+    <div id="appMenuOverlay" class="app-menu-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appMenuTitle">
+      <div class="app-menu-panel">
+        <div class="app-menu-header">
+          <div>
+            <p class="app-menu-kicker">Traceball Arena</p>
+            <h2 id="appMenuTitle">Menu</h2>
+          </div>
+          <button id="appMenuClose" class="app-menu-close" type="button" aria-label="Close menu">×</button>
+        </div>
+        <section class="app-menu-section app-menu-history">
+          <div class="history-header">
+            <div>
+              <h3>History</h3>
+              <p>Saved on this device for local and online games.</p>
+            </div>
+            <button id="clearMenuHistory" class="ghost" type="button">Clear</button>
+          </div>
+          <div id="menuHistoryList" class="history-list">Finished games will appear here.</div>
+        </section>
+        <section class="app-menu-section app-menu-rules">
+          <h3>Rules</h3>
+          <ul>
+            <li>Move one point in any of 8 directions.</li>
+            <li>No line segment can be reused.</li>
+            <li>Margin lines are already traced; only margin points may be used.</li>
+            <li>Landing on a visited point, wall, or black gate-mouth dot gives another move.</li>
+            <li>The black dot in the middle of each gate line is already a bounce point, even before anyone visits it.</li>
+            <li>Score in the opponent gate. Own gate = own goal.</li>
+            <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
+            <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+          </ul>
+        </section>
+        <p class="app-menu-note">Later this menu can hold login, profile, and app settings.</p>
+      </div>
+    </div>
     <div id="toast" role="status"></div>
     <script type="module" src="/app.js"></script>
   </body>
