@@ -67,6 +67,11 @@ const els = {
   appMenuButton: document.querySelector('#appMenuButton'),
   appMenuOverlay: document.querySelector('#appMenuOverlay'),
   appMenuClose: document.querySelector('#appMenuClose'),
+  appMenuBack: document.querySelector('#appMenuBack'),
+  appMenuTitle: document.querySelector('#appMenuTitle'),
+  appMenuChoices: document.querySelector('#appMenuChoices'),
+  appMenuHistory: document.querySelector('#appMenuHistory'),
+  appMenuRules: document.querySelector('#appMenuRules'),
   turnIndicator: document.querySelector('#turnIndicator'),
   toast: document.querySelector('#toast'),
 };
@@ -154,11 +159,16 @@ function init() {
   els.replayNext.addEventListener('click', () => setReplay(Math.min((game?.moves?.length || 0), currentReplay() + 1)));
   els.replayEnd.addEventListener('click', () => setReplay(game?.moves?.length || 0));
   els.replayRange.addEventListener('input', () => setReplay(Number(els.replayRange.value)));
-  els.historyList.addEventListener('click', historyListClick);
+  if (els.historyList) els.historyList.addEventListener('click', historyListClick);
   els.menuHistoryList.addEventListener('click', historyListClick);
-  els.clearHistory.addEventListener('click', clearGameHistory);
+  if (els.clearHistory) els.clearHistory.addEventListener('click', clearGameHistory);
   els.clearMenuHistory.addEventListener('click', clearGameHistory);
   els.appMenuButton.addEventListener('click', openAppMenu);
+  els.appMenuBack.addEventListener('click', () => setAppMenuView('choices'));
+  els.appMenuChoices.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-menu-view]');
+    if (button) setAppMenuView(button.dataset.menuView);
+  });
   els.appMenuClose.addEventListener('click', closeAppMenu);
   els.appMenuOverlay.addEventListener('click', (event) => {
     if (event.target === els.appMenuOverlay) closeAppMenu();
@@ -538,11 +548,11 @@ function saveFinishedGameIfNeeded() {
 
 function renderHistoryPanel() {
   const history = localStorageJsonGet(HISTORY_STORAGE_KEY, []);
-  els.clearHistory.disabled = history.length === 0;
+  if (els.clearHistory) els.clearHistory.disabled = history.length === 0;
   els.clearMenuHistory.disabled = history.length === 0;
   const emptyHtml = '<p class="history-empty">Finished games will appear here. Online games are saved on every device that sees the result.</p>';
   const listHtml = history.length ? history.slice(0, 8).map((entry, index) => historyItemHtml(entry, index)).join('') : emptyHtml;
-  els.historyList.innerHTML = listHtml;
+  if (els.historyList) els.historyList.innerHTML = listHtml;
   els.menuHistoryList.innerHTML = listHtml;
 }
 
@@ -600,6 +610,7 @@ function clearGameHistory() {
 
 function openAppMenu() {
   renderHistoryPanel();
+  setAppMenuView('choices');
   els.appMenuOverlay.classList.remove('hidden');
   els.appMenuButton.setAttribute('aria-expanded', 'true');
   document.body.classList.add('menu-open');
@@ -611,6 +622,16 @@ function closeAppMenu() {
   els.appMenuButton.setAttribute('aria-expanded', 'false');
   document.body.classList.remove('menu-open');
   els.appMenuButton.focus();
+}
+
+function setAppMenuView(view) {
+  const selected = ['history', 'rules'].includes(view) ? view : 'choices';
+  els.appMenuChoices.classList.toggle('hidden', selected !== 'choices');
+  els.appMenuHistory.classList.toggle('hidden', selected !== 'history');
+  els.appMenuRules.classList.toggle('hidden', selected !== 'rules');
+  els.appMenuBack.classList.toggle('hidden', selected === 'choices');
+  els.appMenuTitle.textContent = selected === 'history' ? 'Play History' : selected === 'rules' ? 'Rules' : 'Menu';
+  if (selected === 'history') renderHistoryPanel();
 }
 
 function makeLocalMove(to) {
