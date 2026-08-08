@@ -153,8 +153,8 @@ if (!app.includes('selectedMoveTimerSeconds') || !app.includes('moveTimeLimitSec
 if (!html.includes('id="pauseOverlay"') || !html.includes('id="playPauseGame"') || !html.includes('⏸') || !css.includes('.board-stage.paused #board') || !css.includes('.play-pause-button.ghost {') || !css.includes('width: fit-content;')) {
   throw new Error('Pause UI must include a compact visible Play-page pause control and a blurred board overlay.');
 }
-if (!html.includes('id="appMenuButton"') || !html.includes('id="appMenuOverlay"') || !html.includes('data-menu-view="history"') || !html.includes('data-menu-view="rules"') || !html.includes('id="appMenuHistory"') || !html.includes('id="appMenuRules"') || html.includes('id="historyList"') || css.includes('.play-pause-button { display: block;')) {
-  throw new Error('Mobile app menu must first show Play History/Rules choices, then open content windows outside the Match tab.');
+if (!html.includes('id="appMenuButton"') || !html.includes('id="appMenuDropdown"') || !html.includes('id="appContentOverlay"') || !html.includes('data-menu-view="history"') || !html.includes('data-menu-view="rules"') || !html.includes('id="appMenuHistory"') || !html.includes('id="appMenuRules"') || html.includes('id="historyList"') || css.includes('.play-pause-button { display: block;') || !app.includes('openAppContent')) {
+  throw new Error('Mobile app menu must be a dropdown first, then open separate History/Rules content windows outside the Match tab.');
 }
 if (!app.includes('scheduleLocalTurnTimeout') || !app.includes('localTimeoutTimer') || !app.includes('Both players timed out. Game paused.')) {
   throw new Error('Local mode must schedule idle timeout auto-pause without waiting for a board click.');
@@ -231,7 +231,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v27') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
+if (!sw.includes('traceball-arena-v28') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

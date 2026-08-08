@@ -176,20 +176,20 @@
         </aside>
       </section>
     </main>
-    <div id="appMenuOverlay" class="app-menu-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appMenuTitle">
-      <div class="app-menu-panel">
-        <div class="app-menu-header">
-          <button id="appMenuBack" class="app-menu-back hidden" type="button">‹ Menu</button>
+    <div id="appMenuDropdown" class="app-menu-dropdown hidden" role="menu" aria-label="App menu">
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="history">Play History</button>
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="rules">Rules</button>
+      <p class="app-menu-note">More settings later.</p>
+    </div>
+    <div id="appContentOverlay" class="app-content-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appContentTitle">
+      <div class="app-content-panel">
+        <div class="app-content-header">
           <div>
             <p class="app-menu-kicker">Traceball Arena</p>
-            <h2 id="appMenuTitle">Menu</h2>
+            <h2 id="appContentTitle">Menu</h2>
           </div>
-          <button id="appMenuClose" class="app-menu-close" type="button" aria-label="Close menu">×</button>
+          <button id="appContentClose" class="app-menu-close" type="button" aria-label="Close window">×</button>
         </div>
-        <section id="appMenuChoices" class="app-menu-choices" aria-label="Menu options">
-          <button class="app-menu-choice" type="button" data-menu-view="history">Play History</button>
-          <button class="app-menu-choice" type="button" data-menu-view="rules">Rules</button>
-        </section>
         <section id="appMenuHistory" class="app-menu-section app-menu-history hidden">
           <div class="history-header">
             <div>
@@ -216,7 +216,6 @@
             <li>If you are stuck, you lose.</li>
           </ul>
         </section>
-        <p class="app-menu-note">Later this menu can hold login, profile, and app settings.</p>
       </div>
     </div>
     <div id="toast" role="status"></div>

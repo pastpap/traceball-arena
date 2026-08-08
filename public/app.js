@@ -65,11 +65,10 @@ const els = {
   clearHistory: document.querySelector('#clearHistory'),
   clearMenuHistory: document.querySelector('#clearMenuHistory'),
   appMenuButton: document.querySelector('#appMenuButton'),
-  appMenuOverlay: document.querySelector('#appMenuOverlay'),
-  appMenuClose: document.querySelector('#appMenuClose'),
-  appMenuBack: document.querySelector('#appMenuBack'),
-  appMenuTitle: document.querySelector('#appMenuTitle'),
-  appMenuChoices: document.querySelector('#appMenuChoices'),
+  appMenuDropdown: document.querySelector('#appMenuDropdown'),
+  appContentOverlay: document.querySelector('#appContentOverlay'),
+  appContentClose: document.querySelector('#appContentClose'),
+  appContentTitle: document.querySelector('#appContentTitle'),
   appMenuHistory: document.querySelector('#appMenuHistory'),
   appMenuRules: document.querySelector('#appMenuRules'),
   turnIndicator: document.querySelector('#turnIndicator'),
@@ -163,18 +162,22 @@ function init() {
   els.menuHistoryList.addEventListener('click', historyListClick);
   if (els.clearHistory) els.clearHistory.addEventListener('click', clearGameHistory);
   els.clearMenuHistory.addEventListener('click', clearGameHistory);
-  els.appMenuButton.addEventListener('click', openAppMenu);
-  els.appMenuBack.addEventListener('click', () => setAppMenuView('choices'));
-  els.appMenuChoices.addEventListener('click', (event) => {
+  els.appMenuButton.addEventListener('click', toggleAppMenu);
+  els.appMenuDropdown.addEventListener('click', (event) => {
     const button = event.target.closest('[data-menu-view]');
-    if (button) setAppMenuView(button.dataset.menuView);
+    if (button) openAppContent(button.dataset.menuView);
   });
-  els.appMenuClose.addEventListener('click', closeAppMenu);
-  els.appMenuOverlay.addEventListener('click', (event) => {
-    if (event.target === els.appMenuOverlay) closeAppMenu();
+  els.appContentClose.addEventListener('click', closeAppContent);
+  els.appContentOverlay.addEventListener('click', (event) => {
+    if (event.target === els.appContentOverlay) closeAppContent();
+  });
+  document.addEventListener('click', (event) => {
+    if (!els.appMenuDropdown.classList.contains('hidden') && !event.target.closest('#appMenuDropdown') && !event.target.closest('#appMenuButton')) closeAppMenu();
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && !els.appMenuOverlay.classList.contains('hidden')) closeAppMenu();
+    if (event.key !== 'Escape') return;
+    if (!els.appContentOverlay.classList.contains('hidden')) closeAppContent();
+    else if (!els.appMenuDropdown.classList.contains('hidden')) closeAppMenu();
   });
   mobileTabs.forEach((tab) => tab.addEventListener('click', () => setMobilePage(tab.dataset.pageTarget)));
   window.addEventListener('online', wakeConnection);
@@ -598,7 +601,7 @@ function loadHistoryReplay(entry) {
   updateUi();
   draw();
   setMobilePage('play');
-  closeAppMenu();
+  closeAppContent();
   toast('Loaded saved replay.');
 }
 
@@ -608,30 +611,37 @@ function clearGameHistory() {
   toast('Game history cleared on this device.');
 }
 
+function toggleAppMenu() {
+  if (els.appMenuDropdown.classList.contains('hidden')) openAppMenu();
+  else closeAppMenu();
+}
+
 function openAppMenu() {
-  renderHistoryPanel();
-  setAppMenuView('choices');
-  els.appMenuOverlay.classList.remove('hidden');
+  els.appMenuDropdown.classList.remove('hidden');
   els.appMenuButton.setAttribute('aria-expanded', 'true');
-  document.body.classList.add('menu-open');
-  requestAnimationFrame(() => els.appMenuClose.focus());
 }
 
 function closeAppMenu() {
-  els.appMenuOverlay.classList.add('hidden');
+  els.appMenuDropdown.classList.add('hidden');
   els.appMenuButton.setAttribute('aria-expanded', 'false');
-  document.body.classList.remove('menu-open');
-  els.appMenuButton.focus();
 }
 
-function setAppMenuView(view) {
-  const selected = ['history', 'rules'].includes(view) ? view : 'choices';
-  els.appMenuChoices.classList.toggle('hidden', selected !== 'choices');
+function openAppContent(view) {
+  const selected = view === 'rules' ? 'rules' : 'history';
+  closeAppMenu();
   els.appMenuHistory.classList.toggle('hidden', selected !== 'history');
   els.appMenuRules.classList.toggle('hidden', selected !== 'rules');
-  els.appMenuBack.classList.toggle('hidden', selected === 'choices');
-  els.appMenuTitle.textContent = selected === 'history' ? 'Play History' : selected === 'rules' ? 'Rules' : 'Menu';
+  els.appContentTitle.textContent = selected === 'history' ? 'Play History' : 'Rules';
   if (selected === 'history') renderHistoryPanel();
+  els.appContentOverlay.classList.remove('hidden');
+  document.body.classList.add('menu-open');
+  requestAnimationFrame(() => els.appContentClose.focus());
+}
+
+function closeAppContent() {
+  els.appContentOverlay.classList.add('hidden');
+  document.body.classList.remove('menu-open');
+  els.appMenuButton.focus();
 }
 
 function makeLocalMove(to) {
