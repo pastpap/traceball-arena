@@ -72,6 +72,12 @@ const els = {
   appMenuHistory: document.querySelector('#appMenuHistory'),
   appMenuRules: document.querySelector('#appMenuRules'),
   turnIndicator: document.querySelector('#turnIndicator'),
+  boardsList: document.querySelector('#boardsList'),
+  refreshBoards: document.querySelector('#refreshBoards'),
+  claimP1: document.querySelector('#claimP1'),
+  claimP2: document.querySelector('#claimP2'),
+  leaveSeat: document.querySelector('#leaveSeat'),
+  serverBoardHistoryList: document.querySelector('#serverBoardHistoryList'),
   toast: document.querySelector('#toast'),
 };
 
@@ -103,6 +109,8 @@ let clockRaf = 0;
 let lastTimeoutKey = '';
 let localTimeoutTimer = 0;
 let viewedHistoryGame = false;
+let lobbyRooms = [];
+let boardLobbyTimer = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -149,6 +157,10 @@ function init() {
   els.pauseGame.addEventListener('click', pauseRound);
   els.playPauseGame.addEventListener('click', pauseRound);
   els.resumeGame.addEventListener('click', resumeRound);
+  els.refreshBoards?.addEventListener('click', loadBoards);
+  els.claimP1?.addEventListener('click', () => claimOnlineSeat('p1'));
+  els.claimP2?.addEventListener('click', () => claimOnlineSeat('p2'));
+  els.leaveSeat?.addEventListener('click', leaveOnlineSeat);
   els.pauseNewRound.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
@@ -792,6 +804,110 @@ function localSegmentKey(a, b) {
   return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
 }
 
+
+async function loadBoards() {
+  try {
+    const res = await fetch('/api/rooms', { cache: 'no-store' });
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    lobbyRooms = Array.isArray(data.rooms) ? data.rooms : [];
+    renderBoards(lobbyRooms);
+  } catch {
+    toast('Could not load boards.');
+  }
+}
+
+function renderBoards(rooms) {
+  if (!els.boardsList) return;
+  if (!rooms.length) {
+    els.boardsList.innerHTML = '<p class="empty-boards">No active boards yet. Generate one from Home.</p>';
+    return;
+  }
+  els.boardsList.innerHTML = rooms.map(renderBoardCard).join('');
+  els.boardsList.querySelectorAll('[data-open-board]').forEach((button) => {
+    button.addEventListener('click', () => openLobbyBoard(button.dataset.openBoard));
+  });
+}
+
+function renderBoardCard(room) {
+  const p1 = room.players?.p1 || { name: 'Blue', status: 'vacant' };
+  const p2 = room.players?.p2 || { name: 'Red', status: 'vacant' };
+  const status = boardStatusLabel(room);
+  const last = room.lastResult ? `<p class="board-card-last">Last: ${escapeHtml(historyText(room.lastResult))}</p>` : '<p class="board-card-last">No finished sessions yet.</p>';
+  const action = room.occupancy?.vacantCount > 0 ? 'Open / join' : 'Watch';
+  return `
+    <article class="board-card">
+      <div class="board-card-top">
+        <strong>Board ${escapeHtml(room.roomId)}</strong>
+        <span>${escapeHtml(status)}</span>
+      </div>
+      <p><span class="dot blue"></span> Blue: ${escapeHtml(seatLabel(p1, 'Blue'))}</p>
+      <p><span class="dot red"></span> Red: ${escapeHtml(seatLabel(p2, 'Red'))}</p>
+      <p>Current: ${Number(room.score?.p1 || 0)} - ${Number(room.score?.p2 || 0)} · Sessions: ${Number(room.historyCount || 0)}</p>
+      ${last}
+      <button class="primary" type="button" data-open-board="${escapeHtml(room.roomId)}">${action}</button>
+    </article>`;
+}
+
+function boardStatusLabel(room) {
+  const vacant = Number(room.occupancy?.vacantCount ?? 0);
+  if (vacant === 2) return 'Open board';
+  if (vacant === 1) return room.players?.p1?.status === 'vacant' ? 'Waiting for Blue' : 'Waiting for Red';
+  return room.status === 'playing' ? 'In progress' : 'Board full';
+}
+
+function seatLabel(seat, fallback) {
+  return seat && seat.status !== 'vacant' ? seat.name || fallback : 'Open';
+}
+
+function openLobbyBoard(nextRoomId) {
+  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, 'Board opened.');
+  setMobilePage('play');
+}
+
+function claimOnlineSeat(seatId) {
+  const name = requirePlayerName();
+  if (!name) return;
+  if (!roomId) return toast('Open a board first.');
+  wantsPlayerSession = true;
+  send({ type: 'claimSeat', roomId, seatId, name, clientId });
+  setMobilePage('play');
+}
+
+function leaveOnlineSeat() {
+  if (gameMode !== 'online') return toast('Seat leaving is only for online boards.');
+  if (!playerId) return toast('You are watching already.');
+  const opponentId = playerId === 'p1' ? 'p2' : 'p1';
+  const opponentActive = game?.players?.[opponentId]?.status === 'active';
+  const message = opponentActive
+    ? 'Leave this round? Your opponent wins by forfeit.'
+    : 'Leave this board? Your seat will become open.';
+  if (!window.confirm(message)) return;
+  send({ type: 'leave' });
+}
+
+function renderServerBoardHistory() {
+  if (!els.serverBoardHistoryList) return;
+  const entries = Array.isArray(game?.history) ? [...game.history].reverse() : [];
+  if (!entries.length) {
+    els.serverBoardHistoryList.innerHTML = '<li>No server-side board sessions yet.</li>';
+    return;
+  }
+  els.serverBoardHistoryList.innerHTML = entries.slice(0, 10).map((entry) => `<li>${escapeHtml(historyText(entry))}</li>`).join('');
+}
+
+function historyText(entry) {
+  const winnerName = entry.players?.[entry.winner]?.name || entry.winner || 'Nobody';
+  const loserName = entry.players?.[entry.loser]?.name || entry.loser || 'opponent';
+  if (entry.reason === 'forfeit') return `${winnerName} beat ${loserName} by forfeit`;
+  if (entry.reason === 'stuck') return `${winnerName} beat ${loserName} — stuck`;
+  return `${winnerName} beat ${loserName}`;
+}
+
+function isOccupyingSeat() {
+  return Boolean(playerId && game?.players?.[playerId]?.status === 'active');
+}
+
 function joinOnlinePlayer(name = playerName) {
   if (!roomId) return toast('Generate or choose a game first.');
   playerName = String(name || '').trim();
@@ -820,6 +936,13 @@ function connect(onOpen) {
       wantsPlayerSession = true;
       setMobilePage('play');
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
+    }
+    if (msg.type === 'left') {
+      if (playerId === msg.playerId) {
+        playerId = null;
+        wantsPlayerSession = false;
+        toast(msg.forfeit ? 'You left. Opponent wins by forfeit.' : 'You left the board.');
+      }
     }
     if (msg.type === 'state') {
       applyRemoteGameState(msg.game);
@@ -893,6 +1016,7 @@ function send(payload) {
 
 function boardClick(event) {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (gameMode !== 'local' && !isOccupyingSeat()) return toast('You are watching this board. Claim an open seat to play.');
   if (gameMode !== 'local' && game.turn !== playerId) return toast('Wait for your turn.');
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -935,17 +1059,19 @@ function updateUi() {
     els.turnIndicator.textContent = 'Waiting for players';
     els.turnIndicator.className = 'turn-indicator';
     updatePauseOverlay();
+    updateSeatActions();
+    renderServerBoardHistory();
     return;
   }
   const score = game.score || { p1: 0, p2: 0 };
   saveFinishedGameIfNeeded();
-  els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
-  els.p2.textContent = game.players.p2?.name || 'Waiting for red';
+  els.p1.textContent = seatLabel(game.players.p1, 'Blue');
+  els.p2.textContent = seatLabel(game.players.p2, 'Red');
   els.p1Score.textContent = score.p1 || 0;
   els.p2Score.textContent = score.p2 || 0;
   const turnName = game.players[game.turn]?.name || game.turn;
   if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — ${moveTimerLabel(game.moveTimeLimitMs)}.`;
-  else if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
+  else if (game.status === 'waiting') els.status.textContent = waitingStatusText();
   else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'} ${moveTimerLabel(game.moveTimeLimitMs)}.`;
   else if (game.status === 'paused') els.status.textContent = pauseStatusText();
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
@@ -956,10 +1082,23 @@ function updateUi() {
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
+  updateSeatActions();
+  renderServerBoardHistory();
   syncClockAnimation();
 }
 
+function updateSeatActions() {
+  const isOnline = gameMode === 'online';
+  const isPlayer = isOnline && isOccupyingSeat();
+  const p1Vacant = game?.players?.p1?.status === 'vacant';
+  const p2Vacant = game?.players?.p2?.status === 'vacant';
+  els.claimP1?.classList.toggle('hidden', !(isOnline && !isPlayer && p1Vacant));
+  els.claimP2?.classList.toggle('hidden', !(isOnline && !isPlayer && p2Vacant));
+  els.leaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
+}
+
 function updateWinnerOverlay() {
+
   const winnerId = game?.status === 'finished' ? game.winner : null;
   if (!winnerId) {
     els.winnerOverlay.classList.add('hidden');
@@ -1006,7 +1145,18 @@ function updatePauseOverlay() {
   els.pauseTurn.textContent = `${turnName} to move when resumed.`;
 }
 
+function waitingStatusText() {
+  if (!game) return 'Waiting for players.';
+  const p1Vacant = game.players?.p1?.status === 'vacant';
+  const p2Vacant = game.players?.p2?.status === 'vacant';
+  if (p1Vacant && p2Vacant) return 'Board open — choose Blue or Red.';
+  if (p1Vacant) return 'Waiting for a Blue player.';
+  if (p2Vacant) return 'Waiting for a Red player.';
+  return 'Waiting for the next session.';
+}
+
 function pauseStatusText() {
+
   if (!game) return 'Game paused.';
   const turnName = game.players[game.turn]?.name || game.turn;
   if (game.pause?.reason === 'idle') return `Both players timed out. Game paused — ${turnName} to move when resumed.`;
@@ -1713,9 +1863,17 @@ function getClientId() {
 }
 
 function setMobilePage(page = 'play') {
-  const selected = ['play', 'invite', 'match'].includes(page) ? page : 'play';
+  const selected = ['play', 'invite', 'match', 'boards'].includes(page) ? page : 'play';
   document.body.dataset.mobilePage = selected;
   mobileTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.pageTarget === selected));
   mobilePages.forEach((panel) => panel.classList.toggle('active', panel.dataset.mobilePage === selected));
   if (selected === 'play') requestAnimationFrame(draw);
+  if (selected === 'boards') {
+    loadBoards();
+    clearInterval(boardLobbyTimer);
+    boardLobbyTimer = window.setInterval(loadBoards, 8000);
+  } else {
+    clearInterval(boardLobbyTimer);
+    boardLobbyTimer = 0;
+  }
 }

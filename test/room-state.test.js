@@ -1,56 +1,115 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, createGame, makeMove, resetGame } from '../src/game.js';
+import { addPlayer, claimSeat, createGame, leavePlayer, makeMove, publicGame, resetGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
-  it('keeps both players visible after a new round reset', () => {
+  it('newly created boards start with vacant blue and red seats plus empty session history', () => {
     const game = createGame('room-test');
-    expect(addPlayer(game, 'Desktop')).toEqual({ ok: true, playerId: 'p1' });
-    expect(addPlayer(game, 'Phone')).toEqual({ ok: true, playerId: 'p2' });
 
-    resetGame(game);
+    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', color: '#0b7cff', clientId: null, status: 'vacant' });
+    expect(game.players.p2).toMatchObject({ id: 'p2', name: 'Red', color: '#ff3b30', clientId: null, status: 'vacant' });
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+    expect(game.history).toEqual([]);
+    expect(game.status).toBe('waiting');
+  });
 
+  it('lets clients claim seats and starts a fresh session once both sides are active', () => {
+    const game = createGame('room-test');
+
+    expect(claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000)).toEqual({ ok: true, playerId: 'p1' });
+    expect(game.players.p1).toMatchObject({ name: 'Desktop', clientId: 'desktop-client', status: 'active' });
+    expect(game.status).toBe('waiting');
+
+    expect(claimSeat(game, 'p2', 'Phone', 'phone-client', 2000)).toEqual({ ok: true, playerId: 'p2' });
+    expect(game.players.p2).toMatchObject({ name: 'Phone', clientId: 'phone-client', status: 'active' });
     expect(game.status).toBe('playing');
-    expect(game.players.p1?.name).toBe('Desktop');
-    expect(game.players.p2?.name).toBe('Phone');
-    expect(game.turn).toBe('p1');
+    expect(game.sessionStartedAt).toBe(2000);
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
   });
 
-  it('keeps room score available across new rounds', () => {
+  it('keeps reconnect behavior for the same browser client without exposing client IDs publicly', () => {
     const game = createGame('room-test');
-    addPlayer(game, 'Desktop');
-    addPlayer(game, 'Phone');
-    game.ball = { x: 4, y: 1 };
-    game.turn = 'p1';
-
-    expect(makeMove(game, 'p1', { x: 4, y: 0 }).ok).toBe(true);
-    expect(game.score).toEqual({ p1: 1, p2: 0 });
-
-    resetGame(game);
-
-    expect(game.status).toBe('playing');
-    expect(game.score).toEqual({ p1: 1, p2: 0 });
-    expect(game.moves).toHaveLength(0);
-  });
-
-  it('newly created rooms start clean with no inherited players or score', () => {
-    const first = createGame('first-room');
-    addPlayer(first, 'Desktop');
-    addPlayer(first, 'Phone');
-
-    const next = createGame('next-room');
-
-    expect(next.players).toEqual({ p1: null, p2: null });
-    expect(next.score).toEqual({ p1: 0, p2: 0 });
-    expect(next.status).toBe('waiting');
-  });
-
-  it('lets the same browser client reclaim its player slot after reconnecting', () => {
-    const game = createGame('room-test');
-    expect(addPlayer(game, 'First name', 'phone-client')).toEqual({ ok: true, playerId: 'p1' });
-    addPlayer(game, 'Other phone', 'other-client');
+    claimSeat(game, 'p1', 'First name', 'phone-client');
+    claimSeat(game, 'p2', 'Other phone', 'other-client');
 
     expect(addPlayer(game, 'Updated name', 'phone-client')).toEqual({ ok: true, playerId: 'p1', rejoined: true });
     expect(game.players.p1?.name).toBe('Updated name');
-    expect(game.players.p2?.name).toBe('Other phone');
+    expect(publicGame(game).players.p1).not.toHaveProperty('clientId');
+    expect(publicGame(game).players.p2).not.toHaveProperty('clientId');
+  });
+
+  it('rejects attempts to claim a seat occupied by another client', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+
+    const result = claimSeat(game, 'p1', 'Intruder', 'other-client');
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/occupied/i);
+    expect(game.players.p1.name).toBe('Desktop');
+  });
+
+  it('lets a lone player leave without creating a forfeit history entry', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+
+    const result = leavePlayer(game, 'p1', 3000);
+
+    expect(result).toMatchObject({ ok: true, playerId: 'p1', forfeit: false, winner: null });
+    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
+    expect(game.history).toHaveLength(0);
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+    expect(game.status).toBe('waiting');
+  });
+
+  it('turns an explicit leave into a forfeit win, stores history, resets the board, and keeps the opponent seated', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+    makeMove(game, 'p1', { x: 5, y: 6 }, 2500);
+
+    const result = leavePlayer(game, 'p1', 3000);
+
+    expect(result).toMatchObject({ ok: true, playerId: 'p1', forfeit: true, winner: 'p2' });
+    expect(game.history).toHaveLength(1);
+    expect(game.history[0]).toMatchObject({
+      reason: 'forfeit',
+      winner: 'p2',
+      loser: 'p1',
+      finalScore: { p1: 0, p2: 1 },
+      moveCount: 1,
+    });
+    expect(game.history[0].endReason).toContain('wins by forfeit');
+    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
+    expect(game.players.p2).toMatchObject({ name: 'Phone', clientId: 'phone-client', status: 'active' });
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+    expect(game.ball).toEqual({ x: 4, y: 6 });
+    expect(game.moves).toHaveLength(0);
+    expect(game.status).toBe('waiting');
+  });
+
+  it('starts a new zero-zero session on the same board when a replacement claims the vacated side', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+    leavePlayer(game, 'p1', 3000);
+
+    const result = claimSeat(game, 'p1', 'New Blue', 'new-client', 4000);
+
+    expect(result).toEqual({ ok: true, playerId: 'p1' });
+    expect(game.status).toBe('playing');
+    expect(game.sessionStartedAt).toBe(4000);
+    expect(game.history).toHaveLength(1);
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+  });
+
+  it('resets a new round to waiting when a board has a vacant seat', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+
+    resetGame(game);
+
+    expect(game.status).toBe('waiting');
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+    expect(game.moves).toHaveLength(0);
   });
 });

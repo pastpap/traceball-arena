@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { addPlayer, applyTurnTimeout, createGame, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, leavePlayer, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -28,6 +28,14 @@ app.post('/api/rooms', express.json(), (req, res) => {
   const game = createGame(roomId, { moveTimeLimitMs });
   rooms.set(roomId, game);
   res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)), moveTimeLimitMs: game.moveTimeLimitMs });
+});
+
+app.get('/api/rooms', (req, res) => {
+  const origin = originFromRequest(req);
+  const summaries = [...rooms.values()]
+    .map((game) => publicRoomSummary(game, origin))
+    .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
+  res.json({ rooms: summaries });
 });
 
 app.get('/api/rooms/:roomId', (req, res) => {
@@ -89,6 +97,20 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (msg.type === 'claimSeat') {
+      const roomId = safeRoomId(msg.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const result = claimSeat(game, msg.seatId, msg.name, msg.clientId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      socketState.playerId = result.playerId;
+      send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      broadcast(roomId);
+      return;
+    }
+
     const game = socketState.roomId ? rooms.get(socketState.roomId) : null;
     if (!game) return send(ws, 'error', { error: 'Join a room first.' });
 
@@ -100,6 +122,22 @@ wss.on('connection', (ws) => {
       }
       const result = makeMove(game, socketState.playerId, msg.to);
       if (!result.ok) return send(ws, 'error', { error: result.error });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'leave') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'You are not occupying a seat.' });
+      const leavingPlayerId = socketState.playerId;
+      const result = leavePlayer(game, leavingPlayerId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.playerId = null;
+      send(ws, 'left', {
+        playerId: leavingPlayerId,
+        roomId: socketState.roomId,
+        forfeit: result.forfeit,
+        winner: result.winner,
+      });
       broadcast(socketState.roomId);
       return;
     }
@@ -168,6 +206,30 @@ function scheduleRoomTimeout(roomId) {
 
 function send(ws, type, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type, ...payload }));
+}
+
+function publicRoomSummary(game, requestOrigin) {
+  const activeCount = activeSeatCount(game);
+  const publicState = publicGame(game);
+  const lastResult = publicState.history.length ? publicState.history[publicState.history.length - 1] : null;
+  return {
+    roomId: game.roomId,
+    url: roomUrl(game.roomId, requestOrigin),
+    status: game.status,
+    players: publicState.players,
+    occupancy: {
+      activeCount,
+      vacantCount: 2 - activeCount,
+      p1: publicState.players.p1?.status || 'vacant',
+      p2: publicState.players.p2?.status || 'vacant',
+    },
+    score: publicState.score,
+    moveCount: Array.isArray(game.moves) ? game.moves.length : 0,
+    historyCount: Array.isArray(game.history) ? game.history.length : 0,
+    lastResult,
+    createdAt: game.createdAt,
+    updatedAt: game.updatedAt,
+  };
 }
 
 function roomUrl(roomId, requestOrigin) {
