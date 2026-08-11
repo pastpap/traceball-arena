@@ -95,6 +95,7 @@ let replayIndex = null;
 const clientId = getClientId();
 let wantsPlayerSession = false;
 let playerName = localStorageSafeGet('traceballPlayerName') || generateRandomPlayerName();
+let cachedBoards = [];
 let onlineAction = 'new';
 let reconnectTimer = null;
 let reconnectDelay = 1000;
@@ -350,7 +351,7 @@ function parseRoomInput(raw) {
   return { ok: true, roomId: candidate };
 }
 
-function openOnlineRoom(nextRoomId, nextUrl, message) {
+function openOnlineRoom(nextRoomId, nextUrl, message, onOpen) {
   intentionalClose = true;
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
@@ -370,7 +371,10 @@ function openOnlineRoom(nextRoomId, nextUrl, message) {
   updateModePanels();
   updateUi();
   draw();
-  connect(() => watchCurrentRoom());
+  connect(() => {
+    watchCurrentRoom();
+    if (onOpen) onOpen();
+  });
   setMobilePage('invite');
   toast(message);
 }
@@ -821,6 +825,7 @@ async function loadBoards() {
 
 function renderBoards(rooms) {
   if (!els.boardsList) return;
+  cachedBoards = rooms;
   if (!rooms.length) {
     els.boardsList.innerHTML = '<p class="empty-boards">No active boards yet. Generate one from Home.</p>';
     return;
@@ -862,8 +867,20 @@ function seatLabel(seat, fallback) {
   return seat && seat.status !== 'vacant' ? seat.name || fallback : 'Open';
 }
 
+function vacantSeatForRoom(room) {
+  if (room?.players?.p1?.status === 'vacant') return 'p1';
+  if (room?.players?.p2?.status === 'vacant') return 'p2';
+  return null;
+}
+
 function openLobbyBoard(nextRoomId) {
-  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, 'Board opened.');
+  const room = cachedBoards.find((entry) => entry.roomId === nextRoomId);
+  const seatId = vacantSeatForRoom(room);
+  const message = seatId ? `Joining ${seatId === 'p1' ? 'Blue' : 'Red'} seat…` : 'Board opened for watching.';
+  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {
+    if (!seatId) return;
+    claimOnlineSeat(seatId);
+  });
   setMobilePage('play');
 }
 
