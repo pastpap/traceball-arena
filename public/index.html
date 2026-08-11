@@ -121,8 +121,9 @@
       <section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">
         <div class="boards-header">
           <div>
-            <h2>Active boards</h2>
-            <p>Pick a board to watch, or claim an open Blue/Red seat.</p>
+            <p class="boards-kicker">Server lobby</p>
+            <h2>Boards</h2>
+            <p>Join, watch, or leave a live board.</p>
           </div>
           <button id="refreshBoards" class="ghost" type="button">Refresh</button>
         </div>
@@ -133,7 +134,10 @@
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
-          <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
+          <div class="play-board-actions">
+            <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
+            <button id="playLeaveSeat" class="play-leave-button ghost danger hidden" type="button">Leave / forfeit</button>
+          </div>
           <div class="board-stage">
             <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
             <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">

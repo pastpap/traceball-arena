@@ -77,6 +77,7 @@ const els = {
   claimP1: document.querySelector('#claimP1'),
   claimP2: document.querySelector('#claimP2'),
   leaveSeat: document.querySelector('#leaveSeat'),
+  playLeaveSeat: document.querySelector('#playLeaveSeat'),
   serverBoardHistoryList: document.querySelector('#serverBoardHistoryList'),
   toast: document.querySelector('#toast'),
 };
@@ -161,6 +162,7 @@ function init() {
   els.claimP1?.addEventListener('click', () => claimOnlineSeat('p1'));
   els.claimP2?.addEventListener('click', () => claimOnlineSeat('p2'));
   els.leaveSeat?.addEventListener('click', leaveOnlineSeat);
+  els.playLeaveSeat?.addEventListener('click', leaveOnlineSeat);
   els.pauseNewRound.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
@@ -836,7 +838,7 @@ function renderBoardCard(room) {
   const last = room.lastResult ? `<p class="board-card-last">Last: ${escapeHtml(historyText(room.lastResult))}</p>` : '<p class="board-card-last">No finished sessions yet.</p>';
   const action = room.occupancy?.vacantCount > 0 ? 'Open / join' : 'Watch';
   return `
-    <article class="board-card">
+    <article class="lobby-board-card">
       <div class="board-card-top">
         <strong>Board ${escapeHtml(room.roomId)}</strong>
         <span>${escapeHtml(status)}</span>
@@ -1095,6 +1097,7 @@ function updateSeatActions() {
   els.claimP1?.classList.toggle('hidden', !(isOnline && !isPlayer && p1Vacant));
   els.claimP2?.classList.toggle('hidden', !(isOnline && !isPlayer && p2Vacant));
   els.leaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
+  els.playLeaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
 }
 
 function updateWinnerOverlay() {

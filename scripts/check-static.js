@@ -20,6 +20,12 @@ if (!css.includes('@media (max-width: 1024px)') || !css.includes('body[data-mobi
   throw new Error('Tablet-sized screens must use the same mobile tab/page topology as phones.');
 }
 if (!css.includes('.mobile-page { display: none !important; }')) throw new Error('Mobile pages must be split into tabbed panels.');
+if (!css.includes('grid-template-columns: repeat(4, minmax(0, 1fr))') || !css.includes('.mobile-tab { min-width: 0;') || !css.includes('white-space: nowrap;')) {
+  throw new Error('Mobile page tabs must fit Home/Boards/Play/Match on one row inside the nav card without wrapping or overflowing.');
+}
+if (!css.includes('overflow: hidden;') || !css.includes('border-radius: 24px')) {
+  throw new Error('Mobile navigation/card shells must clip their tab contents inside rounded cards.');
+}
 if (!css.includes('.inline-form input { flex: 1 1 320px; min-width: 260px; }') || !css.includes('.inline-form .primary { flex: 0 0 auto; width: auto; min-width: 170px; }')) {
   throw new Error('Desktop invite-link input must keep usable width beside the Join game button.');
 }
@@ -44,6 +50,15 @@ const matchTab = html.indexOf('data-page-target="match"');
 if (!(homeTab >= 0 && homeTab < playTab && playTab < matchTab)) throw new Error('Mobile tabs must be ordered Home, Play, Match.');
 if (html.includes('>Invite</button>')) throw new Error('Invite tab must be renamed to Home.');
 if (!html.includes('board-replay replay')) throw new Error('Replay controls must live with the board.');
+if (!html.includes('id="playLeaveSeat"')) {
+  throw new Error('Play board page must include its own Leave / forfeit button.');
+}
+if (!html.includes('class="boards-kicker"') || !html.includes('Server lobby') || !html.includes('Join, watch, or leave a live board.')) {
+  throw new Error('Boards page header copy must be concise and polished.');
+}
+if (html.includes('Pick a board to watch, or claim an open Blue/Red seat.')) {
+  throw new Error('Boards page must not use the old awkward wrapping helper text.');
+}
 if (html.includes('class="board-help"')) throw new Error('Play page must not spend vertical board space on a separate bottom helper message.');
 if (/\.play-status\s*\{[^}]*display:\s*block/s.test(css)) throw new Error('Play page must use one visible top status line, not a separate play-status banner.');
 if (!css.includes('white-space: nowrap') || !css.includes('text-overflow: ellipsis')) {
@@ -108,6 +123,9 @@ if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manife
 }
 
 const app = readFileSync('public/app.js', 'utf8');
+if (!app.includes('playLeaveSeat: document.querySelector') || !app.includes("els.playLeaveSeat?.addEventListener('click', leaveOnlineSeat)") || !app.includes('els.playLeaveSeat?.classList.toggle')) {
+  throw new Error('Play-page Leave / forfeit button must be selected, wired, and visibility-synced with the Match leave button.');
+}
 if (!app.includes('ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBottom - insetTop)') || !app.includes('ctx.clip()')) {
   throw new Error('Goal net mesh must be clipped inside the gate side frames.');
 }
@@ -231,7 +249,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v28') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
+if (!sw.includes('traceball-arena-v29') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
