@@ -25,6 +25,7 @@
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
         <button type="button" class="mobile-tab active" data-page-target="invite">Home</button>
+        <button type="button" class="mobile-tab" data-page-target="boards">Boards</button>
         <button type="button" class="mobile-tab" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
@@ -117,6 +118,17 @@
         </form>
       </section>
 
+      <section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">
+        <div class="boards-header">
+          <div>
+            <h2>Active boards</h2>
+            <p>Pick a board to watch, or claim an open Blue/Red seat.</p>
+          </div>
+          <button id="refreshBoards" class="ghost" type="button">Refresh</button>
+        </div>
+        <div id="boardsList" class="boards-list" aria-live="polite">Open the board list to see active server boards.</div>
+      </section>
+
       <section class="game-layout">
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
@@ -169,8 +181,17 @@
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">0</div>
             </div>
+            <div id="seatActions" class="seat-actions">
+              <button id="claimP1" class="ghost hidden" type="button">Join Blue</button>
+              <button id="claimP2" class="ghost hidden" type="button">Join Red</button>
+              <button id="leaveSeat" class="ghost danger hidden" type="button">Leave / forfeit</button>
+            </div>
             <button id="pauseGame" class="ghost">Pause game</button>
             <button id="reset" class="ghost">New round</button>
+            <section class="board-history">
+              <h3>Board history</h3>
+              <ol id="serverBoardHistoryList" class="server-board-history-list"></ol>
+            </section>
           </div>
 
         </aside>

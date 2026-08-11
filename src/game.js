@@ -12,7 +12,7 @@ export function createGame(roomId, options = {}) {
   const game = {
     roomId,
     status: 'waiting',
-    players: { p1: null, p2: null },
+    players: { p1: createSeat('p1'), p2: createSeat('p2') },
     turn: 'p1',
     ball: { ...START },
     visited: [pointKey(START)],
@@ -26,6 +26,10 @@ export function createGame(roomId, options = {}) {
     lastTimeout: null,
     consecutiveTimeouts: 0,
     pause: null,
+    sessionId: null,
+    sessionStartedAt: null,
+    sessionEndedAt: null,
+    history: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -36,7 +40,7 @@ export function publicGame(game) {
   return {
     roomId: game.roomId,
     status: game.status,
-    players: game.players,
+    players: publicPlayers(game.players),
     turn: game.turn,
     ball: game.ball,
     visited: game.visited,
@@ -50,37 +54,80 @@ export function publicGame(game) {
     lastTimeout: game.lastTimeout || null,
     consecutiveTimeouts: game.consecutiveTimeouts || 0,
     pause: game.pause || null,
+    sessionId: game.sessionId || null,
+    sessionStartedAt: game.sessionStartedAt || null,
+    sessionEndedAt: game.sessionEndedAt || null,
+    history: Array.isArray(game.history) ? game.history.slice(-10) : [],
+    historyCount: Array.isArray(game.history) ? game.history.length : 0,
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
     board: { width: WIDTH, height: HEIGHT, goalXMin: GOAL_X_MIN, goalXMax: GOAL_X_MAX },
   };
 }
 
 export function addPlayer(game, name, clientId) {
-  const cleanName = String(name || '').trim().slice(0, 24) || 'Player';
-  const cleanClientId = String(clientId || '').trim().slice(0, 80) || null;
+  normalizeSeats(game);
+  const cleanClientId = cleanClient(clientId);
   if (cleanClientId) {
     for (const id of ['p1', 'p2']) {
       if (game.players[id]?.clientId === cleanClientId) {
+        const cleanName = cleanPlayerName(name, id);
         game.players[id].name = cleanName;
+        game.players[id].status = 'active';
         game.updatedAt = Date.now();
         return { ok: true, playerId: id, rejoined: true };
       }
     }
   }
-  let playerId;
-  if (!game.players.p1) {
-    playerId = 'p1';
-    game.players.p1 = { id: 'p1', name: cleanName, color: '#0b7cff', clientId: cleanClientId };
-  } else if (!game.players.p2) {
-    playerId = 'p2';
-    game.players.p2 = { id: 'p2', name: cleanName, color: '#ff3b30', clientId: cleanClientId };
-    game.status = 'playing';
-    startTurnClock(game);
-  } else {
-    return { ok: false, error: 'Room is already full.' };
+  const seatId = vacantSeatIds(game)[0];
+  if (!seatId) return { ok: false, error: 'Room is already full.' };
+  return claimSeat(game, seatId, name, clientId);
+}
+
+export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(seatId)) return { ok: false, error: 'Invalid seat.' };
+  const cleanClientId = cleanClient(clientId);
+  const cleanName = cleanPlayerName(name, seatId);
+
+  if (cleanClientId) {
+    for (const id of ['p1', 'p2']) {
+      if (game.players[id]?.clientId === cleanClientId) {
+        game.players[id].name = cleanName;
+        game.players[id].status = 'active';
+        game.updatedAt = now;
+        return { ok: true, playerId: id, rejoined: true };
+      }
+    }
   }
-  game.updatedAt = Date.now();
-  return { ok: true, playerId };
+
+  if (isSeatActive(game.players[seatId])) return { ok: false, error: 'That seat is already occupied.' };
+
+  game.players[seatId] = { ...createSeat(seatId), name: cleanName, clientId: cleanClientId, status: 'active' };
+  game.updatedAt = now;
+  if (bothSeatsActive(game) && game.status === 'waiting') startSession(game, now);
+  return { ok: true, playerId: seatId };
+}
+
+export function leavePlayer(game, playerId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };
+  if (!isSeatActive(game.players[playerId])) return { ok: false, error: 'That seat is already vacant.' };
+
+  const opponentId = otherPlayer(playerId);
+  const opponentActive = isSeatActive(game.players[opponentId]);
+  let historyEntry = null;
+  if (opponentActive && game.status === 'playing') {
+    const endReason = `${playerName(game, playerId)} left. ${playerName(game, opponentId)} wins by forfeit.`;
+    historyEntry = archiveSessionResult(game, { winner: opponentId, loser: playerId, reason: 'forfeit', endReason, now });
+  }
+
+  game.players[playerId] = createSeat(playerId);
+  resetCurrentBoardForNextSession(game, now, { autoStart: false });
+  game.status = 'waiting';
+  game.turnStartedAt = null;
+  game.updatedAt = now;
+
+  return { ok: true, playerId, winner: historyEntry ? opponentId : null, forfeit: Boolean(historyEntry), historyEntry };
 }
 
 export function makeMove(game, playerId, to, now = Date.now()) {
@@ -158,15 +205,9 @@ export function legalMoves(game) {
   return options;
 }
 
-export function resetGame(game) {
-  const players = game.players;
-  const score = { p1: game.score?.p1 || 0, p2: game.score?.p2 || 0 };
-  const moveTimeLimitMs = game.moveTimeLimitMs || 0;
-  Object.assign(game, createGame(game.roomId, { moveTimeLimitMs }));
-  game.players = players;
-  game.score = score;
-  game.status = players.p1 && players.p2 ? 'playing' : 'waiting';
-  if (game.status === 'playing') startTurnClock(game);
+export function resetGame(game, now = Date.now()) {
+  normalizeSeats(game);
+  resetCurrentBoardForNextSession(game, now, { autoStart: bothSeatsActive(game) });
   return game;
 }
 
@@ -228,7 +269,9 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
 }
 
 export function resumeGame(game, now = Date.now()) {
+  normalizeSeats(game);
   if (game.status !== 'paused') return { ok: false, error: 'Game is not paused.' };
+  if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before resuming.' };
   game.status = 'playing';
   game.turn = game.pause?.resumeTurn || game.turn;
   game.pause = null;
@@ -238,12 +281,165 @@ export function resumeGame(game, now = Date.now()) {
   return { ok: true };
 }
 
-function finishGame(game, winner, reason) {
+
+export function createSeat(id) {
+  return {
+    id,
+    name: id === 'p1' ? 'Blue' : 'Red',
+    color: id === 'p1' ? '#0b7cff' : '#ff3b30',
+    clientId: null,
+    status: 'vacant',
+  };
+}
+
+export function isSeatActive(player) {
+  return player?.status === 'active';
+}
+
+export function activeSeatCount(game) {
+  normalizeSeats(game);
+  return ['p1', 'p2'].filter((id) => isSeatActive(game.players[id])).length;
+}
+
+export function bothSeatsActive(game) {
+  return activeSeatCount(game) === 2;
+}
+
+export function vacantSeatIds(game) {
+  normalizeSeats(game);
+  return ['p1', 'p2'].filter((id) => !isSeatActive(game.players[id]));
+}
+
+export function startSession(game, now = Date.now()) {
+  normalizeSeats(game);
+  if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before starting.' };
+  game.status = 'playing';
+  game.turn = 'p1';
+  game.ball = { ...START };
+  game.visited = [pointKey(START)];
+  game.segments = [];
+  game.moves = [];
+  game.score = { p1: 0, p2: 0 };
+  game.winner = null;
+  game.endReason = null;
+  game.sessionId = createSessionId(now);
+  game.sessionStartedAt = now;
+  game.sessionEndedAt = null;
+  game.lastTimeout = null;
+  game.consecutiveTimeouts = 0;
+  game.pause = null;
+  startTurnClock(game, now);
+  game.updatedAt = now;
+  return { ok: true };
+}
+
+export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoStart = true } = {}) {
+  const players = game.players;
+  const history = Array.isArray(game.history) ? game.history : [];
+  const moveTimeLimitMs = game.moveTimeLimitMs || 0;
+  const createdAt = game.createdAt || now;
+  game.players = players;
+  game.history = history;
+  game.moveTimeLimitMs = moveTimeLimitMs;
+  game.createdAt = createdAt;
+  game.status = 'waiting';
+  game.turn = 'p1';
+  game.ball = { ...START };
+  game.visited = [pointKey(START)];
+  game.segments = [];
+  game.moves = [];
+  game.score = { p1: 0, p2: 0 };
+  game.winner = null;
+  game.endReason = null;
+  game.sessionId = null;
+  game.sessionStartedAt = null;
+  game.sessionEndedAt = null;
+  game.lastTimeout = null;
+  game.consecutiveTimeouts = 0;
+  game.pause = null;
+  game.turnStartedAt = null;
+  game.updatedAt = now;
+  if (autoStart && bothSeatsActive(game)) startSession(game, now);
+  return game;
+}
+
+export function archiveSessionResult(game, { winner, loser = winner ? otherPlayer(winner) : null, reason = 'finished', endReason = '', now = Date.now() } = {}) {
+  game.history = Array.isArray(game.history) ? game.history : [];
+  const finalScore = { p1: 0, p2: 0 };
+  if (winner) finalScore[winner] = 1;
+  const entry = {
+    id: game.sessionId || createSessionId(now),
+    startedAt: game.sessionStartedAt || game.createdAt || now,
+    endedAt: now,
+    reason,
+    winner,
+    loser,
+    players: {
+      p1: snapshotPlayerForHistory(game.players.p1, 'p1'),
+      p2: snapshotPlayerForHistory(game.players.p2, 'p2'),
+    },
+    finalScore,
+    moveCount: Array.isArray(game.moves) ? game.moves.length : 0,
+    endReason,
+  };
+  game.history.push(entry);
+  if (game.history.length > 50) game.history = game.history.slice(-50);
+  game.sessionEndedAt = now;
+  return entry;
+}
+
+function publicPlayers(players = {}) {
+  return {
+    p1: publicPlayer(players.p1, 'p1'),
+    p2: publicPlayer(players.p2, 'p2'),
+  };
+}
+
+function publicPlayer(player, id) {
+  const seat = player || createSeat(id);
+  return {
+    id: seat.id || id,
+    name: seat.name || (id === 'p1' ? 'Blue' : 'Red'),
+    color: seat.color || (id === 'p1' ? '#0b7cff' : '#ff3b30'),
+    status: seat.status || 'active',
+  };
+}
+
+function snapshotPlayerForHistory(player, id) {
+  const seat = publicPlayer(player, id);
+  return { id: seat.id, name: seat.name, color: seat.color };
+}
+
+function normalizeSeats(game) {
+  game.players = game.players || {};
+  for (const id of ['p1', 'p2']) {
+    if (!game.players[id]) game.players[id] = createSeat(id);
+    else if (!game.players[id].status) game.players[id].status = 'active';
+    if (!game.players[id].color) game.players[id].color = id === 'p1' ? '#0b7cff' : '#ff3b30';
+    if (!game.players[id].id) game.players[id].id = id;
+  }
+  if (!Array.isArray(game.history)) game.history = [];
+}
+
+function cleanClient(clientId) {
+  return String(clientId || '').trim().slice(0, 80) || null;
+}
+
+function cleanPlayerName(name, seatId) {
+  return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : 'Red');
+}
+
+function createSessionId(now = Date.now()) {
+  return `session-${now}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function finishGame(game, winner, reason, resultReason = 'goal') {
   if (game.winner) return;
   game.winner = winner;
   game.endReason = reason;
   game.score = game.score || { p1: 0, p2: 0 };
   game.score[winner] = (game.score[winner] || 0) + 1;
+  archiveSessionResult(game, { winner, loser: otherPlayer(winner), reason: resultReason, endReason: reason });
 }
 
 function playerName(game, id) {
