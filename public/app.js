@@ -1,3 +1,11 @@
+import {
+  HISTORY_STORAGE_KEY,
+  SUSPENDED_LOCAL_STORAGE_KEY,
+  restoreSuspendedLocalGame,
+  makeSuspendedLocalGame,
+  upsertGameHistory,
+} from './history.js';
+
 const canvas = document.querySelector('#board');
 const ctx = canvas.getContext('2d');
 const els = {
@@ -15,6 +23,10 @@ const els = {
   localP2Name: document.querySelector('#localP2Name'),
   onlineMoveTimer: document.querySelector('#onlineMoveTimer'),
   localMoveTimer: document.querySelector('#localMoveTimer'),
+  resumeLocalCard: document.querySelector('#resumeLocalCard'),
+  resumeLocalText: document.querySelector('#resumeLocalText'),
+  resumeLocalSaved: document.querySelector('#resumeLocalSaved'),
+  discardLocalSaved: document.querySelector('#discardLocalSaved'),
   existingRoomForm: document.querySelector('#existingRoomForm'),
   existingRoomInput: document.querySelector('#existingRoomInput'),
   copyInviteCard: document.querySelector('#copyInviteCard'),
@@ -27,6 +39,14 @@ const els = {
   winnerName: document.querySelector('#winnerName'),
   winnerClose: document.querySelector('#winnerClose'),
   winnerNewRound: document.querySelector('#winnerNewRound'),
+  pauseGame: document.querySelector('#pauseGame'),
+  playPauseGame: document.querySelector('#playPauseGame'),
+  pauseOverlay: document.querySelector('#pauseOverlay'),
+  pauseTitle: document.querySelector('#pauseTitle'),
+  pauseMessage: document.querySelector('#pauseMessage'),
+  pauseTurn: document.querySelector('#pauseTurn'),
+  resumeGame: document.querySelector('#resumeGame'),
+  pauseNewRound: document.querySelector('#pauseNewRound'),
   status: document.querySelector('#status'),
   playStatus: document.querySelector('#playStatus'),
   p1: document.querySelector('#p1'),
@@ -40,7 +60,24 @@ const els = {
   replayEnd: document.querySelector('#replayEnd'),
   replayRange: document.querySelector('#replayRange'),
   replayText: document.querySelector('#replayText'),
+  historyList: document.querySelector('#historyList'),
+  menuHistoryList: document.querySelector('#menuHistoryList'),
+  clearHistory: document.querySelector('#clearHistory'),
+  clearMenuHistory: document.querySelector('#clearMenuHistory'),
+  appMenuButton: document.querySelector('#appMenuButton'),
+  appMenuDropdown: document.querySelector('#appMenuDropdown'),
+  appContentOverlay: document.querySelector('#appContentOverlay'),
+  appContentClose: document.querySelector('#appContentClose'),
+  appContentTitle: document.querySelector('#appContentTitle'),
+  appMenuHistory: document.querySelector('#appMenuHistory'),
+  appMenuRules: document.querySelector('#appMenuRules'),
   turnIndicator: document.querySelector('#turnIndicator'),
+  boardsList: document.querySelector('#boardsList'),
+  refreshBoards: document.querySelector('#refreshBoards'),
+  claimP1: document.querySelector('#claimP1'),
+  claimP2: document.querySelector('#claimP2'),
+  leaveSeat: document.querySelector('#leaveSeat'),
+  serverBoardHistoryList: document.querySelector('#serverBoardHistoryList'),
   toast: document.querySelector('#toast'),
 };
 
@@ -70,6 +107,10 @@ let legalMoveHintStartedAt = 0;
 let legalMoveHintKey = '';
 let clockRaf = 0;
 let lastTimeoutKey = '';
+let localTimeoutTimer = 0;
+let viewedHistoryGame = false;
+let lobbyRooms = [];
+let boardLobbyTimer = 0;
 
 const board = { width: 9, height: 13, goalXMin: 3, goalXMax: 5 };
 const margin = 58;
@@ -93,6 +134,8 @@ function init() {
   if (roomId) prefillIncomingInviteFromUrl();
   updateModePanels();
   updateRoomText();
+  renderHistoryPanel();
+  renderSuspendedLocalCard();
   draw();
   if (roomId) connect(() => watchCurrentRoom());
   els.generateRoom.addEventListener('click', createRoom);
@@ -103,12 +146,22 @@ function init() {
   els.onlineMode.addEventListener('click', () => setHomeMode('online'));
   els.localMode.addEventListener('click', () => setHomeMode('local'));
   els.localForm.addEventListener('submit', startLocalGame);
+  els.resumeLocalSaved.addEventListener('click', resumeSavedLocalGame);
+  els.discardLocalSaved.addEventListener('click', discardSavedLocalGame);
   els.existingRoomForm.addEventListener('submit', joinExistingRoom);
   els.copyInviteCard.addEventListener('click', copyInvite);
   els.inviteLink.addEventListener('focus', copyInviteFromField);
   els.inviteLink.addEventListener('pointerdown', copyInviteFromField);
 
   els.reset.addEventListener('click', resetRound);
+  els.pauseGame.addEventListener('click', pauseRound);
+  els.playPauseGame.addEventListener('click', pauseRound);
+  els.resumeGame.addEventListener('click', resumeRound);
+  els.refreshBoards?.addEventListener('click', loadBoards);
+  els.claimP1?.addEventListener('click', () => claimOnlineSeat('p1'));
+  els.claimP2?.addEventListener('click', () => claimOnlineSeat('p2'));
+  els.leaveSeat?.addEventListener('click', leaveOnlineSeat);
+  els.pauseNewRound.addEventListener('click', resetRound);
   els.winnerClose.addEventListener('click', dismissWinnerOverlay);
   els.winnerNewRound.addEventListener('click', resetRound);
   canvas.addEventListener('click', boardClick);
@@ -117,6 +170,27 @@ function init() {
   els.replayNext.addEventListener('click', () => setReplay(Math.min((game?.moves?.length || 0), currentReplay() + 1)));
   els.replayEnd.addEventListener('click', () => setReplay(game?.moves?.length || 0));
   els.replayRange.addEventListener('input', () => setReplay(Number(els.replayRange.value)));
+  if (els.historyList) els.historyList.addEventListener('click', historyListClick);
+  els.menuHistoryList.addEventListener('click', historyListClick);
+  if (els.clearHistory) els.clearHistory.addEventListener('click', clearGameHistory);
+  els.clearMenuHistory.addEventListener('click', clearGameHistory);
+  els.appMenuButton.addEventListener('click', toggleAppMenu);
+  els.appMenuDropdown.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-menu-view]');
+    if (button) openAppContent(button.dataset.menuView);
+  });
+  els.appContentClose.addEventListener('click', closeAppContent);
+  els.appContentOverlay.addEventListener('click', (event) => {
+    if (event.target === els.appContentOverlay) closeAppContent();
+  });
+  document.addEventListener('click', (event) => {
+    if (!els.appMenuDropdown.classList.contains('hidden') && !event.target.closest('#appMenuDropdown') && !event.target.closest('#appMenuButton')) closeAppMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (!els.appContentOverlay.classList.contains('hidden')) closeAppContent();
+    else if (!els.appMenuDropdown.classList.contains('hidden')) closeAppMenu();
+  });
   mobileTabs.forEach((tab) => tab.addEventListener('click', () => setMobilePage(tab.dataset.pageTarget)));
   window.addEventListener('online', wakeConnection);
   window.addEventListener('focus', wakeConnection);
@@ -130,6 +204,7 @@ function setHomeMode(mode) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   gameMode = nextMode;
   if (nextMode === 'local-setup') {
     roomId = null;
@@ -143,11 +218,13 @@ function setHomeMode(mode) {
   }
   playerId = null;
   wantsPlayerSession = false;
+  viewedHistoryGame = false;
   replayIndex = null;
   game = null;
   if (!roomId) history.pushState({}, '', '/');
   updateModePanels();
   updateRoomText();
+  renderSuspendedLocalCard();
   updateUi();
   draw();
   setMobilePage('invite');
@@ -276,8 +353,10 @@ function openOnlineRoom(nextRoomId, nextUrl, message) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   playerId = null;
   game = null;
+  viewedHistoryGame = false;
   replayIndex = null;
   wantsPlayerSession = false;
   roomId = nextRoomId;
@@ -300,39 +379,94 @@ function startLocalGame(event) {
   if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
   intentionalClose = false;
   socket = null;
+  clearLocalTurnTimeout();
   roomId = null;
   inviteUrl = '';
   playerId = null;
   wantsPlayerSession = false;
+  viewedHistoryGame = false;
   replayIndex = null;
   gameMode = 'local';
   const p1Name = cleanLocalName(els.localP1Name.value, 'Blue');
   const p2Name = cleanLocalName(els.localP2Name.value, 'Red');
   const moveTimeLimitSeconds = selectedMoveTimerSeconds(els.localMoveTimer);
   localStorageSafeSet('traceballMoveTimerSeconds', String(moveTimeLimitSeconds));
+  localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
   game = createLocalGame(p1Name, p2Name, game?.score, moveTimeLimitSeconds * 1000);
   history.pushState({}, '', '/');
   els.inviteBox.classList.add('hidden');
   updateModePanels();
   updateRoomText();
+  renderSuspendedLocalCard();
   updateUi();
   draw();
+  scheduleLocalTurnTimeout();
   setMobilePage('play');
   toast('Local same-screen PvP started.');
 }
 
 function resetRound() {
+  if (gameMode === 'history') return toast('Saved replays are read-only. Start a new match from Home.');
   if (gameMode === 'local') {
     const p1Name = game?.players?.p1?.name || cleanLocalName(els.localP1Name.value, 'Blue');
     const p2Name = game?.players?.p2?.name || cleanLocalName(els.localP2Name.value, 'Red');
     game = createLocalGame(p1Name, p2Name, game?.score, game?.moveTimeLimitMs || 0);
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
     replayIndex = null;
     updateUi();
     draw();
+    scheduleLocalTurnTimeout();
     toast('New local round.');
     return;
   }
   send({ type: 'reset' });
+}
+
+function pauseRound() {
+  if (!game || game.status !== 'playing') return toast('Game is not playing.');
+  if (gameMode === 'local') {
+    pauseLocalGame('manual', null);
+    toast('Game paused.');
+    return;
+  }
+  if (!playerId) return toast('Join as a player to pause.');
+  send({ type: 'pause' });
+}
+
+function resumeRound() {
+  if (!game || game.status !== 'paused') return toast('Game is not paused.');
+  if (gameMode === 'local') {
+    game.status = 'playing';
+    game.turn = game.pause?.resumeTurn || game.turn;
+    game.pause = null;
+    game.consecutiveTimeouts = 0;
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+    renderSuspendedLocalCard();
+    restartLocalTurnClock();
+    updateUi();
+    draw();
+    toast('Game resumed.');
+    return;
+  }
+  if (!playerId) return toast('Join as a player to resume.');
+  send({ type: 'resume' });
+}
+
+function pauseLocalGame(reason = 'manual', byPlayerId = null) {
+  if (!game || game.status !== 'playing') return;
+  game.status = 'paused';
+  game.turnStartedAt = null;
+  clearLocalTurnTimeout();
+  game.pause = {
+    reason,
+    byPlayerId,
+    pausedAt: Date.now(),
+    resumeTurn: game.turn,
+  };
+  replayIndex = null;
+  saveSuspendedLocalGame();
+  updateUi();
+  draw();
 }
 
 function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimitMs = 0) {
@@ -354,16 +488,180 @@ function createLocalGame(p1Name, p2Name, score = { p1: 0, p2: 0 }, moveTimeLimit
     moveTimeLimitMs,
     turnStartedAt: moveTimeLimitMs > 0 ? Date.now() : null,
     lastTimeout: null,
+    consecutiveTimeouts: 0,
+    pause: null,
     legalMoves: [],
   };
   localGame.legalMoves = localLegalMoves(localGame);
   return localGame;
 }
 
+function saveSuspendedLocalGame() {
+  const suspended = makeSuspendedLocalGame(game, { mode: gameMode, savedAt: Date.now() });
+  if (!suspended) return;
+  localStorageJsonSet(SUSPENDED_LOCAL_STORAGE_KEY, suspended);
+  renderSuspendedLocalCard();
+}
+
+function renderSuspendedLocalCard() {
+  const suspended = restoreSuspendedLocalGame(localStorageJsonGet(SUSPENDED_LOCAL_STORAGE_KEY));
+  els.resumeLocalCard.classList.toggle('hidden', !suspended);
+  if (!suspended) return;
+  const saved = formatHistoryDate(suspended.savedAt);
+  const p1 = suspended.game.players.p1?.name || 'Blue';
+  const p2 = suspended.game.players.p2?.name || 'Red';
+  const turnName = suspended.game.players[suspended.game.turn]?.name || suspended.game.turn;
+  els.resumeLocalText.textContent = `${p1} vs ${p2} · ${turnName} to move · saved ${saved}.`;
+}
+
+function resumeSavedLocalGame() {
+  const suspended = restoreSuspendedLocalGame(localStorageJsonGet(SUSPENDED_LOCAL_STORAGE_KEY));
+  if (!suspended) {
+    renderSuspendedLocalCard();
+    return toast('No paused local game saved.');
+  }
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  clearLocalTurnTimeout();
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  viewedHistoryGame = false;
+  gameMode = 'local';
+  game = suspended.game;
+  replayIndex = null;
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('play');
+  toast('Paused local game restored.');
+}
+
+function discardSavedLocalGame() {
+  localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+  renderSuspendedLocalCard();
+  toast('Paused local game discarded.');
+}
+
+function saveFinishedGameIfNeeded() {
+  if (!game || game.status !== 'finished' || viewedHistoryGame) return;
+  const history = localStorageJsonGet(HISTORY_STORAGE_KEY, []);
+  const nextHistory = upsertGameHistory(history, game, { mode: gameMode === 'local' ? 'local' : 'online', roomId: roomId || game.roomId || 'local', savedAt: Date.now() });
+  localStorageJsonSet(HISTORY_STORAGE_KEY, nextHistory);
+  if (gameMode === 'local') {
+    localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
+    renderSuspendedLocalCard();
+  }
+  renderHistoryPanel();
+}
+
+function renderHistoryPanel() {
+  const history = localStorageJsonGet(HISTORY_STORAGE_KEY, []);
+  if (els.clearHistory) els.clearHistory.disabled = history.length === 0;
+  els.clearMenuHistory.disabled = history.length === 0;
+  const emptyHtml = '<p class="history-empty">Finished games will appear here. Online games are saved on every device that sees the result.</p>';
+  const listHtml = history.length ? history.slice(0, 8).map((entry, index) => historyItemHtml(entry, index)).join('') : emptyHtml;
+  if (els.historyList) els.historyList.innerHTML = listHtml;
+  els.menuHistoryList.innerHTML = listHtml;
+}
+
+function historyItemHtml(entry, index) {
+  const winnerName = entry.players?.[entry.winner]?.name || entry.winner || 'Unknown';
+  const p1 = entry.players?.p1?.name || 'Blue';
+  const p2 = entry.players?.p2?.name || 'Red';
+  const score = `${entry.score?.p1 || 0}-${entry.score?.p2 || 0}`;
+  return `<article class="history-item">
+    <div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div>
+    <div class="history-meta">${escapeHtml(entry.mode)} · ${escapeHtml(p1)} vs ${escapeHtml(p2)} · ${entry.moveCount || 0} moves · ${escapeHtml(formatHistoryDate(entry.playedAt))}</div>
+    <button type="button" data-history-index="${index}">Replay</button>
+  </article>`;
+}
+
+function historyListClick(event) {
+  const button = event.target.closest('[data-history-index]');
+  if (!button) return;
+  const index = Number(button.dataset.historyIndex);
+  const entry = localStorageJsonGet(HISTORY_STORAGE_KEY, [])[index];
+  if (!entry?.game) return toast('That saved game could not be loaded.');
+  loadHistoryReplay(entry);
+}
+
+function loadHistoryReplay(entry) {
+  intentionalClose = true;
+  if (socket && socket.readyState <= WebSocket.OPEN) socket.close();
+  intentionalClose = false;
+  socket = null;
+  clearLocalTurnTimeout();
+  roomId = null;
+  inviteUrl = '';
+  playerId = null;
+  wantsPlayerSession = false;
+  viewedHistoryGame = true;
+  gameMode = 'history';
+  game = entry.game;
+  replayIndex = 0;
+  history.pushState({}, '', '/');
+  els.inviteBox.classList.add('hidden');
+  updateModePanels();
+  updateRoomText();
+  updateUi();
+  draw();
+  setMobilePage('play');
+  closeAppContent();
+  toast('Loaded saved replay.');
+}
+
+function clearGameHistory() {
+  localStorageSafeRemove(HISTORY_STORAGE_KEY);
+  renderHistoryPanel();
+  toast('Game history cleared on this device.');
+}
+
+function toggleAppMenu() {
+  if (els.appMenuDropdown.classList.contains('hidden')) openAppMenu();
+  else closeAppMenu();
+}
+
+function openAppMenu() {
+  els.appMenuDropdown.classList.remove('hidden');
+  els.appMenuButton.setAttribute('aria-expanded', 'true');
+}
+
+function closeAppMenu() {
+  els.appMenuDropdown.classList.add('hidden');
+  els.appMenuButton.setAttribute('aria-expanded', 'false');
+}
+
+function openAppContent(view) {
+  const selected = view === 'rules' ? 'rules' : 'history';
+  closeAppMenu();
+  els.appMenuHistory.classList.toggle('hidden', selected !== 'history');
+  els.appMenuRules.classList.toggle('hidden', selected !== 'rules');
+  els.appContentTitle.textContent = selected === 'history' ? 'Play History' : 'Rules';
+  if (selected === 'history') renderHistoryPanel();
+  els.appContentOverlay.classList.remove('hidden');
+  document.body.classList.add('menu-open');
+  requestAnimationFrame(() => els.appContentClose.focus());
+}
+
+function closeAppContent() {
+  els.appContentOverlay.classList.add('hidden');
+  document.body.classList.remove('menu-open');
+  els.appMenuButton.focus();
+}
+
 function makeLocalMove(to) {
   if (!game || game.status !== 'playing') return;
   if (expireLocalTurnIfNeeded()) return;
   const player = game.turn;
+  game.consecutiveTimeouts = 0;
+  game.pause = null;
   const from = { ...game.ball };
   const target = { x: Number(to.x), y: Number(to.y) };
   if (!localIsLegalTarget(game, target)) return toast('That move is not legal.');
@@ -378,6 +676,7 @@ function makeLocalMove(to) {
   if (goal) {
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = goal.winner;
     game.endReason = goal.reason;
     game.score[goal.winner] = (game.score[goal.winner] || 0) + 1;
@@ -400,6 +699,7 @@ function makeLocalMove(to) {
     const winner = otherLocalPlayer(game.turn);
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = winner;
     game.endReason = `${game.players[game.turn]?.name || game.turn} is stuck — ${game.players[winner]?.name || winner} wins.`;
     game.score[winner] = (game.score[winner] || 0) + 1;
@@ -432,19 +732,44 @@ function localIsLegalTarget(localGame, to) {
 function restartLocalTurnClock() {
   if (!game || game.status !== 'playing') return;
   game.turnStartedAt = game.moveTimeLimitMs > 0 ? Date.now() : null;
+  scheduleLocalTurnTimeout();
+}
+
+function clearLocalTurnTimeout() {
+  clearTimeout(localTimeoutTimer);
+  localTimeoutTimer = 0;
+}
+
+function scheduleLocalTurnTimeout() {
+  clearLocalTurnTimeout();
+  if (!game || gameMode !== 'local' || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
+  const delay = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now() + 30);
+  localTimeoutTimer = setTimeout(() => {
+    localTimeoutTimer = 0;
+    if (expireLocalTurnIfNeeded()) return;
+    scheduleLocalTurnTimeout();
+  }, delay);
 }
 
 function expireLocalTurnIfNeeded() {
   if (!game || gameMode !== 'local' || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return false;
   if (Date.now() - game.turnStartedAt < game.moveTimeLimitMs) return false;
   const timedOutPlayer = game.turn;
+  const now = Date.now();
+  game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
+  if ((game.consecutiveTimeouts || 0) >= 1) {
+    pauseLocalGame('idle', timedOutPlayer);
+    toast('Both players timed out. Game paused.');
+    return true;
+  }
   const nextPlayer = otherLocalPlayer(timedOutPlayer);
+  game.consecutiveTimeouts = 1;
   game.turn = nextPlayer;
-  game.lastTimeout = { playerId: timedOutPlayer, at: Date.now(), ball: { ...game.ball } };
   game.legalMoves = localLegalMoves(game);
   if (game.legalMoves.length === 0) {
     game.status = 'finished';
     game.turnStartedAt = null;
+    clearLocalTurnTimeout();
     game.winner = timedOutPlayer;
     game.endReason = `${game.players[nextPlayer]?.name || nextPlayer} is stuck after ${game.players[timedOutPlayer]?.name || timedOutPlayer} timed out — ${game.players[timedOutPlayer]?.name || timedOutPlayer} wins.`;
     game.score[timedOutPlayer] = (game.score[timedOutPlayer] || 0) + 1;
@@ -479,6 +804,110 @@ function localSegmentKey(a, b) {
   return ak < bk ? `${ak}|${bk}` : `${bk}|${ak}`;
 }
 
+
+async function loadBoards() {
+  try {
+    const res = await fetch('/api/rooms', { cache: 'no-store' });
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    lobbyRooms = Array.isArray(data.rooms) ? data.rooms : [];
+    renderBoards(lobbyRooms);
+  } catch {
+    toast('Could not load boards.');
+  }
+}
+
+function renderBoards(rooms) {
+  if (!els.boardsList) return;
+  if (!rooms.length) {
+    els.boardsList.innerHTML = '<p class="empty-boards">No active boards yet. Generate one from Home.</p>';
+    return;
+  }
+  els.boardsList.innerHTML = rooms.map(renderBoardCard).join('');
+  els.boardsList.querySelectorAll('[data-open-board]').forEach((button) => {
+    button.addEventListener('click', () => openLobbyBoard(button.dataset.openBoard));
+  });
+}
+
+function renderBoardCard(room) {
+  const p1 = room.players?.p1 || { name: 'Blue', status: 'vacant' };
+  const p2 = room.players?.p2 || { name: 'Red', status: 'vacant' };
+  const status = boardStatusLabel(room);
+  const last = room.lastResult ? `<p class="board-card-last">Last: ${escapeHtml(historyText(room.lastResult))}</p>` : '<p class="board-card-last">No finished sessions yet.</p>';
+  const action = room.occupancy?.vacantCount > 0 ? 'Open / join' : 'Watch';
+  return `
+    <article class="board-card">
+      <div class="board-card-top">
+        <strong>Board ${escapeHtml(room.roomId)}</strong>
+        <span>${escapeHtml(status)}</span>
+      </div>
+      <p><span class="dot blue"></span> Blue: ${escapeHtml(seatLabel(p1, 'Blue'))}</p>
+      <p><span class="dot red"></span> Red: ${escapeHtml(seatLabel(p2, 'Red'))}</p>
+      <p>Current: ${Number(room.score?.p1 || 0)} - ${Number(room.score?.p2 || 0)} · Sessions: ${Number(room.historyCount || 0)}</p>
+      ${last}
+      <button class="primary" type="button" data-open-board="${escapeHtml(room.roomId)}">${action}</button>
+    </article>`;
+}
+
+function boardStatusLabel(room) {
+  const vacant = Number(room.occupancy?.vacantCount ?? 0);
+  if (vacant === 2) return 'Open board';
+  if (vacant === 1) return room.players?.p1?.status === 'vacant' ? 'Waiting for Blue' : 'Waiting for Red';
+  return room.status === 'playing' ? 'In progress' : 'Board full';
+}
+
+function seatLabel(seat, fallback) {
+  return seat && seat.status !== 'vacant' ? seat.name || fallback : 'Open';
+}
+
+function openLobbyBoard(nextRoomId) {
+  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, 'Board opened.');
+  setMobilePage('play');
+}
+
+function claimOnlineSeat(seatId) {
+  const name = requirePlayerName();
+  if (!name) return;
+  if (!roomId) return toast('Open a board first.');
+  wantsPlayerSession = true;
+  send({ type: 'claimSeat', roomId, seatId, name, clientId });
+  setMobilePage('play');
+}
+
+function leaveOnlineSeat() {
+  if (gameMode !== 'online') return toast('Seat leaving is only for online boards.');
+  if (!playerId) return toast('You are watching already.');
+  const opponentId = playerId === 'p1' ? 'p2' : 'p1';
+  const opponentActive = game?.players?.[opponentId]?.status === 'active';
+  const message = opponentActive
+    ? 'Leave this round? Your opponent wins by forfeit.'
+    : 'Leave this board? Your seat will become open.';
+  if (!window.confirm(message)) return;
+  send({ type: 'leave' });
+}
+
+function renderServerBoardHistory() {
+  if (!els.serverBoardHistoryList) return;
+  const entries = Array.isArray(game?.history) ? [...game.history].reverse() : [];
+  if (!entries.length) {
+    els.serverBoardHistoryList.innerHTML = '<li>No server-side board sessions yet.</li>';
+    return;
+  }
+  els.serverBoardHistoryList.innerHTML = entries.slice(0, 10).map((entry) => `<li>${escapeHtml(historyText(entry))}</li>`).join('');
+}
+
+function historyText(entry) {
+  const winnerName = entry.players?.[entry.winner]?.name || entry.winner || 'Nobody';
+  const loserName = entry.players?.[entry.loser]?.name || entry.loser || 'opponent';
+  if (entry.reason === 'forfeit') return `${winnerName} beat ${loserName} by forfeit`;
+  if (entry.reason === 'stuck') return `${winnerName} beat ${loserName} — stuck`;
+  return `${winnerName} beat ${loserName}`;
+}
+
+function isOccupyingSeat() {
+  return Boolean(playerId && game?.players?.[playerId]?.status === 'active');
+}
+
 function joinOnlinePlayer(name = playerName) {
   if (!roomId) return toast('Generate or choose a game first.');
   playerName = String(name || '').trim();
@@ -508,6 +937,13 @@ function connect(onOpen) {
       setMobilePage('play');
       toast(`Joined as ${playerId === 'p1' ? 'Blue' : 'Red'}.`);
     }
+    if (msg.type === 'left') {
+      if (playerId === msg.playerId) {
+        playerId = null;
+        wantsPlayerSession = false;
+        toast(msg.forfeit ? 'You left. Opponent wins by forfeit.' : 'You left the board.');
+      }
+    }
     if (msg.type === 'state') {
       applyRemoteGameState(msg.game);
       if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
@@ -534,9 +970,18 @@ function applyRemoteGameState(nextGame) {
   if (timeoutKey && timeoutKey !== lastTimeoutKey) {
     lastTimeoutKey = timeoutKey;
     const timedOutName = game.players[timeout.playerId]?.name || timeout.playerId;
-    const turnName = game.players[game.turn]?.name || game.turn;
-    toast(`${timedOutName} timed out — ${turnName}'s turn.`);
+    if (game.status === 'paused' && game.pause?.reason === 'idle') {
+      toast(`Both players timed out. Game paused.`);
+    } else {
+      const turnName = game.players[game.turn]?.name || game.turn;
+      toast(`${timedOutName} timed out — ${turnName}'s turn.`);
+    }
   }
+  if (previousStatus === 'playing' && game.status === 'paused' && game.pause?.reason === 'manual') {
+    const pausedBy = game.players[game.pause?.byPlayerId]?.name || game.pause?.byPlayerId;
+    toast(pausedBy ? `Game paused by ${pausedBy}.` : 'Game paused.');
+  }
+  if (previousStatus === 'paused' && game.status === 'playing') toast('Game resumed.');
   if (previousStatus === 'playing' && game.status === 'playing' && previousTurn && previousTurn !== game.turn) {
     startTurnMarkerJump(previousTurn, game.turn);
   }
@@ -571,6 +1016,7 @@ function send(payload) {
 
 function boardClick(event) {
   if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (gameMode !== 'local' && !isOccupyingSeat()) return toast('You are watching this board. Claim an open seat to play.');
   if (gameMode !== 'local' && game.turn !== playerId) return toast('Wait for your turn.');
   const rect = canvas.getBoundingClientRect();
   const scaleX = canvas.width / rect.width;
@@ -612,28 +1058,47 @@ function updateUi() {
     els.replayText.textContent = 'Replay appears once moves are made.';
     els.turnIndicator.textContent = 'Waiting for players';
     els.turnIndicator.className = 'turn-indicator';
+    updatePauseOverlay();
+    updateSeatActions();
+    renderServerBoardHistory();
     return;
   }
   const score = game.score || { p1: 0, p2: 0 };
-  els.p1.textContent = game.players.p1?.name || 'Waiting for blue';
-  els.p2.textContent = game.players.p2?.name || 'Waiting for red';
+  saveFinishedGameIfNeeded();
+  els.p1.textContent = seatLabel(game.players.p1, 'Blue');
+  els.p2.textContent = seatLabel(game.players.p2, 'Red');
   els.p1Score.textContent = score.p1 || 0;
   els.p2Score.textContent = score.p2 || 0;
   const turnName = game.players[game.turn]?.name || game.turn;
   if (gameMode === 'local' && game.status === 'playing') els.status.textContent = `${turnName}'s turn — ${moveTimerLabel(game.moveTimeLimitMs)}.`;
-  else if (game.status === 'waiting') els.status.textContent = 'Waiting for a friend to join. Share the link or QR code.';
+  else if (game.status === 'waiting') els.status.textContent = waitingStatusText();
   else if (game.status === 'playing') els.status.textContent = `${turnName}'s turn${game.turn === playerId ? ' — your move.' : '.'} ${moveTimerLabel(game.moveTimeLimitMs)}.`;
+  else if (game.status === 'paused') els.status.textContent = pauseStatusText();
   else if (game.status === 'finished') els.status.textContent = `${game.players[game.winner]?.name || game.winner} wins. ${game.endReason}`;
   els.playStatus.textContent = els.status.textContent;
   updateWinnerOverlay();
+  updatePauseOverlay();
   updateTurnIndicator();
   els.replayRange.max = game.moves.length;
   els.replayRange.value = currentReplay();
   els.replayText.textContent = game.moves.length ? `Move ${currentReplay()} of ${game.moves.length}` : 'Replay appears once moves are made.';
+  updateSeatActions();
+  renderServerBoardHistory();
   syncClockAnimation();
 }
 
+function updateSeatActions() {
+  const isOnline = gameMode === 'online';
+  const isPlayer = isOnline && isOccupyingSeat();
+  const p1Vacant = game?.players?.p1?.status === 'vacant';
+  const p2Vacant = game?.players?.p2?.status === 'vacant';
+  els.claimP1?.classList.toggle('hidden', !(isOnline && !isPlayer && p1Vacant));
+  els.claimP2?.classList.toggle('hidden', !(isOnline && !isPlayer && p2Vacant));
+  els.leaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
+}
+
 function updateWinnerOverlay() {
+
   const winnerId = game?.status === 'finished' ? game.winner : null;
   if (!winnerId) {
     els.winnerOverlay.classList.add('hidden');
@@ -657,6 +1122,46 @@ function dismissWinnerOverlay() {
   if (!lastWinnerKey) return;
   dismissedWinnerKey = lastWinnerKey;
   els.winnerOverlay.classList.add('hidden');
+}
+
+function updatePauseOverlay() {
+  const paused = game?.status === 'paused';
+  els.pauseOverlay.classList.toggle('hidden', !paused);
+  document.querySelector('.board-stage')?.classList.toggle('paused', paused);
+  els.pauseGame.disabled = !game || game.status !== 'playing' || (gameMode !== 'local' && !playerId);
+  els.playPauseGame.disabled = els.pauseGame.disabled;
+  els.reset.disabled = gameMode === 'history' || (!game && !playerId);
+  els.pauseNewRound.disabled = gameMode === 'history';
+  els.winnerNewRound.disabled = gameMode === 'history';
+  els.resumeGame.disabled = !paused || (gameMode !== 'local' && !playerId);
+  if (!paused) return;
+  const pause = game.pause || {};
+  const turnName = game.players[game.turn]?.name || game.turn;
+  const byName = pause.byPlayerId ? game.players[pause.byPlayerId]?.name || pause.byPlayerId : '';
+  els.pauseTitle.textContent = pause.reason === 'idle' ? 'Game paused for inactivity' : 'Game paused';
+  els.pauseMessage.textContent = pause.reason === 'idle'
+    ? 'Both players timed out. Board hidden while paused.'
+    : byName ? `Paused by ${byName}. Board hidden while paused.` : 'Board hidden while paused.';
+  els.pauseTurn.textContent = `${turnName} to move when resumed.`;
+}
+
+function waitingStatusText() {
+  if (!game) return 'Waiting for players.';
+  const p1Vacant = game.players?.p1?.status === 'vacant';
+  const p2Vacant = game.players?.p2?.status === 'vacant';
+  if (p1Vacant && p2Vacant) return 'Board open — choose Blue or Red.';
+  if (p1Vacant) return 'Waiting for a Blue player.';
+  if (p2Vacant) return 'Waiting for a Red player.';
+  return 'Waiting for the next session.';
+}
+
+function pauseStatusText() {
+
+  if (!game) return 'Game paused.';
+  const turnName = game.players[game.turn]?.name || game.turn;
+  if (game.pause?.reason === 'idle') return `Both players timed out. Game paused — ${turnName} to move when resumed.`;
+  const byName = game.pause?.byPlayerId ? game.players[game.pause.byPlayerId]?.name || game.pause.byPlayerId : null;
+  return `${byName ? `Paused by ${byName}.` : 'Game paused.'} ${turnName} to move when resumed.`;
 }
 
 function animateConfetti() {
@@ -691,6 +1196,10 @@ function showInvite() {
 }
 
 function updateRoomText() {
+  if (gameMode === 'history') {
+    els.roomText.textContent = 'Viewing a saved replay from this device. Start or join a match from Home when ready.';
+    return;
+  }
   if (gameMode === 'local' || gameMode === 'local-setup') {
     els.roomText.textContent = 'Local same-screen match — Players face each other and use this device.';
     return;
@@ -734,6 +1243,7 @@ function updateTurnIndicator() {
   const name = player && player.name ? player.name : colorName;
   let message;
   if (!game || game.status === 'waiting') message = 'Waiting for players';
+  else if (game.status === 'paused') message = `Paused — ${name} resumes`;
   else if (game.status === 'finished') message = `Match finished — ${game.players[game.winner]?.name || game.winner} wins`;
   else if (gameMode === 'local') message = `${colorName} turn — ${name} · pass screen across`;
   else if (turn === playerId) message = `${colorName} turn — your move`;
@@ -1312,6 +1822,29 @@ function localStorageSafeSet(key, value) {
   try { localStorage.setItem(key, value); } catch {}
 }
 
+function localStorageSafeRemove(key) {
+  try { localStorage.removeItem(key); } catch {}
+}
+
+function localStorageJsonGet(key, fallback = null) {
+  const raw = localStorageSafeGet(key);
+  if (!raw) return fallback;
+  try { return JSON.parse(raw); } catch { return fallback; }
+}
+
+function localStorageJsonSet(key, value) {
+  localStorageSafeSet(key, JSON.stringify(value));
+}
+
+function formatHistoryDate(value) {
+  const date = new Date(Number(value) || Date.now());
+  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+}
+
 function generateRandomPlayerName() {
   const adjectives = ['Neon', 'Turbo', 'Cosmic', 'Lucky', 'Zigzag', 'Pixel', 'Rocket', 'Nimble', 'Thunder', 'Glitch'];
   const nouns = ['Striker', 'Ranger', 'Falcon', 'Comet', 'Dribbler', 'Phantom', 'Kicker', 'Ace', 'Tiger', 'Wizard'];
@@ -1330,9 +1863,17 @@ function getClientId() {
 }
 
 function setMobilePage(page = 'play') {
-  const selected = ['play', 'invite', 'match'].includes(page) ? page : 'play';
+  const selected = ['play', 'invite', 'match', 'boards'].includes(page) ? page : 'play';
   document.body.dataset.mobilePage = selected;
   mobileTabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.pageTarget === selected));
   mobilePages.forEach((panel) => panel.classList.toggle('active', panel.dataset.mobilePage === selected));
   if (selected === 'play') requestAnimationFrame(draw);
+  if (selected === 'boards') {
+    loadBoards();
+    clearInterval(boardLobbyTimer);
+    boardLobbyTimer = window.setInterval(loadBoards, 8000);
+  } else {
+    clearInterval(boardLobbyTimer);
+    boardLobbyTimer = 0;
+  }
 }

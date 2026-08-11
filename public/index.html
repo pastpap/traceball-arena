@@ -13,15 +13,19 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <div>
+        <div class="hero-copy">
           <p class="eyebrow">Realtime paper-soccer</p>
           <h1>Traceball Arena</h1>
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
+        <button id="appMenuButton" class="app-menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenuOverlay">
+          <span aria-hidden="true">☰</span>
+        </button>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
         <button type="button" class="mobile-tab active" data-page-target="invite">Home</button>
+        <button type="button" class="mobile-tab" data-page-target="boards">Boards</button>
         <button type="button" class="mobile-tab" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
       </nav>
@@ -86,6 +90,16 @@
           <h2>Local same-screen PvP</h2>
           <p>Players face each other and play on this device. The pitch stays still; the turn ball moves between gates.</p>
         </div>
+        <section id="resumeLocalCard" class="resume-local-card hidden" aria-live="polite">
+          <div>
+            <strong>Paused local game</strong>
+            <p id="resumeLocalText">Resume the saved same-device game.</p>
+          </div>
+          <div class="resume-local-actions">
+            <button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button>
+            <button id="discardLocalSaved" class="ghost" type="button">Discard</button>
+          </div>
+        </section>
         <form id="localForm">
           <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
           <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
@@ -104,12 +118,36 @@
         </form>
       </section>
 
+      <section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">
+        <div class="boards-header">
+          <div>
+            <h2>Active boards</h2>
+            <p>Pick a board to watch, or claim an open Blue/Red seat.</p>
+          </div>
+          <button id="refreshBoards" class="ghost" type="button">Refresh</button>
+        </div>
+        <div id="boardsList" class="boards-list" aria-live="polite">Open the board list to see active server boards.</div>
+      </section>
+
       <section class="game-layout">
         <div class="board-card mobile-page" data-mobile-page="play">
           <div id="playStatus" class="play-status">Create or join a room to start.</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">Waiting for players</div>
+          <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
           <div class="board-stage">
             <canvas id="board" width="720" height="920" aria-label="Traceball board"></canvas>
+            <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+              <div class="pause-card">
+                <div class="pause-kicker">Paused</div>
+                <h2 id="pauseTitle">Game paused</h2>
+                <p id="pauseMessage">Board hidden while paused.</p>
+                <p id="pauseTurn">Turn resumes here.</p>
+                <div class="pause-actions">
+                  <button id="resumeGame" class="primary" type="button">Resume game</button>
+                  <button id="pauseNewRound" class="ghost" type="button">New round</button>
+                </div>
+              </div>
+            </div>
             <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
               <div class="winner-card">
                 <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
@@ -143,25 +181,64 @@
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">0</div>
             </div>
+            <div id="seatActions" class="seat-actions">
+              <button id="claimP1" class="ghost hidden" type="button">Join Blue</button>
+              <button id="claimP2" class="ghost hidden" type="button">Join Red</button>
+              <button id="leaveSeat" class="ghost danger hidden" type="button">Leave / forfeit</button>
+            </div>
+            <button id="pauseGame" class="ghost">Pause game</button>
             <button id="reset" class="ghost">New round</button>
+            <section class="board-history">
+              <h3>Board history</h3>
+              <ol id="serverBoardHistoryList" class="server-board-history-list"></ol>
+            </section>
           </div>
-          <div class="card rules">
-            <h2>Rules</h2>
-            <ul>
-              <li>Move one point in any of 8 directions.</li>
-              <li>No line segment can be reused.</li>
-              <li>Margin lines are already traced; only margin points may be used.</li>
-              <li>Landing on a visited point, wall, or black gate-mouth dot gives another move.</li>
-              <li>The black dot in the middle of each gate line is already a bounce point, even before anyone visits it.</li>
-              <li>Score in the opponent gate. Own gate = own goal.</li>
-              <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
-              <li>If time expires, no line is drawn; the ball stays put and the turn passes.</li>
-              <li>If you are stuck, you lose.</li>
-            </ul>
-          </div>
+
         </aside>
       </section>
     </main>
+    <div id="appMenuDropdown" class="app-menu-dropdown hidden" role="menu" aria-label="App menu">
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="history">Play History</button>
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="rules">Rules</button>
+      <p class="app-menu-note">More settings later.</p>
+    </div>
+    <div id="appContentOverlay" class="app-content-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appContentTitle">
+      <div class="app-content-panel">
+        <div class="app-content-header">
+          <div>
+            <p class="app-menu-kicker">Traceball Arena</p>
+            <h2 id="appContentTitle">Menu</h2>
+          </div>
+          <button id="appContentClose" class="app-menu-close" type="button" aria-label="Close window">×</button>
+        </div>
+        <section id="appMenuHistory" class="app-menu-section app-menu-history hidden">
+          <div class="history-header">
+            <div>
+              <h3>Play History</h3>
+              <p>Saved on this device for local and online games.</p>
+            </div>
+            <button id="clearMenuHistory" class="ghost" type="button">Clear</button>
+          </div>
+          <div id="menuHistoryList" class="history-list">Finished games will appear here.</div>
+        </section>
+        <section id="appMenuRules" class="app-menu-section app-menu-rules hidden">
+          <h3>Rules</h3>
+          <ul>
+            <li>Move one point in any of 8 directions.</li>
+            <li>No line segment can be reused.</li>
+            <li>Margin lines are already traced; only margin points may be used.</li>
+            <li>Landing on a visited point, wall, or black gate-mouth dot gives another move.</li>
+            <li>The black dot in the middle of each gate line is already a bounce point, even before anyone visits it.</li>
+            <li>Score in the opponent gate. Own gate = own goal.</li>
+            <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
+            <li>If time expires, no line is drawn; the ball stays put and the turn passes.</li>
+            <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+            <li>Either joined player can pause or resume during a round.</li>
+            <li>If you are stuck, you lose.</li>
+          </ul>
+        </section>
+      </div>
+    </div>
     <div id="toast" role="status"></div>
     <script type="module" src="/app.js"></script>
   </body>
