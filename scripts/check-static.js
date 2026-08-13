@@ -126,6 +126,12 @@ const app = readFileSync('public/app.js', 'utf8');
 if (!app.includes('playLeaveSeat: document.querySelector') || !app.includes("els.playLeaveSeat?.addEventListener('click', leaveOnlineSeat)") || !app.includes('els.playLeaveSeat?.classList.toggle')) {
   throw new Error('Play-page Leave / forfeit button must be selected, wired, and visibility-synced with the Match leave button.');
 }
+if (!html.includes('id="playClaimP1"') || !html.includes('id="playClaimP2"') || !app.includes('playClaimP1: document.querySelector') || !app.includes("els.playClaimP1?.addEventListener('click', () => claimOnlineSeat('p1'))") || !app.includes('els.playClaimP1?.classList.toggle')) {
+  throw new Error('Play board must expose Join Blue/Join Red controls for mobile watchers, not only the Match tab.');
+}
+if (!app.includes('let leavingSeat = false') || !app.includes('leavingSeat = true') || !app.includes('if (leavingSeat) return') || !app.includes('wantsPlayerSession = false;')) {
+  throw new Error('Explicit Leave must keep the browser as a watcher and block auto-rejoin until the user presses a join button.');
+}
 if (!app.includes('cachedBoards = rooms') || !app.includes('function vacantSeatForRoom(room)') || !app.includes('openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {') || !app.includes('claimOnlineSeat(seatId)')) {
   throw new Error('Lobby Open / join must use the board summary to auto-claim an open seat instead of opening Play as watcher-only.');
 }
@@ -255,7 +261,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v31') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
+if (!sw.includes('traceball-arena-v32') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

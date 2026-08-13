@@ -87,6 +87,24 @@ describe('room state lifecycle', () => {
     expect(game.status).toBe('waiting');
   });
 
+  it('keeps an explicit leaver as a watcher until they press a seat join button', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+
+    leavePlayer(game, 'p1', 3000);
+    const autoResume = addPlayer(game, 'Desktop again', 'desktop-client');
+
+    expect(autoResume.ok).toBe(false);
+    expect(autoResume.error).toMatch(/open seat/i);
+    expect(game.players.p1).toMatchObject({ id: 'p1', status: 'vacant', clientId: null });
+
+    const explicitJoin = claimSeat(game, 'p1', 'Desktop again', 'desktop-client', 4000);
+
+    expect(explicitJoin).toEqual({ ok: true, playerId: 'p1' });
+    expect(game.players.p1).toMatchObject({ name: 'Desktop again', clientId: 'desktop-client', status: 'active' });
+  });
+
   it('starts a new zero-zero session on the same board when a replacement claims the vacated side', () => {
     const game = createGame('room-test');
     claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);

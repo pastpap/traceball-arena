@@ -76,6 +76,8 @@ const els = {
   refreshBoards: document.querySelector('#refreshBoards'),
   claimP1: document.querySelector('#claimP1'),
   claimP2: document.querySelector('#claimP2'),
+  playClaimP1: document.querySelector('#playClaimP1'),
+  playClaimP2: document.querySelector('#playClaimP2'),
   leaveSeat: document.querySelector('#leaveSeat'),
   playLeaveSeat: document.querySelector('#playLeaveSeat'),
   serverBoardHistoryList: document.querySelector('#serverBoardHistoryList'),
@@ -94,6 +96,7 @@ let game = null;
 let replayIndex = null;
 const clientId = getClientId();
 let wantsPlayerSession = false;
+let leavingSeat = false;
 let playerName = localStorageSafeGet('traceballPlayerName') || generateRandomPlayerName();
 let cachedBoards = [];
 let onlineAction = 'new';
@@ -162,6 +165,8 @@ function init() {
   els.refreshBoards?.addEventListener('click', loadBoards);
   els.claimP1?.addEventListener('click', () => claimOnlineSeat('p1'));
   els.claimP2?.addEventListener('click', () => claimOnlineSeat('p2'));
+  els.playClaimP1?.addEventListener('click', () => claimOnlineSeat('p1'));
+  els.playClaimP2?.addEventListener('click', () => claimOnlineSeat('p2'));
   els.leaveSeat?.addEventListener('click', leaveOnlineSeat);
   els.playLeaveSeat?.addEventListener('click', leaveOnlineSeat);
   els.pauseNewRound.addEventListener('click', resetRound);
@@ -888,6 +893,7 @@ function claimOnlineSeat(seatId) {
   const name = requirePlayerName();
   if (!name) return;
   if (!roomId) return toast('Open a board first.');
+  leavingSeat = false;
   wantsPlayerSession = true;
   send({ type: 'claimSeat', roomId, seatId, name, clientId });
   setMobilePage('play');
@@ -902,6 +908,8 @@ function leaveOnlineSeat() {
     ? 'Leave this round? Your opponent wins by forfeit.'
     : 'Leave this board? Your seat will become open.';
   if (!window.confirm(message)) return;
+  leavingSeat = true;
+  wantsPlayerSession = false;
   send({ type: 'leave' });
 }
 
@@ -945,6 +953,7 @@ function joinOnlinePlayer(name = playerName) {
   if (!roomId) return toast('Generate or choose a game first.');
   playerName = String(name || '').trim();
   if (!playerName) return toast('Add your name first.');
+  leavingSeat = false;
   wantsPlayerSession = true;
   localStorageSafeSet('traceballPlayerName', playerName);
   const joinRoom = () => send({ type: 'join', roomId, name: playerName, clientId });
@@ -1026,6 +1035,7 @@ function watchCurrentRoom() {
 
 function resumeRoomSession() {
   if (!roomId) return;
+  if (leavingSeat) return watchCurrentRoom();
   if (wantsPlayerSession && playerName) send({ type: 'join', roomId, name: playerName, clientId });
   else watchCurrentRoom();
 }
@@ -1127,6 +1137,8 @@ function updateSeatActions() {
   const p2Vacant = game?.players?.p2?.status === 'vacant';
   els.claimP1?.classList.toggle('hidden', !(isOnline && !isPlayer && p1Vacant));
   els.claimP2?.classList.toggle('hidden', !(isOnline && !isPlayer && p2Vacant));
+  els.playClaimP1?.classList.toggle('hidden', !(isOnline && !isPlayer && p1Vacant));
+  els.playClaimP2?.classList.toggle('hidden', !(isOnline && !isPlayer && p2Vacant));
   els.leaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
   els.playLeaveSeat?.classList.toggle('hidden', !(isOnline && isPlayer));
 }
