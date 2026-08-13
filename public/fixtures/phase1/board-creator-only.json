@@ -1,0 +1,37 @@
+{
+  "type": "state",
+  "boardCode": "ROOM123",
+  "version": 1,
+  "board": {
+    "code": "ROOM123",
+    "version": 1,
+    "state": "OneSeatOccupied",
+    "seats": {
+      "blue": {
+        "color": "blue",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Stefan"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      },
+      "red": {
+        "color": "red",
+        "state": "Vacant",
+        "player": null,
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      }
+    },
+    "currentSession": null,
+    "watchers": [],
+    "waitingList": [],
+    "history": [],
+    "createdAt": 1000,
+    "updatedAt": 1000,
+    "expiresAt": 604801000
+  }
+}

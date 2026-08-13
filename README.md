@@ -73,6 +73,11 @@ The implementation intentionally stays no-DB for now: rooms, scores, and replays
 
 The `elm-rewrite` branch is the staging branch for introducing Elm into the frontend while the Node backend stays authoritative.
 
+Current Elm shell route:
+
+- `/elm` renders the Phase 2 board-contract shell from the Phase 1 fixture.
+- Existing `/` and `/room/:roomId` JavaScript frontend routes remain unchanged.
+
 Architecture and rewrite docs:
 
 - `docs/architecture/board-state-machine.md`

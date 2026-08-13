@@ -1,0 +1,98 @@
+{
+  "type": "state",
+  "boardCode": "ROOM123",
+  "version": 2,
+  "board": {
+    "code": "ROOM123",
+    "version": 2,
+    "state": "SessionActive",
+    "seats": {
+      "blue": {
+        "color": "blue",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Stefan"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      },
+      "red": {
+        "color": "red",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Friend"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      }
+    },
+    "currentSession": {
+      "sessionId": "session-active-fixture",
+      "startedAt": 2000,
+      "state": "Active",
+      "score": {
+        "blue": 0,
+        "red": 0
+      },
+      "round": {
+        "state": "Active",
+        "turn": "blue",
+        "ball": {
+          "x": 4,
+          "y": 6
+        },
+        "visited": [
+          "4,6"
+        ],
+        "segments": [],
+        "moves": [],
+        "legalMoves": [
+          {
+            "x": 3,
+            "y": 5
+          },
+          {
+            "x": 4,
+            "y": 5
+          },
+          {
+            "x": 5,
+            "y": 5
+          },
+          {
+            "x": 3,
+            "y": 6
+          },
+          {
+            "x": 5,
+            "y": 6
+          },
+          {
+            "x": 3,
+            "y": 7
+          },
+          {
+            "x": 4,
+            "y": 7
+          },
+          {
+            "x": 5,
+            "y": 7
+          }
+        ],
+        "winner": null,
+        "endReason": null
+      },
+      "pause": null,
+      "updatedAt": 2000
+    },
+    "watchers": [],
+    "waitingList": [],
+    "history": [],
+    "createdAt": 1000,
+    "updatedAt": 2000,
+    "expiresAt": 604802000
+  }
+}

@@ -16,6 +16,7 @@ const rooms = new Map();
 const sockets = new Map();
 const roomTimers = new Map();
 const appShellPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
+const elmShellPath = fileURLToPath(new URL('../public/elm.html', import.meta.url));
 
 app.use(express.static('public', { extensions: ['html'] }));
 
@@ -56,6 +57,10 @@ app.get('/api/qr', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Could not generate QR code.' });
   }
+});
+
+app.get('/elm', (_req, res) => {
+  res.type('html').send(readFileSync(elmShellPath, 'utf8'));
 });
 
 app.get('/room/:roomId', (_req, res) => {

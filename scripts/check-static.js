@@ -1,9 +1,41 @@
 import { existsSync, readFileSync } from 'node:fs';
 
-const required = ['public/index.html', 'public/app.js', 'public/styles.css', 'public/icon.svg', 'public/manifest.webmanifest', 'public/sw.js', 'src/server.js', 'src/game.js', 'railway.json'];
+const required = ['public/index.html', 'public/app.js', 'public/styles.css', 'public/icon.svg', 'public/manifest.webmanifest', 'public/sw.js', 'public/elm.html', 'public/elm.js', 'src/server.js', 'src/game.js', 'src/elm/Main.elm', 'src/elm/Board/Decode.elm', 'src/elm/Board/View.elm', 'src/elm/Board/Types.elm', 'src/elm/Protocol.elm', 'elm.json', 'railway.json'];
 for (const file of required) {
   if (!existsSync(file)) throw new Error(`Missing ${file}`);
 }
+
+const elmHtml = readFileSync('public/elm.html', 'utf8');
+const elmBundle = readFileSync('public/elm.js', 'utf8');
+const elmMain = readFileSync('src/elm/Main.elm', 'utf8');
+const elmDecode = readFileSync('src/elm/Board/Decode.elm', 'utf8');
+const elmView = readFileSync('src/elm/Board/View.elm', 'utf8');
+const elmTypes = readFileSync('src/elm/Board/Types.elm', 'utf8');
+const elmProtocol = readFileSync('src/elm/Protocol.elm', 'utf8');
+if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHtml.includes('Traceball Arena — Elm Shell')) {
+  throw new Error('Elm shell HTML must mount #elm-root and load /elm.js with a clear title.');
+}
+if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-active-session.json')) {
+  throw new Error('public/elm.js must provide the minimal Elm-shell runtime and load a Phase 1 fixture.');
+}
+if (!elmMain.includes('type alias Model') || !elmMain.includes('type Msg') || !elmMain.includes('update') || !elmMain.includes('view')) {
+  throw new Error('Elm Main module must establish Model, Msg, update, and view.');
+}
+if (!elmTypes.includes('type BoardState') || !elmTypes.includes('type SeatState') || !elmTypes.includes('type alias Board')) {
+  throw new Error('Elm board types must model board and seat states.');
+}
+if (!elmDecode.includes('boardDecoder') || !elmDecode.includes('waitingList') || !elmDecode.includes('watchers')) {
+  throw new Error('Elm decoder module must target Phase 1 board payloads including watchers and explicit waiting list.');
+}
+if (!elmView.includes('viewBoard') || !elmView.includes('Waiting list') || !elmView.includes('Watchers')) {
+  throw new Error('Elm view module must render a board shell with watchers and waiting list sections.');
+}
+if (!elmProtocol.includes('type alias StateMessage') || !elmProtocol.includes('version') || !elmProtocol.includes('boardCode')) {
+  throw new Error('Elm protocol module must model Phase 1 state messages with boardCode and version.');
+}
+const elmJson = JSON.parse(readFileSync('elm.json', 'utf8'));
+if (elmJson['source-directories']?.[0] !== 'src/elm') throw new Error('elm.json must compile from src/elm.');
+
 const railway = JSON.parse(readFileSync('railway.json', 'utf8'));
 if (railway.deploy.healthcheckPath !== '/api/health') throw new Error('Railway healthcheck must be /api/health');
 
@@ -118,6 +150,10 @@ if (!html.includes('localP1Name') || !html.includes('localP2Name')) {
 }
 if (!html.includes('copyInviteCard')) throw new Error('Copy invite button must live inside the Join this match card.');
 if (html.includes('id="copyInvite"')) throw new Error('Top-level copy invite button must be removed.');
+const serverSource = readFileSync('src/server.js', 'utf8');
+if (!serverSource.includes("app.get('/elm'") || !serverSource.includes("elm.html")) {
+  throw new Error('Server must expose the Elm shell at /elm without replacing the current frontend.');
+}
 if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manifest" href="/manifest.webmanifest"')) {
   throw new Error('Favicon and PWA manifest links are required.');
 }

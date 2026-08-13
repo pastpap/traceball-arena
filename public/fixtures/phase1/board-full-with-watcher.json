@@ -1,0 +1,89 @@
+{
+  "type": "state",
+  "boardCode": "ROOM123",
+  "version": 4,
+  "board": {
+    "code": "ROOM123",
+    "version": 4,
+    "state": "BetweenRounds",
+    "seats": {
+      "blue": {
+        "color": "blue",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Stefan"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      },
+      "red": {
+        "color": "red",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Friend"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      }
+    },
+    "currentSession": {
+      "sessionId": "session-between-rounds-fixture",
+      "startedAt": 2000,
+      "state": "BetweenRounds",
+      "score": {
+        "blue": 1,
+        "red": 0
+      },
+      "round": {
+        "state": "PendingContinue",
+        "turn": "blue",
+        "ball": {
+          "x": 4,
+          "y": 0
+        },
+        "visited": [
+          "4,6",
+          "4,0"
+        ],
+        "segments": [
+          "4,0|4,1"
+        ],
+        "moves": [
+          {
+            "playerId": "p1",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 4,
+              "y": 0
+            },
+            "segment": "4,0|4,1",
+            "bounce": false,
+            "at": 2500,
+            "goal": true
+          }
+        ],
+        "legalMoves": [],
+        "winner": "blue",
+        "endReason": "p1 scored!"
+      },
+      "pause": null,
+      "updatedAt": 3000
+    },
+    "watchers": [
+      {
+        "displayName": "Watcher One",
+        "joinedAt": 3000
+      }
+    ],
+    "waitingList": [],
+    "history": [],
+    "createdAt": 1000,
+    "updatedAt": 2500,
+    "expiresAt": 604802500
+  }
+}

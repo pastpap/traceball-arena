@@ -79,6 +79,8 @@ Exit criteria:
 Deliverables:
 
 - Add Elm tooling and build scripts.
+- Add `elm.json` and Elm source modules under `src/elm/`.
+- Add `npm run build:elm`; on platforms with an Elm compiler it compile-checks `src/elm/Main.elm`, while Android/Termux keeps the checked-in Phase 2 shell runtime.
 - Add an Elm app entry point behind a route/flag, for example `/elm` or `?frontend=elm`.
 - Elm renders a static board from a fixture.
 - Elm has a top-level `Model`, `Msg`, `update`, and `view` structure.
