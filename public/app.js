@@ -918,9 +918,23 @@ function renderServerBoardHistory() {
 function historyText(entry) {
   const winnerName = entry.players?.[entry.winner]?.name || entry.winner || 'Nobody';
   const loserName = entry.players?.[entry.loser]?.name || entry.loser || 'opponent';
-  if (entry.reason === 'forfeit') return `${winnerName} beat ${loserName} by forfeit`;
-  if (entry.reason === 'stuck') return `${winnerName} beat ${loserName} — stuck`;
-  return `${winnerName} beat ${loserName}`;
+  const score = `${Number(entry.finalScore?.p1 || 0)}-${Number(entry.finalScore?.p2 || 0)}`;
+  const timing = sessionTimeText(entry);
+  if (entry.reason === 'forfeit') return `${winnerName} beat ${loserName} by forfeit · ${score} · ${timing}`;
+  if (entry.reason === 'stuck') return `${winnerName} beat ${loserName} — stuck · ${score} · ${timing}`;
+  if (entry.reason === 'session-ended') {
+    const p1 = entry.players?.p1?.name || 'Blue';
+    const p2 = entry.players?.p2?.name || 'Red';
+    const leader = entry.winner ? `${entry.players?.[entry.winner]?.name || entry.winner} ahead` : 'draw';
+    return `${p1} vs ${p2} · ${score} · ${leader} · ${timing}`;
+  }
+  return `${winnerName} beat ${loserName} · ${score} · ${timing}`;
+}
+
+function sessionTimeText(entry) {
+  const started = entry.startedAt ? formatHistoryDate(entry.startedAt) : 'unknown start';
+  const ended = entry.endedAt ? formatHistoryDate(entry.endedAt) : 'unknown end';
+  return `${started} → ${ended}`;
 }
 
 function isOccupyingSeat() {

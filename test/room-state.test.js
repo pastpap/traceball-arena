@@ -102,6 +102,61 @@ describe('room state lifecycle', () => {
     expect(game.score).toEqual({ p1: 0, p2: 0 });
   });
 
+  it('starts a new round without resetting the active player-session score or recording table history', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+    game.ball = { x: 4, y: 1 };
+    game.turn = 'p1';
+
+    expect(makeMove(game, 'p1', { x: 4, y: 0 }, 2500)).toMatchObject({ ok: true, gameOver: true });
+    expect(game.score).toEqual({ p1: 1, p2: 0 });
+
+    resetGame(game, 3000);
+
+    expect(game.status).toBe('playing');
+    expect(game.score).toEqual({ p1: 1, p2: 0 });
+    expect(game.history).toHaveLength(0);
+    expect(game.ball).toEqual({ x: 4, y: 6 });
+    expect(game.moves).toHaveLength(0);
+    expect(game.sessionStartedAt).toBe(2000);
+  });
+
+  it('records the cumulative session score with timestamps only when a player leaves, then resets for the next pairing', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+    game.ball = { x: 4, y: 1 };
+    game.turn = 'p1';
+    makeMove(game, 'p1', { x: 4, y: 0 }, 2500);
+    resetGame(game, 3000);
+    game.ball = { x: 4, y: 11 };
+    game.turn = 'p2';
+    makeMove(game, 'p2', { x: 4, y: 12 }, 3500);
+
+    const result = leavePlayer(game, 'p1', 5000);
+
+    expect(result).toMatchObject({ ok: true, playerId: 'p1', winner: null });
+    expect(game.history).toHaveLength(1);
+    expect(game.history[0]).toMatchObject({
+      reason: 'session-ended',
+      startedAt: 2000,
+      endedAt: 5000,
+      players: {
+        p1: { name: 'Desktop' },
+        p2: { name: 'Phone' },
+      },
+      finalScore: { p1: 1, p2: 1 },
+    });
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+
+    claimSeat(game, 'p1', 'New Blue', 'new-client', 6000);
+
+    expect(game.sessionStartedAt).toBe(6000);
+    expect(game.score).toEqual({ p1: 0, p2: 0 });
+    expect(game.history).toHaveLength(1);
+  });
+
   it('resets a new round to waiting when a board has a vacant seat', () => {
     const game = createGame('room-test');
     claimSeat(game, 'p1', 'Desktop', 'desktop-client');

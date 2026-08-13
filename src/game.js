@@ -116,9 +116,23 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   const opponentId = otherPlayer(playerId);
   const opponentActive = isSeatActive(game.players[opponentId]);
   let historyEntry = null;
-  if (opponentActive && game.status === 'playing') {
-    const endReason = `${playerName(game, playerId)} left. ${playerName(game, opponentId)} wins by forfeit.`;
-    historyEntry = archiveSessionResult(game, { winner: opponentId, loser: playerId, reason: 'forfeit', endReason, now });
+  if (opponentActive && game.sessionStartedAt) {
+    const wasPlaying = game.status === 'playing';
+    if (wasPlaying) {
+      game.score = game.score || { p1: 0, p2: 0 };
+      game.score[opponentId] = (game.score[opponentId] || 0) + 1;
+    }
+    const endReason = wasPlaying
+      ? `${playerName(game, playerId)} left. ${playerName(game, opponentId)} wins by forfeit.`
+      : `${playerName(game, playerId)} left. Session ended.`;
+    const scoreWinner = leadingPlayer(game.score);
+    historyEntry = archiveSessionResult(game, {
+      winner: wasPlaying ? opponentId : scoreWinner,
+      loser: wasPlaying ? playerId : null,
+      reason: wasPlaying ? 'forfeit' : 'session-ended',
+      endReason,
+      now,
+    });
   }
 
   game.players[playerId] = createSeat(playerId);
@@ -127,7 +141,7 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   game.turnStartedAt = null;
   game.updatedAt = now;
 
-  return { ok: true, playerId, winner: historyEntry ? opponentId : null, forfeit: Boolean(historyEntry), historyEntry };
+  return { ok: true, playerId, winner: historyEntry?.winner || null, forfeit: historyEntry?.reason === 'forfeit', historyEntry };
 }
 
 export function makeMove(game, playerId, to, now = Date.now()) {
@@ -207,7 +221,14 @@ export function legalMoves(game) {
 
 export function resetGame(game, now = Date.now()) {
   normalizeSeats(game);
-  resetCurrentBoardForNextSession(game, now, { autoStart: bothSeatsActive(game) });
+  if (bothSeatsActive(game)) {
+    resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: true, preserveSession: true });
+    game.status = 'playing';
+    startTurnClock(game, now);
+    game.updatedAt = now;
+    return game;
+  }
+  resetCurrentBoardForNextSession(game, now, { autoStart: false });
   return game;
 }
 
@@ -333,11 +354,14 @@ export function startSession(game, now = Date.now()) {
   return { ok: true };
 }
 
-export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoStart = true } = {}) {
+export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoStart = true, preserveScore = false, preserveSession = false } = {}) {
   const players = game.players;
   const history = Array.isArray(game.history) ? game.history : [];
   const moveTimeLimitMs = game.moveTimeLimitMs || 0;
   const createdAt = game.createdAt || now;
+  const score = preserveScore ? { p1: Number(game.score?.p1 || 0), p2: Number(game.score?.p2 || 0) } : { p1: 0, p2: 0 };
+  const sessionId = preserveSession ? game.sessionId || createSessionId(now) : null;
+  const sessionStartedAt = preserveSession ? game.sessionStartedAt || now : null;
   game.players = players;
   game.history = history;
   game.moveTimeLimitMs = moveTimeLimitMs;
@@ -348,11 +372,11 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   game.visited = [pointKey(START)];
   game.segments = [];
   game.moves = [];
-  game.score = { p1: 0, p2: 0 };
+  game.score = score;
   game.winner = null;
   game.endReason = null;
-  game.sessionId = null;
-  game.sessionStartedAt = null;
+  game.sessionId = sessionId;
+  game.sessionStartedAt = sessionStartedAt;
   game.sessionEndedAt = null;
   game.lastTimeout = null;
   game.consecutiveTimeouts = 0;
@@ -365,8 +389,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
 
 export function archiveSessionResult(game, { winner, loser = winner ? otherPlayer(winner) : null, reason = 'finished', endReason = '', now = Date.now() } = {}) {
   game.history = Array.isArray(game.history) ? game.history : [];
-  const finalScore = { p1: 0, p2: 0 };
-  if (winner) finalScore[winner] = 1;
+  const finalScore = { p1: Number(game.score?.p1 || 0), p2: Number(game.score?.p2 || 0) };
   const entry = {
     id: game.sessionId || createSessionId(now),
     startedAt: game.sessionStartedAt || game.createdAt || now,
@@ -433,13 +456,19 @@ function createSessionId(now = Date.now()) {
   return `session-${now}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function finishGame(game, winner, reason, resultReason = 'goal') {
+function finishGame(game, winner, reason) {
   if (game.winner) return;
   game.winner = winner;
   game.endReason = reason;
   game.score = game.score || { p1: 0, p2: 0 };
   game.score[winner] = (game.score[winner] || 0) + 1;
-  archiveSessionResult(game, { winner, loser: otherPlayer(winner), reason: resultReason, endReason: reason });
+}
+
+function leadingPlayer(score = {}) {
+  const p1 = Number(score.p1 || 0);
+  const p2 = Number(score.p2 || 0);
+  if (p1 === p2) return null;
+  return p1 > p2 ? 'p1' : 'p2';
 }
 
 function playerName(game, id) {

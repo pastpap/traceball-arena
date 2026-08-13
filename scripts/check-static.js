@@ -129,6 +129,9 @@ if (!app.includes('playLeaveSeat: document.querySelector') || !app.includes("els
 if (!app.includes('cachedBoards = rooms') || !app.includes('function vacantSeatForRoom(room)') || !app.includes('openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {') || !app.includes('claimOnlineSeat(seatId)')) {
   throw new Error('Lobby Open / join must use the board summary to auto-claim an open seat instead of opening Play as watcher-only.');
 }
+if (!app.includes('sessionTimeText(entry)') || !app.includes('entry.finalScore') || !app.includes('formatHistoryDate(entry.endedAt') || !app.includes('formatHistoryDate(entry.startedAt')) {
+  throw new Error('Server board session history must show saved session score plus start/end date-times.');
+}
 if (!app.includes('ctx.rect(innerLeft, insetTop, innerRight - innerLeft, insetBottom - insetTop)') || !app.includes('ctx.clip()')) {
   throw new Error('Goal net mesh must be clipped inside the gate side frames.');
 }
@@ -252,7 +255,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v30') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
+if (!sw.includes('traceball-arena-v31') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
