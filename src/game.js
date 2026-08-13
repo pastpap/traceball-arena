@@ -30,6 +30,7 @@ export function createGame(roomId, options = {}) {
     sessionStartedAt: null,
     sessionEndedAt: null,
     history: [],
+    watcherClientIds: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
@@ -67,6 +68,7 @@ export function publicGame(game) {
 export function addPlayer(game, name, clientId) {
   normalizeSeats(game);
   const cleanClientId = cleanClient(clientId);
+  if (isWatcherClient(game, cleanClientId)) return { ok: false, error: 'Choose an open seat to rejoin this board.' };
   if (cleanClientId) {
     for (const id of ['p1', 'p2']) {
       if (game.players[id]?.clientId === cleanClientId) {
@@ -103,6 +105,7 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
   if (isSeatActive(game.players[seatId])) return { ok: false, error: 'That seat is already occupied.' };
 
   game.players[seatId] = { ...createSeat(seatId), name: cleanName, clientId: cleanClientId, status: 'active' };
+  forgetWatcherClient(game, cleanClientId);
   game.updatedAt = now;
   if (bothSeatsActive(game) && game.status === 'waiting') startSession(game, now);
   return { ok: true, playerId: seatId };
@@ -115,6 +118,7 @@ export function leavePlayer(game, playerId, now = Date.now()) {
 
   const opponentId = otherPlayer(playerId);
   const opponentActive = isSeatActive(game.players[opponentId]);
+  const leavingClientId = cleanClient(game.players[playerId]?.clientId);
   let historyEntry = null;
   if (opponentActive && game.sessionStartedAt) {
     const wasPlaying = game.status === 'playing';
@@ -136,6 +140,7 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   }
 
   game.players[playerId] = createSeat(playerId);
+  rememberWatcherClient(game, leavingClientId);
   resetCurrentBoardForNextSession(game, now, { autoStart: false });
   game.status = 'waiting';
   game.turnStartedAt = null;
@@ -357,6 +362,7 @@ export function startSession(game, now = Date.now()) {
 export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoStart = true, preserveScore = false, preserveSession = false } = {}) {
   const players = game.players;
   const history = Array.isArray(game.history) ? game.history : [];
+  const watcherClientIds = Array.isArray(game.watcherClientIds) ? [...game.watcherClientIds] : [];
   const moveTimeLimitMs = game.moveTimeLimitMs || 0;
   const createdAt = game.createdAt || now;
   const score = preserveScore ? { p1: Number(game.score?.p1 || 0), p2: Number(game.score?.p2 || 0) } : { p1: 0, p2: 0 };
@@ -364,6 +370,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   const sessionStartedAt = preserveSession ? game.sessionStartedAt || now : null;
   game.players = players;
   game.history = history;
+  game.watcherClientIds = watcherClientIds;
   game.moveTimeLimitMs = moveTimeLimitMs;
   game.createdAt = createdAt;
   game.status = 'waiting';
@@ -454,6 +461,21 @@ function cleanPlayerName(name, seatId) {
 
 function createSessionId(now = Date.now()) {
   return `session-${now}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isWatcherClient(game, clientId) {
+  return Boolean(clientId && Array.isArray(game.watcherClientIds) && game.watcherClientIds.includes(clientId));
+}
+
+function rememberWatcherClient(game, clientId) {
+  if (!clientId) return;
+  game.watcherClientIds = Array.isArray(game.watcherClientIds) ? game.watcherClientIds : [];
+  if (!game.watcherClientIds.includes(clientId)) game.watcherClientIds.push(clientId);
+}
+
+function forgetWatcherClient(game, clientId) {
+  if (!clientId || !Array.isArray(game.watcherClientIds)) return;
+  game.watcherClientIds = game.watcherClientIds.filter((id) => id !== clientId);
 }
 
 function finishGame(game, winner, reason) {
