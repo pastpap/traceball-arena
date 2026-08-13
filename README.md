@@ -69,6 +69,28 @@ The project grew through small playable slices:
 
 The implementation intentionally stays no-DB for now: rooms, scores, and replays are in memory and disappear when the Railway service restarts.
 
+## Elm rewrite and repo agents
+
+The `elm-rewrite` branch is the staging branch for introducing Elm into the frontend while the Node backend stays authoritative.
+
+Architecture and rewrite docs:
+
+- `docs/architecture/board-state-machine.md`
+- `docs/architecture/elm-rewrite-phases.md`
+
+Repo-local agent definitions live in `.github/agents/` for IDE-assisted work:
+
+- `squad.agent.md` — squad entry point
+- `traceball-orchestrator.agent.md` — primary point of entry for tasks/questions
+- `traceball-state-architect.agent.md` — board/session/seat lifecycle
+- `traceball-elm-frontend.agent.md` — Elm architecture and UI state
+- `traceball-realtime-backend.agent.md` — WebSocket/backend protocol
+- `traceball-qa-mobile.agent.md` — tests, staging, and mobile regressions
+
+Railway staging for `elm-rewrite`:
+
+https://traceball-arena-elm-staging-staging.up.railway.app
+
 ## Local development
 
 ```bash
