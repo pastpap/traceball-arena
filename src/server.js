@@ -6,6 +6,7 @@ import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
 import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, leavePlayer, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -180,7 +181,7 @@ function broadcast(roomId) {
   const game = rooms.get(roomId);
   if (!game) return;
   applyTurnTimeout(game);
-  const payload = { game: publicGame(game) };
+  const payload = toLegacyCompatibleStateMessage(game);
   for (const [client, state] of sockets.entries()) {
     if (state.roomId === roomId && client.readyState === client.OPEN) {
       send(client, 'state', payload);

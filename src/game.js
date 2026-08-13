@@ -9,6 +9,7 @@ export const MOVE_TIME_LIMIT_OPTIONS_MS = [0, 5000, 10000, 15000, 20000, 30000];
 export const DEFAULT_MOVE_TIME_LIMIT_MS = 15000;
 
 export function createGame(roomId, options = {}) {
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
   const game = {
     roomId,
     status: 'waiting',
@@ -31,8 +32,9 @@ export function createGame(roomId, options = {}) {
     sessionEndedAt: null,
     history: [],
     watcherClientIds: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
   };
   return game;
 }
@@ -75,7 +77,7 @@ export function addPlayer(game, name, clientId) {
         const cleanName = cleanPlayerName(name, id);
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        game.updatedAt = Date.now();
+        markUpdated(game);
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -96,7 +98,7 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
       if (game.players[id]?.clientId === cleanClientId) {
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        game.updatedAt = now;
+        markUpdated(game, now);
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -106,8 +108,8 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
 
   game.players[seatId] = { ...createSeat(seatId), name: cleanName, clientId: cleanClientId, status: 'active' };
   forgetWatcherClient(game, cleanClientId);
-  game.updatedAt = now;
   if (bothSeatsActive(game) && game.status === 'waiting') startSession(game, now);
+  markUpdated(game, now);
   return { ok: true, playerId: seatId };
 }
 
@@ -144,7 +146,7 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   resetCurrentBoardForNextSession(game, now, { autoStart: false });
   game.status = 'waiting';
   game.turnStartedAt = null;
-  game.updatedAt = now;
+  markUpdated(game, now);
 
   return { ok: true, playerId, winner: historyEntry?.winner || null, forfeit: historyEntry?.reason === 'forfeit', historyEntry };
 }
@@ -188,7 +190,7 @@ export function makeMove(game, playerId, to, now = Date.now()) {
     finishGame(game, goal.winner, goal.reason);
     move.goal = true;
     game.moves.push(move);
-    game.updatedAt = now;
+    markUpdated(game, now);
     return { ok: true, gameOver: true };
   }
 
@@ -206,7 +208,7 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   } else {
     startTurnClock(game, now);
   }
-  game.updatedAt = now;
+  markUpdated(game, now);
   return { ok: true, bounce: getsBounce };
 }
 
@@ -230,10 +232,11 @@ export function resetGame(game, now = Date.now()) {
     resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: true, preserveSession: true });
     game.status = 'playing';
     startTurnClock(game, now);
-    game.updatedAt = now;
+    markUpdated(game, now);
     return game;
   }
   resetCurrentBoardForNextSession(game, now, { autoStart: false });
+  markUpdated(game, now);
   return game;
 }
 
@@ -259,7 +262,6 @@ export function applyTurnTimeout(game, now = Date.now()) {
   if (!hasTurnTimedOut(game, now)) return { ok: false };
   const timedOutPlayer = game.turn;
   game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
-  game.updatedAt = now;
 
   if ((game.consecutiveTimeouts || 0) >= 1) {
     pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now });
@@ -277,6 +279,7 @@ export function applyTurnTimeout(game, now = Date.now()) {
   } else {
     startTurnClock(game, now);
   }
+  markUpdated(game, now);
   return { ok: true, timedOutPlayer, nextPlayer };
 }
 
@@ -290,7 +293,7 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
     pausedAt: now,
     resumeTurn: game.turn,
   };
-  game.updatedAt = now;
+  markUpdated(game, now);
   return { ok: true };
 }
 
@@ -303,7 +306,7 @@ export function resumeGame(game, now = Date.now()) {
   game.pause = null;
   game.consecutiveTimeouts = 0;
   startTurnClock(game, now);
-  game.updatedAt = now;
+  markUpdated(game, now);
   return { ok: true };
 }
 
@@ -365,6 +368,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   const watcherClientIds = Array.isArray(game.watcherClientIds) ? [...game.watcherClientIds] : [];
   const moveTimeLimitMs = game.moveTimeLimitMs || 0;
   const createdAt = game.createdAt || now;
+  const version = Number(game.version || 1);
   const score = preserveScore ? { p1: Number(game.score?.p1 || 0), p2: Number(game.score?.p2 || 0) } : { p1: 0, p2: 0 };
   const sessionId = preserveSession ? game.sessionId || createSessionId(now) : null;
   const sessionStartedAt = preserveSession ? game.sessionStartedAt || now : null;
@@ -390,6 +394,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   game.pause = null;
   game.turnStartedAt = null;
   game.updatedAt = now;
+  game.version = version;
   if (autoStart && bothSeatsActive(game)) startSession(game, now);
   return game;
 }
@@ -457,6 +462,11 @@ function cleanClient(clientId) {
 
 function cleanPlayerName(name, seatId) {
   return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : 'Red');
+}
+
+function markUpdated(game, now = Date.now()) {
+  game.updatedAt = now;
+  game.version = Number(game.version || 0) + 1;
 }
 
 function createSessionId(now = Date.now()) {

@@ -33,6 +33,7 @@ All agents should ground decisions in:
 
 - `docs/architecture/board-state-machine.md`
 - `docs/architecture/elm-rewrite-phases.md`
+- `docs/architecture/realtime-protocol-phase1.md`
 
 ## How to use this squad
 

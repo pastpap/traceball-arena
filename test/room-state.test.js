@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, claimSeat, createGame, leavePlayer, makeMove, publicGame, resetGame } from '../src/game.js';
+import { addPlayer, claimSeat, createGame, leavePlayer, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
   it('newly created boards start with vacant blue and red seats plus empty session history', () => {
@@ -173,6 +173,33 @@ describe('room state lifecycle', () => {
     expect(game.sessionStartedAt).toBe(6000);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
     expect(game.history).toHaveLength(1);
+  });
+
+  it('increments board version on state-changing lifecycle operations', () => {
+    const game = createGame('room-test', { now: 1000 });
+
+    expect(game.version).toBe(1);
+
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1100);
+    expect(game.version).toBe(2);
+
+    claimSeat(game, 'p2', 'Phone', 'phone-client', 1200);
+    expect(game.version).toBe(3);
+
+    pauseGame(game, { reason: 'manual', byPlayerId: 'p1', now: 1300 });
+    expect(game.version).toBe(4);
+
+    resumeGame(game, 1400);
+    expect(game.version).toBe(5);
+
+    makeMove(game, 'p1', { x: 5, y: 6 }, 1500);
+    expect(game.version).toBe(6);
+
+    resetGame(game, 1600);
+    expect(game.version).toBe(7);
+
+    leavePlayer(game, 'p1', 1700);
+    expect(game.version).toBe(8);
   });
 
   it('resets a new round to waiting when a board has a vacant seat', () => {

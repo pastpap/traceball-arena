@@ -48,6 +48,7 @@ Deliverables:
 
 - Document `ClientToServer` messages.
 - Document `ServerToClient` messages.
+- `docs/architecture/realtime-protocol-phase1.md`
 - Add canonical JSON fixtures for board states:
   - board with creator only
   - board with active session

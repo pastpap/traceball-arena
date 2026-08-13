@@ -22,7 +22,8 @@ Always read:
 
 1. `docs/architecture/board-state-machine.md`
 2. `docs/architecture/elm-rewrite-phases.md`
-3. Existing backend tests under `test/`
+3. `docs/architecture/realtime-protocol-phase1.md`
+4. Existing backend tests under `test/`
 
 ## Backend principles
 
