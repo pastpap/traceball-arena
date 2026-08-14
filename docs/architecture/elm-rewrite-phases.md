@@ -175,7 +175,7 @@ Deliverables:
 - **Phase 6A read-only renderer:** SVG board renderer from canonical round state. ✅ `/elm` now renders pitch, gates, grid points, gate-bounce points, traced segments, ball position, current-turn marker, and server-provided legal-move markers without enabling move input.
 - **Phase 6B legal-move readability:** refine legal move highlights for seat/watch context and older-device readability. ✅ `/elm` now emits own-turn, opponent-turn, and watcher legal-move contexts with distinct markers, legend copy, and larger SVG rings while keeping input disabled.
 - **Phase 6C move input:** touch-friendly hit targets and move command from Elm to server. ✅ Own-turn legal SVG targets now submit server-authoritative `{ type: 'move', to }` commands, mark pending moves locally, and remain inert for watchers/opponent turns.
-- **Phase 6D planned:** Goal/between-round UI and Continue/New Round button.
+- **Phase 6D between-round UI:** Goal/between-round UI and Continue/New Round button. ✅ `/elm` now renders winner, end reason, score, seated-player Continue/New Round reset action, watcher waiting copy, and pending new-round feedback.
 
 Exit criteria:
 

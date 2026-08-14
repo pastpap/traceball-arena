@@ -199,6 +199,65 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(sent).toEqual([]);
   });
 
+  it('renders a between-round result panel with score and seated-player new-round control', () => {
+    const { shell } = loadShell();
+    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+
+    const watcherHtml = shell.renderModel({ ...base, ownSeat: null });
+    const seatedHtml = shell.renderModel({ ...base, ownSeat: 'p1' });
+
+    expect(seatedHtml).toContain('data-elm-round-result');
+    expect(seatedHtml).toContain('Blue wins this round');
+    expect(seatedHtml).toContain('p1 scored!');
+    expect(seatedHtml).toContain('Blue 1 — Red 0');
+    expect(seatedHtml).toContain('data-elm-command="new-round"');
+    expect(seatedHtml).toContain('Continue / New Round');
+    expect(watcherHtml).toContain('Waiting for a seated player to continue.');
+    expect(watcherHtml).not.toContain('data-elm-command="new-round"');
+  });
+
+  it('sends reset only from a seated player between rounds', () => {
+    const sent = [];
+    const { shell } = loadShell();
+    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+    const bridge = {
+      model: { ...base, ownSeat: null },
+      newRound() { sent.push({ type: 'reset' }); return true; },
+    };
+
+    expect(shell.submitNewRound(bridge)).toBe(false);
+    bridge.model = { ...base, ownSeat: 'p1' };
+    expect(shell.submitNewRound(bridge)).toBe(true);
+
+    expect(sent).toEqual([{ type: 'reset' }]);
+    expect(bridge.model.pendingNewRound).toBe(true);
+  });
+
+  it('wires the between-round Continue/New Round button to the reset command', () => {
+    const sent = [];
+    const roundActions = {
+      handler: null,
+      addEventListener(type, handler) {
+        if (type === 'click') this.handler = handler;
+      },
+    };
+    const target = { dataset: { elmCommand: 'new-round' } };
+    const { shell, root } = loadShell({
+      document: { querySelector: (selector) => (selector === '[data-elm-round-actions]' ? roundActions : null) },
+    });
+    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+    const bridge = {
+      model: { ...base, ownSeat: 'p1' },
+      newRound() { sent.push({ type: 'reset' }); return true; },
+    };
+
+    shell.wireRoundActions(root, bridge);
+    roundActions.handler({ target, preventDefault() { this.prevented = true; } });
+
+    expect(sent).toEqual([{ type: 'reset' }]);
+    expect(root.innerHTML).toContain('Starting next round…');
+  });
+
   it('keeps the newer model when a stale state message arrives', () => {
     const { shell } = loadShell();
     const current = shell.applyState(shell.initialModel(), fixture('board-active-session'));

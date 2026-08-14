@@ -34,6 +34,9 @@ if (!elmBundle.includes('data-elm-legal-context') || !elmBundle.includes('data-e
 if (!elmBundle.includes('submitMoveFromLegalTarget') || !elmBundle.includes('wireBoardMoveTargets') || !elmBundle.includes("type: 'move'") || !elmBundle.includes('data-elm-pending-move')) {
   throw new Error('public/elm.js must support Phase 6C own-turn legal-target move submission with pending-move markers.');
 }
+if (!elmBundle.includes('renderRoundResult') || !elmBundle.includes('data-elm-round-result') || !elmBundle.includes('data-elm-round-actions') || !elmBundle.includes("type: 'reset'") || !elmBundle.includes('Continue / New Round')) {
+  throw new Error('public/elm.js must support Phase 6D between-round result UI and new-round reset command.');
+}
 if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
   throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');
 }
@@ -64,6 +67,9 @@ if (railway.deploy.healthcheckPath !== '/api/health') throw new Error('Railway h
 const css = readFileSync('public/styles.css', 'utf8');
 if (!css.includes('.elm-legal-own-turn') || !css.includes('.elm-legal-opponent-turn') || !css.includes('.elm-legal-watcher') || !css.includes('.elm-board-legend')) {
   throw new Error('public/styles.css must style Phase 6B legal-move readability states and legend.');
+}
+if (!css.includes('.elm-round-result') || !css.includes('.elm-primary:disabled')) {
+  throw new Error('public/styles.css must style Phase 6D between-round result panel and pending new-round button.');
 }
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
