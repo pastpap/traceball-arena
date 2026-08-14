@@ -111,6 +111,7 @@ Exit criteria:
 Deliverables:
 
 - Elm decoders for board/session/seat/round state.
+- Runtime checks that every canonical Phase 1 fixture can render without throwing.
 - Version gate: ignore stale state where `incoming.version <= model.version`.
 - Error display for malformed/unsupported state.
 - Tests for decoders and version handling, if using Elm test tooling.

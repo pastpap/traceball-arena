@@ -21,6 +21,9 @@ if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-activ
 if (!elmMain.includes('type alias Model') || !elmMain.includes('type Msg') || !elmMain.includes('update') || !elmMain.includes('view')) {
   throw new Error('Elm Main module must establish Model, Msg, update, and view.');
 }
+if (!elmMain.includes('incoming.version <= model.version') || !elmMain.includes('ignoredStaleVersion')) {
+  throw new Error('Elm Main module must explicitly ignore stale incoming state versions.');
+}
 if (!elmTypes.includes('type BoardState') || !elmTypes.includes('type SeatState') || !elmTypes.includes('type alias Board')) {
   throw new Error('Elm board types must model board and seat states.');
 }

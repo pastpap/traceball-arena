@@ -1,4 +1,4 @@
-module Main exposing (main, update, view)
+module Main exposing (applyIncoming, main, update, view)
 
 import Board.Decode exposing (boardDecoder)
 import Board.Types exposing (Board)
@@ -12,7 +12,10 @@ import Protocol exposing (StateMessage, stateMessageDecoder)
 
 type alias Model =
     { board : Maybe Board
+    , boardCode : String
+    , version : Int
     , error : Maybe String
+    , ignoredStaleVersion : Maybe Int
     }
 
 
@@ -33,17 +36,41 @@ main =
 
 init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
-    ( applyFixture flags { board = Nothing, error = Nothing }, Cmd.none )
+    let
+        emptyModel =
+            { board = Nothing
+            , boardCode = ""
+            , version = 0
+            , error = Nothing
+            , ignoredStaleVersion = Nothing
+            }
+    in
+    ( applyFixture flags emptyModel, Cmd.none )
 
 
 applyFixture : Decode.Value -> Model -> Model
 applyFixture flags model =
     case Decode.decodeValue stateMessageDecoder flags of
-        Ok message ->
-            { model | board = Just message.board, error = Nothing }
+        Ok incoming ->
+            applyIncoming incoming model
 
         Err decodeError ->
             { model | error = Just (Decode.errorToString decodeError) }
+
+
+applyIncoming : StateMessage -> Model -> Model
+applyIncoming incoming model =
+    if incoming.version <= model.version then
+        { model | ignoredStaleVersion = Just incoming.version, error = Nothing }
+
+    else
+        { model
+            | board = Just incoming.board
+            , boardCode = incoming.boardCode
+            , version = incoming.version
+            , error = Nothing
+            , ignoredStaleVersion = Nothing
+        }
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -51,8 +78,8 @@ update msg model =
     case msg of
         LoadedFixture result ->
             case result of
-                Ok message ->
-                    ( { model | board = Just message.board, error = Nothing }, Cmd.none )
+                Ok incoming ->
+                    ( applyIncoming incoming model, Cmd.none )
 
                 Err decodeError ->
                     ( { model | error = Just (Decode.errorToString decodeError) }, Cmd.none )
@@ -65,7 +92,8 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 2 renders the canonical board contract beside the existing JavaScript frontend." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 3 decodes canonical board state and ignores stale versions beside the existing JavaScript frontend." ]
+        , viewStaleNotice model.ignoredStaleVersion
         , case model.error of
             Just message ->
                 div [ class "elm-error" ] [ text message ]
@@ -79,3 +107,13 @@ view model =
             Nothing ->
                 div [ class "elm-loading" ] [ text "Loading board fixture…" ]
         ]
+
+
+viewStaleNotice : Maybe Int -> Html Msg
+viewStaleNotice maybeVersion =
+    case maybeVersion of
+        Just version ->
+            p [ class "elm-shell-note" ] [ text ("Ignored stale version " ++ String.fromInt version ++ ".") ]
+
+        Nothing ->
+            text ""
