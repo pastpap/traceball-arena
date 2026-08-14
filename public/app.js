@@ -988,7 +988,7 @@ function connect(onOpen) {
     }
     if (msg.type === 'state') {
       applyRemoteGameState(msg.game);
-      if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
+      reconcileReplayWithLiveState();
       updateUi();
       draw();
     }
@@ -1303,7 +1303,28 @@ function setReplay(index) {
   replayIndex = index === game.moves.length ? null : index;
   els.replayRange.value = index;
   els.replayText.textContent = `Move ${index} of ${game.moves.length}${replayIndex === null ? ' — live board' : ''}`;
+  if (replayIndex === null) {
+    restartLiveBoardRendering();
+    syncClockAnimation();
+  }
   draw();
+}
+
+function reconcileReplayWithLiveState() {
+  if (!game || replayIndex === null) return;
+  if (replayIndex >= game.moves.length) {
+    replayIndex = null;
+    restartLiveBoardRendering();
+  }
+}
+
+function restartLiveBoardRendering() {
+  if (!game || game.status !== 'playing') return;
+  legalMoveHintKey = '';
+  legalMoveHintStartedAt = 0;
+  startLegalMoveHintFade(`live:${gameMode}:${game.turn}:${Date.now()}`);
+  legalMoveHintKey = '';
+  syncClockAnimation();
 }
 
 function currentReplay() {

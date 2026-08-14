@@ -240,6 +240,12 @@ if (!app.includes('drawGatePlayerLabels') || !app.includes('drawGoalMesh') || !a
 if (!app.includes('traceballClientId') || !app.includes('clientId });')) {
   throw new Error('Client join messages must include a stable browser client id for reconnects.');
 }
+if (!app.includes('function setReplay(index)') || !app.includes('if (replayIndex === null) {') || !app.includes('syncClockAnimation();') || !app.includes('startLegalMoveHintFade')) {
+  throw new Error('Returning replay to live must restart clock animation and legal-move hint drawing immediately.');
+}
+if (!app.includes('replayIndex >= game.moves.length') || !app.includes('replayIndex = null;')) {
+  throw new Error('Incoming live/new-round state must clear replay mode when the replay cursor is at or beyond the live end.');
+}
 if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !app.includes('visibilitychange')) {
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');
 }
