@@ -271,8 +271,14 @@ if (!app.includes('selectedMoveTimerSeconds') || !app.includes('moveTimeLimitSec
 if (!html.includes('id="pauseOverlay"') || !html.includes('id="playPauseGame"') || !html.includes('⏸') || !css.includes('.board-stage.paused #board') || !css.includes('.play-pause-button.ghost {') || !css.includes('width: fit-content;')) {
   throw new Error('Pause UI must include a compact visible Play-page pause control and a blurred board overlay.');
 }
+if (!css.includes('grid-template-columns: repeat(2, minmax(0, 1fr));') || !css.includes('.play-pause-button.ghost { grid-column: 1 / -1;') || !css.includes('max-width: 180px;') || !css.includes('overflow: hidden;')) {
+  throw new Error('Mobile Play Join Blue/Join Red/Pause controls must use a two-column grid with a centered compact Pause button that cannot overflow.');
+}
 if (!html.includes('id="appMenuButton"') || !html.includes('id="appMenuDropdown"') || !html.includes('id="appContentOverlay"') || !html.includes('data-menu-view="history"') || !html.includes('data-menu-view="rules"') || !html.includes('id="appMenuHistory"') || !html.includes('id="appMenuRules"') || html.includes('id="historyList"') || css.includes('.play-pause-button { display: block;') || !app.includes('openAppContent')) {
   throw new Error('Mobile app menu must be a dropdown first, then open separate History/Rules content windows outside the Match tab.');
+}
+if (!css.includes('align-items: start;') || !css.includes('padding-top: max(14px, env(safe-area-inset-top));') || css.includes('.app-content-overlay { padding: 10px; align-items: end; }')) {
+  throw new Error('Mobile Rules/History content overlay must open near the top safe area, not as a bottom-aligned sheet.');
 }
 if (!app.includes('scheduleLocalTurnTimeout') || !app.includes('localTimeoutTimer') || !app.includes('Both players timed out. Game paused.')) {
   throw new Error('Local mode must schedule idle timeout auto-pause without waiting for a board click.');
