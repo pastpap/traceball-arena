@@ -75,10 +75,11 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current Elm shell route:
 
-- `/elm` renders the Phase 5 board shell from fixtures or a live board code query.
+- `/elm` renders the Phase 6A board shell from fixtures or a live board code query, including a read-only SVG board preview from canonical round state.
 - Existing `/` and `/room/:roomId` JavaScript frontend routes remain unchanged.
 - The Elm-side model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript WebSocket bridge with stable `traceballElmClientId` identity.
-- The `/elm` shell now has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
+- The `/elm` shell has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
+- Phase 6A is intentionally read-only: legal moves are visual markers only; actual move input remains on the current JavaScript frontend until the later Phase 6C slice.
 
 Architecture and rewrite docs:
 

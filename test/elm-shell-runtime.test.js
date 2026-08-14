@@ -69,6 +69,40 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(waitingHtml).toContain('Next Player');
   });
 
+  it('renders a read-only SVG board with grid, gates, ball, and live legal-move overlay', () => {
+    const { shell } = loadShell();
+
+    const html = shell.renderBoardMessage(fixture('board-active-session'));
+
+    expect(html).toContain('data-elm-board-svg');
+    expect(html).toContain('viewBox="0 0 900 1300"');
+    expect(html).toContain('aria-label="Read-only Traceball board"');
+    expect(html).toContain('data-elm-ball="4,6"');
+    expect(html).toContain('data-elm-legal-move="3,5"');
+    expect(html).toContain('data-elm-gate="blue"');
+    expect(html).toContain('data-elm-gate="red"');
+    expect(html).toContain('data-elm-gate-bounce="4,1"');
+    expect(html).toContain('data-elm-gate-bounce="4,11"');
+  });
+
+  it('renders read-only traced move segments from the canonical round state', () => {
+    const { shell } = loadShell();
+    const message = fixture('board-active-session');
+    const round = message.board.currentSession.round;
+    round.ball = { x: 5, y: 5 };
+    round.visited = ['4,6', '5,5'];
+    round.segments = ['4,6|5,5'];
+    round.moves = [
+      { playerId: 'p1', from: { x: 4, y: 6 }, to: { x: 5, y: 5 }, segment: '4,6|5,5', bounce: false, at: 2100 },
+    ];
+
+    const html = shell.renderBoardMessage(message);
+
+    expect(html).toContain('data-elm-segment="4,6|5,5"');
+    expect(html).toContain('data-elm-visited="5,5"');
+    expect(html).toContain('data-elm-ball="5,5"');
+  });
+
   it('keeps the newer model when a stale state message arrives', () => {
     const { shell } = loadShell();
     const current = shell.applyState(shell.initialModel(), fixture('board-active-session'));

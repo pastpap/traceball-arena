@@ -25,6 +25,9 @@ if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'wat
 if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
   throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
 }
+if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6A board')) {
+  throw new Error('public/elm.js must render the Phase 6A read-only SVG board with traced segments and legal-move markers.');
+}
 if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
   throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');
 }

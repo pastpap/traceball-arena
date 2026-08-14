@@ -172,12 +172,10 @@ Exit criteria:
 
 Deliverables:
 
-- SVG board renderer or documented reason to keep canvas.
-- Legal move highlights from server state and/or local pure helper.
-- Touch-friendly hit targets.
-- Move command from Elm to server.
-- Goal/between-round UI.
-- Continue/New Round button.
+- **Phase 6A read-only renderer:** SVG board renderer from canonical round state. ✅ `/elm` now renders pitch, gates, grid points, gate-bounce points, traced segments, ball position, current-turn marker, and server-provided legal-move markers without enabling move input.
+- **Phase 6B planned:** refine legal move highlights for seat/watch context and older-device readability.
+- **Phase 6C planned:** touch-friendly hit targets and move command from Elm to server.
+- **Phase 6D planned:** Goal/between-round UI and Continue/New Round button.
 
 Exit criteria:
 

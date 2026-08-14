@@ -257,6 +257,107 @@ function renderOpenBoardForm(model = initialModel()) {
 }
 
 
+
+const ELM_BOARD = { width: 9, height: 13, goalXMin: 3, goalXMax: 5, viewWidth: 900, viewHeight: 1300, margin: 86 };
+
+function elmScreenX(x) {
+  return ELM_BOARD.margin + Number(x) * ((ELM_BOARD.viewWidth - ELM_BOARD.margin * 2) / (ELM_BOARD.width - 1));
+}
+
+function elmScreenY(y) {
+  return ELM_BOARD.margin + Number(y) * ((ELM_BOARD.viewHeight - ELM_BOARD.margin * 2) / (ELM_BOARD.height - 1));
+}
+
+function elmPointKey(point) {
+  return `${Number(point?.x)},${Number(point?.y)}`;
+}
+
+function elmGridPoints() {
+  const pts = [];
+  for (let y = 1; y <= 11; y += 1) for (let x = 0; x <= 8; x += 1) pts.push({ x, y });
+  for (const y of [0, 12]) for (let x = 3; x <= 5; x += 1) pts.push({ x, y });
+  return pts;
+}
+
+function isElmGateBouncePoint(point) {
+  return Number(point?.x) === 4 && (Number(point?.y) === 1 || Number(point?.y) === 11);
+}
+
+function playerColor(playerId) {
+  return playerId === 'p2' || playerId === 'red' ? '#ff3b30' : '#0b7cff';
+}
+
+function renderSvgLine(from, to, attrs = '') {
+  return `<line x1="${elmScreenX(from.x)}" y1="${elmScreenY(from.y)}" x2="${elmScreenX(to.x)}" y2="${elmScreenY(to.y)}" ${attrs} />`;
+}
+
+function renderReadOnlyBoard(board) {
+  const round = board?.currentSession?.round;
+  if (!round) {
+    return '<section class="elm-board-preview"><p>No round to render yet.</p></section>';
+  }
+  const moves = Array.isArray(round.moves) ? round.moves : [];
+  const visited = new Set(Array.isArray(round.visited) ? round.visited.map(String) : ['4,6']);
+  for (const move of moves) if (move?.to) visited.add(elmPointKey(move.to));
+  const legalMoves = Array.isArray(round.legalMoves) ? round.legalMoves : [];
+  const ball = round.ball || moves.at(-1)?.to || { x: 4, y: 6 };
+  const turn = round.turn || 'blue';
+  const pitchOutline = [
+    renderSvgLine({ x: 0, y: 1 }, { x: 3, y: 1 }, 'class="elm-pitch-line"'),
+    renderSvgLine({ x: 5, y: 1 }, { x: 8, y: 1 }, 'class="elm-pitch-line"'),
+    renderSvgLine({ x: 8, y: 1 }, { x: 8, y: 11 }, 'class="elm-pitch-line"'),
+    renderSvgLine({ x: 8, y: 11 }, { x: 5, y: 11 }, 'class="elm-pitch-line"'),
+    renderSvgLine({ x: 3, y: 11 }, { x: 0, y: 11 }, 'class="elm-pitch-line"'),
+    renderSvgLine({ x: 0, y: 11 }, { x: 0, y: 1 }, 'class="elm-pitch-line"'),
+  ].join('');
+  const gates = `
+    <g data-elm-gate="red" class="elm-gate elm-gate-red">
+      ${renderSvgLine({ x: 3, y: 1 }, { x: 3, y: 0 }, 'class="elm-gate-line"')}
+      ${renderSvgLine({ x: 3, y: 0 }, { x: 5, y: 0 }, 'class="elm-gate-line"')}
+      ${renderSvgLine({ x: 5, y: 0 }, { x: 5, y: 1 }, 'class="elm-gate-line"')}
+    </g>
+    <g data-elm-gate="blue" class="elm-gate elm-gate-blue">
+      ${renderSvgLine({ x: 3, y: 11 }, { x: 3, y: 12 }, 'class="elm-gate-line"')}
+      ${renderSvgLine({ x: 3, y: 12 }, { x: 5, y: 12 }, 'class="elm-gate-line"')}
+      ${renderSvgLine({ x: 5, y: 12 }, { x: 5, y: 11 }, 'class="elm-gate-line"')}
+    </g>`;
+  const grid = elmGridPoints().map((point) => {
+    const key = elmPointKey(point);
+    const gateBounce = isElmGateBouncePoint(point);
+    const visitedClass = visited.has(key) ? ' elm-point-visited' : '';
+    const bounceAttr = gateBounce ? ` data-elm-gate-bounce="${key}"` : '';
+    return `<circle class="elm-grid-point${visitedClass}${gateBounce ? ' elm-gate-bounce' : ''}" data-elm-point="${key}"${visited.has(key) ? ` data-elm-visited="${key}"` : ''}${bounceAttr} cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="${visited.has(key) ? 12 : gateBounce ? 10 : 7}" />`;
+  }).join('');
+  const segments = moves.map((move) => {
+    if (!move?.from || !move?.to) return '';
+    const segmentKey = escapeHtml(move.segment || `${elmPointKey(move.from)}|${elmPointKey(move.to)}`);
+    return `<g data-elm-segment="${segmentKey}" class="elm-traced-segment">${renderSvgLine(move.from, move.to, `class="elm-segment-stroke" stroke="${playerColor(move.playerId)}"`)}${renderSvgLine(move.from, move.to, 'class="elm-segment-highlight"')}</g>`;
+  }).join('');
+  const legal = legalMoves.map((point) => {
+    const key = elmPointKey(point);
+    return `<circle class="elm-legal-move elm-legal-${turn === 'red' || turn === 'p2' ? 'red' : 'blue'}" data-elm-legal-move="${key}" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="24" />`;
+  }).join('');
+  const ballKey = elmPointKey(ball);
+  const ballSvg = `<g class="elm-ball" data-elm-ball="${ballKey}" transform="translate(${elmScreenX(ball.x)} ${elmScreenY(ball.y)})"><circle r="22" fill="#f8fff8"/><circle r="10" fill="#101820"/><path d="M-18 0 L18 0 M0 -18 L0 18" stroke="#101820" stroke-width="4" stroke-linecap="round" opacity=".72"/></g>`;
+  const turnY = turn === 'red' || turn === 'p2' ? 0 : 12;
+  const turnMarker = `<circle class="elm-turn-marker elm-turn-${turn === 'red' || turn === 'p2' ? 'red' : 'blue'}" cx="${elmScreenX(5.65)}" cy="${elmScreenY(turnY)}" r="18" />`;
+  return `
+    <section class="elm-board-preview">
+      <h3>Board preview</h3>
+      <svg data-elm-board-svg role="img" aria-label="Read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
+        <rect class="elm-pitch-bg" x="18" y="18" width="864" height="1264" rx="34" />
+        <g class="elm-pitch-stripes"><path d="M-140 1282 L100 18 H220 L-20 1282 Z"/><path d="M260 1282 L500 18 H620 L380 1282 Z"/><path d="M660 1282 L900 18 H1020 L780 1282 Z"/></g>
+        <g class="elm-pitch-outline">${pitchOutline}${gates}</g>
+        <g class="elm-segments-layer">${segments}</g>
+        <g class="elm-points-layer">${grid}</g>
+        <g class="elm-legal-layer">${legal}</g>
+        ${ballSvg}
+        ${turnMarker}
+      </svg>
+      <p class="elm-shell-note">Read-only Phase 6A board: live state is rendered; move input stays disabled until Phase 6C.</p>
+    </section>`;
+}
+
 function renderSeatingActions(model) {
   const board = model.board;
   if (!board) return '';
@@ -292,7 +393,7 @@ function renderModel(model) {
   const shellHeader = `
     <p class="eyebrow">Traceball Arena — Elm Shell</p>
     <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
-    <p class="elm-shell-note">Phase 4 can open a live board as watcher over WebSocket while preserving a stable client id.</p>
+    <p class="elm-shell-note">Phase 6A renders a read-only live board preview from authoritative state while the current JavaScript frontend remains playable.</p>
     ${renderOpenBoardForm(model)}`;
   if (model.error) {
     return `<section class="elm-shell">${shellHeader}<p class="elm-error">${escapeHtml(model.error)}</p></section>`;
@@ -318,6 +419,7 @@ function renderModel(model) {
           <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
         </div>
         ${renderSeatingActions(model)}
+        ${renderReadOnlyBoard(board)}
         <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
         ${peopleList('Watchers', board.watchers)}
         ${peopleList('Waiting list', board.waitingList)}
@@ -402,5 +504,5 @@ async function mount() {
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderModel, renderBoardMessage, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderModel, renderBoardMessage, mount };
 mount();

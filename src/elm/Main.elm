@@ -109,7 +109,7 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 5 adds board-centric seating commands: Join Blue, Join Red, Join waiting list, Leave waiting list, and Leave seat / forfeit through the JavaScript WebSocket bridge." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 6A renders a read-only SVG board preview from authoritative round state. Seating commands still flow through the JavaScript WebSocket bridge; move input stays disabled until a later Phase 6 slice." ]
         , p [ class "elm-connection" ] [ text ("Connection: " ++ model.connectionStatus) ]
         , viewStaleNotice model.ignoredStaleVersion
         , case model.error of
