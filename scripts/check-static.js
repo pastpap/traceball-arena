@@ -25,11 +25,14 @@ if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'wat
 if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
   throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
 }
-if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6B board')) {
-  throw new Error('public/elm.js must render the Phase 6B read-only SVG board with traced segments and context-aware legal-move markers.');
+if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6C board')) {
+  throw new Error('public/elm.js must render the Phase 6C SVG board with traced segments and context-aware legal-move targets.');
 }
 if (!elmBundle.includes('data-elm-legal-context') || !elmBundle.includes('data-elm-legal-playable') || !elmBundle.includes('own-turn') || !elmBundle.includes('opponent-turn') || !elmBundle.includes('Watching: legal moves are preview only.')) {
   throw new Error('public/elm.js must expose Phase 6B legal-move context markers for own turn, opponent turn, and watcher previews.');
+}
+if (!elmBundle.includes('submitMoveFromLegalTarget') || !elmBundle.includes('wireBoardMoveTargets') || !elmBundle.includes("type: 'move'") || !elmBundle.includes('data-elm-pending-move')) {
+  throw new Error('public/elm.js must support Phase 6C own-turn legal-target move submission with pending-move markers.');
 }
 if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
   throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');

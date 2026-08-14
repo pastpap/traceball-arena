@@ -907,8 +907,9 @@ body.menu-open { overflow: hidden; }
   box-shadow: 0 0 18px rgba(141,255,174,.48);
 }
 .elm-legend-dot.elm-legal-red { background: #ff3b30; }
-.elm-legal-layer { pointer-events: none; }
-.elm-legal-target { opacity: .92; }
+.elm-legal-layer { pointer-events: auto; }
+.elm-legal-target { opacity: .92; cursor: default; }
+.elm-legal-own-turn { cursor: pointer; touch-action: manipulation; }
 .elm-legal-hit-ring {
   fill: rgba(141,255,174,.11);
   stroke: rgba(141,255,174,.35);

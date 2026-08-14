@@ -15,7 +15,7 @@ function loadShell(overrides = {}) {
   const context = {
     console,
     window: { location, localStorage: storage, WebSocket: overrides.WebSocket },
-    document: { querySelector: () => root },
+    document: overrides.document ?? { querySelector: () => root },
     location,
     localStorage: storage,
     WebSocket: overrides.WebSocket,
@@ -129,12 +129,74 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     expect(ownTurn).toContain('data-elm-legal-context="own-turn"');
     expect(ownTurn).toContain('data-elm-legal-playable="true"');
-    expect(ownTurn).toContain('Your legal moves. Input arrives in Phase 6C.');
+    expect(ownTurn).toContain('Your legal moves. Tap a highlighted point to move.');
 
     expect(waitingTurn).toContain('data-elm-legal-context="opponent-turn"');
     expect(waitingTurn).toContain('data-elm-legal-move-state="waiting"');
     expect(waitingTurn).toContain('Opponent turn: legal moves shown for orientation.');
     expect(waitingTurn).not.toContain('data-elm-legal-playable="true"');
+  });
+
+  it('submits a server-authoritative move from an own-turn Elm legal target', () => {
+    const sent = [];
+    const sockets = [];
+    const legalLayer = {
+      handler: null,
+      addEventListener(type, handler) {
+        if (type === 'click') this.handler = handler;
+      },
+    };
+    const target = {
+      dataset: { elmLegalMove: '3,5', elmLegalPlayable: 'true' },
+      closest(selector) {
+        return selector === '[data-elm-legal-move]' ? this : null;
+      },
+    };
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send(payload) { sent.push(JSON.parse(payload)); }
+      close() { this.closed = true; }
+    }
+
+    const { shell, root } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: { querySelector: (selector) => (selector === '[data-elm-legal-context="own-turn"]' ? legalLayer : null) },
+    });
+    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root });
+    sockets[0].onopen();
+    sockets[0].onmessage({ data: JSON.stringify(fixture('board-active-session')) });
+    bridge.model = { ...bridge.model, ownSeat: 'p1' };
+    root.innerHTML = shell.renderModel(bridge.model);
+    shell.wireBoardMoveTargets(root, bridge);
+
+    legalLayer.handler({ target, preventDefault() { this.prevented = true; } });
+
+    expect(sent.at(-1)).toEqual({ type: 'move', to: { x: 3, y: 5 } });
+    expect(bridge.model.pendingMoveKey).toBe('3,5');
+  });
+
+  it('does not submit Elm board moves while watching or waiting for the opponent', () => {
+    const sent = [];
+    const { shell } = loadShell();
+    const base = shell.applyState(shell.initialModel(), fixture('board-active-session'));
+    const bridge = {
+      boardCode: 'ROOM123',
+      clientId: 'traceball-elm-test',
+      model: { ...base, ownSeat: null },
+      sendCommand(command) { sent.push(command); return true; },
+    };
+
+    expect(shell.submitMoveFromLegalTarget(bridge, '3,5')).toBe(false);
+    bridge.model = { ...base, ownSeat: 'p2' };
+    expect(shell.submitMoveFromLegalTarget(bridge, '3,5')).toBe(false);
+    bridge.model = { ...base, ownSeat: 'p1' };
+    expect(shell.submitMoveFromLegalTarget(bridge, 'not-a-point')).toBe(false);
+
+    expect(sent).toEqual([]);
   });
 
   it('keeps the newer model when a stale state message arrives', () => {

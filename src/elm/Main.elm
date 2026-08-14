@@ -109,7 +109,7 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 6B renders a context-aware read-only SVG board preview from authoritative round state. Own-turn hints are emphasized, watcher/opponent hints stay preview-only, and move input waits for Phase 6C." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 6C lets seated players tap own-turn legal SVG targets. The JavaScript bridge sends move intent to the server, and the next authoritative state confirms the board." ]
         , p [ class "elm-connection" ] [ text ("Connection: " ++ model.connectionStatus) ]
         , viewStaleNotice model.ignoredStaleVersion
         , case model.error of
