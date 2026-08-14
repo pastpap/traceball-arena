@@ -32,6 +32,7 @@ export function createGame(roomId, options = {}) {
     sessionEndedAt: null,
     history: [],
     watcherClientIds: [],
+    waitingList: [],
     createdAt: now,
     updatedAt: now,
     version: 1,
@@ -108,9 +109,43 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
 
   game.players[seatId] = { ...createSeat(seatId), name: cleanName, clientId: cleanClientId, status: 'active' };
   forgetWatcherClient(game, cleanClientId);
+  removeWaitingClient(game, cleanClientId);
   if (bothSeatsActive(game) && game.status === 'waiting') startSession(game, now);
   markUpdated(game, now);
   return { ok: true, playerId: seatId };
+}
+
+export function joinWaitingList(game, name, clientId, now = Date.now()) {
+  normalizeSeats(game);
+  game.waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  for (const id of ['p1', 'p2']) {
+    if (game.players[id]?.clientId === cleanClientId && isSeatActive(game.players[id])) {
+      return { ok: false, error: 'You already occupy a seat on this board.' };
+    }
+  }
+  const displayName = cleanPlayerName(name, 'watcher');
+  const existing = game.waitingList.find((person) => person.clientId === cleanClientId);
+  if (existing) {
+    existing.displayName = displayName;
+    markUpdated(game, now);
+    return { ok: true, clientId: cleanClientId, waiting: true, rejoined: true };
+  }
+  game.waitingList.push({ displayName, clientId: cleanClientId, joinedAt: now });
+  markUpdated(game, now);
+  return { ok: true, clientId: cleanClientId, waiting: true };
+}
+
+export function leaveWaitingList(game, clientId, now = Date.now()) {
+  game.waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  const before = game.waitingList.length;
+  game.waitingList = game.waitingList.filter((person) => person.clientId !== cleanClientId);
+  if (game.waitingList.length === before) return { ok: false, error: 'You are not on the waiting list.' };
+  markUpdated(game, now);
+  return { ok: true, clientId: cleanClientId, waiting: false };
 }
 
 export function leavePlayer(game, playerId, now = Date.now()) {
@@ -380,6 +415,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   const players = game.players;
   const history = Array.isArray(game.history) ? game.history : [];
   const watcherClientIds = Array.isArray(game.watcherClientIds) ? [...game.watcherClientIds] : [];
+  const waitingList = Array.isArray(game.waitingList) ? [...game.waitingList] : [];
   const moveTimeLimitMs = game.moveTimeLimitMs || 0;
   const createdAt = game.createdAt || now;
   const version = Number(game.version || 1);
@@ -389,6 +425,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   game.players = players;
   game.history = history;
   game.watcherClientIds = watcherClientIds;
+  game.waitingList = waitingList;
   game.moveTimeLimitMs = moveTimeLimitMs;
   game.createdAt = createdAt;
   game.status = 'waiting';
@@ -468,6 +505,7 @@ function normalizeSeats(game) {
     if (!game.players[id].id) game.players[id].id = id;
   }
   if (!Array.isArray(game.history)) game.history = [];
+  if (!Array.isArray(game.waitingList)) game.waitingList = [];
 }
 
 function cleanClient(clientId) {
@@ -475,7 +513,7 @@ function cleanClient(clientId) {
 }
 
 function cleanPlayerName(name, seatId) {
-  return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : 'Red');
+  return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : seatId === 'p2' ? 'Red' : 'Guest');
 }
 
 function markUpdated(game, now = Date.now()) {
@@ -500,6 +538,11 @@ function rememberWatcherClient(game, clientId) {
 function forgetWatcherClient(game, clientId) {
   if (!clientId || !Array.isArray(game.watcherClientIds)) return;
   game.watcherClientIds = game.watcherClientIds.filter((id) => id !== clientId);
+}
+
+function removeWaitingClient(game, clientId) {
+  if (!clientId || !Array.isArray(game.waitingList)) return;
+  game.waitingList = game.waitingList.filter((person) => person.clientId !== clientId);
 }
 
 function finishGame(game, winner, reason) {

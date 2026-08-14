@@ -10,6 +10,9 @@ function initialModel() {
     ignoredStaleVersion: null,
     connectionStatus: 'idle',
     clientId: '',
+    ownSeat: null,
+    waitingListMember: false,
+    autoJoinAttempted: false,
   };
 }
 
@@ -108,6 +111,23 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
     close() {
       if (bridge.socket) bridge.socket.close();
     },
+    sendCommand(command) {
+      if (!bridge.socket || bridge.socket.readyState !== 1) return false;
+      bridge.socket.send(JSON.stringify(command));
+      return true;
+    },
+    claimSeat(seatId, name = 'Elm Player') {
+      return bridge.sendCommand({ type: 'claimSeat', roomId: bridge.boardCode, seatId, name, clientId: bridge.clientId });
+    },
+    joinWaitingList(name = 'Elm Player') {
+      return bridge.sendCommand({ type: 'joinWaitingList', roomId: bridge.boardCode, name, clientId: bridge.clientId });
+    },
+    leaveWaitingList() {
+      return bridge.sendCommand({ type: 'leaveWaitingList', roomId: bridge.boardCode, clientId: bridge.clientId });
+    },
+    leaveSeat() {
+      return bridge.sendCommand({ type: 'leave' });
+    },
   };
   if (!code) {
     bridge.model = { ...bridge.model, connectionStatus: 'error', error: 'Enter a valid board code to watch.' };
@@ -130,7 +150,28 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       renderBridge(root, bridge, onModelChange);
       return;
     }
-    bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId };
+    if (message.type === 'joined') {
+      bridge.model = { ...bridge.model, ownSeat: message.playerId || bridge.model.ownSeat, waitingListMember: false, error: null };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    if (message.type === 'left') {
+      bridge.model = { ...bridge.model, ownSeat: null, error: null };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    if (message.type === 'waitingListJoined') {
+      bridge.model = { ...bridge.model, waitingListMember: true, error: null };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    if (message.type === 'waitingListLeft') {
+      bridge.model = { ...bridge.model, waitingListMember: false, error: null };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId, ownSeat: bridge.model.ownSeat, waitingListMember: bridge.model.waitingListMember, autoJoinAttempted: bridge.model.autoJoinAttempted };
+    autoJoinSingleVacantSeat(bridge);
     renderBridge(root, bridge, onModelChange);
   };
   bridge.socket.onerror = () => {
@@ -145,9 +186,46 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
   return bridge;
 }
 
+
+
+function vacantSeatIds(board) {
+  const seats = [];
+  if (board?.seats?.blue?.state === 'Vacant') seats.push('p1');
+  if (board?.seats?.red?.state === 'Vacant') seats.push('p2');
+  return seats;
+}
+
+function autoJoinSingleVacantSeat(bridge) {
+  const openSeats = vacantSeatIds(bridge.model.board);
+  if (bridge.model.autoJoinAttempted || bridge.model.ownSeat || bridge.model.waitingListMember || openSeats.length !== 1) return;
+  bridge.model = { ...bridge.model, autoJoinAttempted: true };
+  bridge.claimSeat(openSeats[0], 'Elm Player');
+}
+
+async function createBoardAsBlue({ root, name = 'Elm Player', moveTimeLimitSeconds = 15, onModelChange } = {}) {
+  const response = await fetch('/api/rooms', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ moveTimeLimitSeconds }),
+  });
+  if (!response.ok) throw new Error(`Create board failed: ${response.status}`);
+  const data = await response.json();
+  const boardCode = sanitizeBoardCode(data.roomId);
+  if (!boardCode) throw new Error('Create board failed: invalid board code.');
+  const bridge = createSocketBridge({ boardCode, root, onModelChange });
+  const originalOnOpen = bridge.socket?.onopen;
+  if (bridge.socket) {
+    bridge.socket.onopen = () => {
+      originalOnOpen?.();
+      bridge.claimSeat('p1', name);
+    };
+  }
+  return bridge;
+}
+
 function renderBridge(root, bridge, onModelChange) {
   if (root) root.innerHTML = renderModel(bridge.model);
-  if (typeof onModelChange === 'function') onModelChange(bridge.model);
+  if (typeof onModelChange === 'function') onModelChange(bridge.model, bridge);
 }
 
 function seatLabel(seat) {
@@ -172,9 +250,37 @@ function renderOpenBoardForm(model = initialModel()) {
       <div class="elm-open-row">
         <input id="elmBoardCode" name="board" value="${escapeHtml(code)}" placeholder="Board code" autocomplete="off" />
         <button type="submit">Watch board</button>
+        <button type="button" id="elmCreateBoard">Create board as Blue</button>
       </div>
       <p class="elm-connection">Connection: ${escapeHtml(model.connectionStatus || 'idle')}</p>
     </form>`;
+}
+
+
+function renderSeatingActions(model) {
+  const board = model.board;
+  if (!board) return '';
+  const blueVacant = board.seats?.blue?.state === 'Vacant';
+  const redVacant = board.seats?.red?.state === 'Vacant';
+  const full = !blueVacant && !redVacant;
+  const ownSeat = model.ownSeat;
+  const waiting = model.waitingListMember;
+  const nameValue = 'Elm Player';
+  const seatButtons = ownSeat
+    ? `<button type="button" class="elm-danger" data-elm-command="leave-seat">Leave seat / forfeit</button>`
+    : `${blueVacant ? '<button type="button" data-elm-command="claim-blue">Join Blue</button>' : ''}${redVacant ? '<button type="button" data-elm-command="claim-red">Join Red</button>' : ''}`;
+  const waitingButton = full && !ownSeat
+    ? (waiting ? '<button type="button" data-elm-command="leave-waiting-list">Leave waiting list</button>' : '<button type="button" data-elm-command="join-waiting-list">Join waiting list</button>')
+    : '';
+  const guidance = full && !ownSeat ? 'Board is full. Watch or join the explicit waiting list.' : ownSeat ? 'You are seated on this board.' : 'Choose an open color to sit down.';
+  return `
+    <section class="elm-actions" data-elm-actions>
+      <h3>Board actions</h3>
+      <label for="elmPlayerName">Display name</label>
+      <input id="elmPlayerName" value="${escapeHtml(nameValue)}" autocomplete="nickname" />
+      <p>${escapeHtml(guidance)}</p>
+      <div class="elm-action-row">${seatButtons}${waitingButton}</div>
+    </section>`;
 }
 
 function renderBoardMessage(message) {
@@ -211,6 +317,7 @@ function renderModel(model) {
           <article class="elm-seat elm-seat-blue"><strong>Blue</strong><p>${escapeHtml(seatLabel(board.seats?.blue))}</p></article>
           <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
         </div>
+        ${renderSeatingActions(model)}
         <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
         ${peopleList('Watchers', board.watchers)}
         ${peopleList('Waiting list', board.waitingList)}
@@ -219,9 +326,30 @@ function renderModel(model) {
     </section>`;
 }
 
+
+function playerNameFromRoot(root) {
+  const input = document.querySelector('#elmPlayerName');
+  return String(input?.value || 'Elm Player').trim().slice(0, 24) || 'Elm Player';
+}
+
+function wireSeatingActions(root, bridge) {
+  const actions = document.querySelector('[data-elm-actions]');
+  actions?.addEventListener?.('click', (event) => {
+    const command = event.target?.dataset?.elmCommand;
+    if (!command) return;
+    const name = playerNameFromRoot(root);
+    if (command === 'claim-blue') bridge.claimSeat('p1', name);
+    if (command === 'claim-red') bridge.claimSeat('p2', name);
+    if (command === 'join-waiting-list') bridge.joinWaitingList(name);
+    if (command === 'leave-waiting-list') bridge.leaveWaitingList();
+    if (command === 'leave-seat' && window.confirm?.('Leave your seat? This may forfeit the current session.')) bridge.leaveSeat();
+  });
+}
+
 function wireOpenBoardForm(root) {
   const form = document.querySelector('#elmOpenBoardForm');
   const input = document.querySelector('#elmBoardCode');
+  const createButton = document.querySelector('#elmCreateBoard');
   form?.addEventListener?.('submit', (event) => {
     event.preventDefault();
     const code = sanitizeBoardCode(input?.value || '');
@@ -230,7 +358,14 @@ function wireOpenBoardForm(root) {
       url.searchParams.set('board', code);
       window.history?.replaceState?.({}, '', url);
     }
-    createSocketBridge({ boardCode: code, root, onModelChange: () => wireOpenBoardForm(root) });
+    createSocketBridge({ boardCode: code, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); } });
+  });
+  createButton?.addEventListener?.('click', async () => {
+    try {
+      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); } });
+    } catch (error) {
+      if (root) root.innerHTML = renderModel({ ...initialModel(), error: error?.message || 'Create board failed.' });
+    }
   });
 }
 
@@ -248,7 +383,7 @@ async function mount() {
   if (!root) return;
   const boardCode = parseBoardCodeFromLocation();
   if (boardCode && (window.WebSocket || typeof WebSocket !== 'undefined')) {
-    createSocketBridge({ boardCode, root, onModelChange: () => wireOpenBoardForm(root) });
+    createSocketBridge({ boardCode, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); } });
     return;
   }
   let model = { ...initialModel(), clientId: getOrCreateClientId() };
@@ -267,5 +402,5 @@ async function mount() {
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, renderModel, renderBoardMessage, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderModel, renderBoardMessage, mount };
 mount();

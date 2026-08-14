@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, claimSeat, createGame, leavePlayer, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
+import { addPlayer, claimSeat, createGame, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
   it('newly created boards start with vacant blue and red seats plus empty session history', () => {
@@ -85,6 +85,24 @@ describe('room state lifecycle', () => {
     expect(game.ball).toEqual({ x: 4, y: 6 });
     expect(game.moves).toHaveLength(0);
     expect(game.status).toBe('waiting');
+  });
+
+  it('lets watchers explicitly join and leave the waiting list without occupying a seat', () => {
+    const game = createGame('room-test', { now: 1000 });
+    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1100);
+    claimSeat(game, 'p2', 'Red Player', 'red-client', 1200);
+
+    expect(joinWaitingList(game, 'Next Player', 'next-client', 1300)).toEqual({ ok: true, clientId: 'next-client', waiting: true });
+    expect(game.waitingList).toEqual([{ displayName: 'Next Player', clientId: 'next-client', joinedAt: 1300 }]);
+    expect(game.players.p1.clientId).toBe('blue-client');
+    expect(game.players.p2.clientId).toBe('red-client');
+    expect(publicGame(game)).not.toHaveProperty('waitingList');
+
+    expect(joinWaitingList(game, 'Renamed Next', 'next-client', 1400)).toEqual({ ok: true, clientId: 'next-client', waiting: true, rejoined: true });
+    expect(game.waitingList).toEqual([{ displayName: 'Renamed Next', clientId: 'next-client', joinedAt: 1300 }]);
+
+    expect(leaveWaitingList(game, 'next-client', 1500)).toEqual({ ok: true, clientId: 'next-client', waiting: false });
+    expect(game.waitingList).toEqual([]);
   });
 
   it('keeps an explicit leaver as a watcher until they press a seat join button', () => {

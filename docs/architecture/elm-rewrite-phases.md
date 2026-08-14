@@ -150,14 +150,14 @@ Exit criteria:
 
 Deliverables:
 
-- Create board -> creator immediately joins Blue.
+- Create board -> creator immediately joins Blue. ✅ Phase 5 bridge path added in `/elm` runtime.
 - Open code behavior:
-  - both vacant -> choose color
-  - one vacant -> auto-join vacant seat
-  - full -> watch only
-- Explicit `Join waiting list` / `Leave waiting list` controls.
-- Claim seat from waiting-list opportunity.
-- Leave seat forfeit flow with clear confirmation.
+  - both vacant -> choose color. ✅ Vacant seats render explicit Join Blue/Join Red controls.
+  - one vacant -> auto-join vacant seat. ✅ Single-vacancy state triggers a targeted `claimSeat` command.
+  - full -> watch only. ✅ Full boards stay watcher-only unless the user explicitly joins the waiting list.
+- Explicit `Join waiting list` / `Leave waiting list` controls. ✅ Backed by server commands.
+- Claim seat from waiting-list opportunity. ✅ Claiming a seat removes the client from waiting-list state.
+- Leave seat forfeit flow with clear confirmation. ✅ `/elm` sends `leave` with forfeit wording in the UI.
 
 Exit criteria:
 

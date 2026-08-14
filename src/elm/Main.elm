@@ -109,7 +109,7 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 4 receives live board state over a WebSocket bridge while preserving clientId identity in JavaScript/localStorage." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 5 adds board-centric seating commands: Join Blue, Join Red, Join waiting list, Leave waiting list, and Leave seat / forfeit through the JavaScript WebSocket bridge." ]
         , p [ class "elm-connection" ] [ text ("Connection: " ++ model.connectionStatus) ]
         , viewStaleNotice model.ignoredStaleVersion
         , case model.error of

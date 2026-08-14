@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, leavePlayer, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
 import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
@@ -112,7 +112,33 @@ wss.on('connection', (ws) => {
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
-      send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      send(ws, 'joined', { playerId: result.playerId, roomId, rejoined: Boolean(result.rejoined) });
+      broadcast(roomId);
+      return;
+    }
+
+    if (msg.type === 'joinWaitingList') {
+      const roomId = safeRoomId(msg.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const result = joinWaitingList(game, msg.name, msg.clientId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      send(ws, 'waitingListJoined', { roomId, rejoined: Boolean(result.rejoined) });
+      broadcast(roomId);
+      return;
+    }
+
+    if (msg.type === 'leaveWaitingList') {
+      const roomId = safeRoomId(msg.roomId || socketState.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const result = leaveWaitingList(game, msg.clientId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      send(ws, 'waitingListLeft', { roomId });
       broadcast(roomId);
       return;
     }

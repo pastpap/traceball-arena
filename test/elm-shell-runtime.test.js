@@ -128,4 +128,76 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(bridge.model.board.state).toBe('SessionActive');
     expect(bridge.model.connectionStatus).toBe('connected');
   });
+
+  it('exposes board-centric seating commands without a generic Join Game action', () => {
+    const sent = [];
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send(payload) { sent.push(JSON.parse(payload)); }
+      close() { this.closed = true; }
+    }
+
+    const { shell, root } = loadShell({ WebSocket: FakeWebSocket });
+    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root });
+    sockets[0].onopen();
+    sockets[0].onmessage({ data: JSON.stringify(fixture('board-creator-only')) });
+
+    expect(root.innerHTML).toContain('Join Red');
+    expect(root.innerHTML).not.toContain('Join Game');
+    expect(sent[1]).toMatchObject({ type: 'claimSeat', roomId: 'ROOM123', seatId: 'p2', clientId: bridge.clientId });
+
+    bridge.claimSeat('p1', 'Elm Blue');
+    bridge.claimSeat('p2', 'Elm Red');
+    bridge.joinWaitingList('Elm Waiter');
+    bridge.leaveWaitingList();
+    bridge.leaveSeat();
+
+    expect(sent.slice(2)).toEqual([
+      { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p1', name: 'Elm Blue', clientId: bridge.clientId },
+      { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p2', name: 'Elm Red', clientId: bridge.clientId },
+      { type: 'joinWaitingList', roomId: 'ROOM123', name: 'Elm Waiter', clientId: bridge.clientId },
+      { type: 'leaveWaitingList', roomId: 'ROOM123', clientId: bridge.clientId },
+      { type: 'leave' },
+    ]);
+  });
+
+  it('creates a board and immediately claims Blue for the creator', async () => {
+    const { shell: renderShell } = loadShell();
+    expect(renderShell.renderModel(renderShell.initialModel())).toContain('Create board as Blue');
+
+    const sent = [];
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send(payload) { sent.push(JSON.parse(payload)); }
+      close() { this.closed = true; }
+    }
+
+    const { shell, root } = loadShell({
+      WebSocket: FakeWebSocket,
+      fetch: async (url, options) => {
+        expect(url).toBe('/api/rooms');
+        expect(options.method).toBe('POST');
+        return { ok: true, json: async () => ({ roomId: 'NEW12345' }) };
+      },
+    });
+
+    const bridge = await shell.createBoardAsBlue({ root, name: 'Creator' });
+    sockets[0].onopen();
+
+    expect(bridge.boardCode).toBe('NEW12345');
+    expect(sent).toEqual([
+      { type: 'watch', roomId: 'NEW12345', clientId: bridge.clientId },
+      { type: 'claimSeat', roomId: 'NEW12345', seatId: 'p1', name: 'Creator', clientId: bridge.clientId },
+    ]);
+  });
 });

@@ -22,6 +22,12 @@ if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-activ
 if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'watch'") || !elmBundle.includes('traceballElmClientId') || !elmBundle.includes('websocketUrl')) {
   throw new Error('public/elm.js must bridge the Elm shell to WebSocket watch flow with stable clientId handoff.');
 }
+if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
+  throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
+}
+if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
+  throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');
+}
 if (!elmMain.includes('type alias Model') || !elmMain.includes('type Msg') || !elmMain.includes('update') || !elmMain.includes('view')) {
   throw new Error('Elm Main module must establish Model, Msg, update, and view.');
 }
