@@ -18,6 +18,9 @@ if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHt
 if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-active-session.json')) {
   throw new Error('public/elm.js must provide the minimal Elm-shell runtime and load a Phase 1 fixture.');
 }
+if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'watch'") || !elmBundle.includes('traceballElmClientId') || !elmBundle.includes('websocketUrl')) {
+  throw new Error('public/elm.js must bridge the Elm shell to WebSocket watch flow with stable clientId handoff.');
+}
 if (!elmMain.includes('type alias Model') || !elmMain.includes('type Msg') || !elmMain.includes('update') || !elmMain.includes('view')) {
   throw new Error('Elm Main module must establish Model, Msg, update, and view.');
 }

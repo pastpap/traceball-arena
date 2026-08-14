@@ -16,11 +16,15 @@ type alias Model =
     , version : Int
     , error : Maybe String
     , ignoredStaleVersion : Maybe Int
+    , connectionStatus : String
+    , clientId : String
     }
 
 
 type Msg
     = LoadedFixture (Result Decode.Error StateMessage)
+    | ReceiveServerMessage (Result Decode.Error StateMessage)
+    | ConnectionChanged String
     | NoOp
 
 
@@ -43,6 +47,8 @@ init flags =
             , version = 0
             , error = Nothing
             , ignoredStaleVersion = Nothing
+            , connectionStatus = "idle"
+            , clientId = ""
             }
     in
     ( applyFixture flags emptyModel, Cmd.none )
@@ -84,6 +90,17 @@ update msg model =
                 Err decodeError ->
                     ( { model | error = Just (Decode.errorToString decodeError) }, Cmd.none )
 
+        ReceiveServerMessage result ->
+            case result of
+                Ok incoming ->
+                    ( applyIncoming incoming model, Cmd.none )
+
+                Err decodeError ->
+                    ( { model | error = Just (Decode.errorToString decodeError) }, Cmd.none )
+
+        ConnectionChanged status ->
+            ( { model | connectionStatus = status }, Cmd.none )
+
         NoOp ->
             ( model, Cmd.none )
 
@@ -92,7 +109,8 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 3 decodes canonical board state and ignores stale versions beside the existing JavaScript frontend." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 4 receives live board state over a WebSocket bridge while preserving clientId identity in JavaScript/localStorage." ]
+        , p [ class "elm-connection" ] [ text ("Connection: " ++ model.connectionStatus) ]
         , viewStaleNotice model.ignoredStaleVersion
         , case model.error of
             Just message ->

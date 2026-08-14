@@ -1,4 +1,5 @@
 const FIXTURE_URL = '/fixtures/phase1/board-active-session.json';
+const CLIENT_ID_KEY = 'traceballElmClientId';
 
 function initialModel() {
   return {
@@ -7,12 +8,17 @@ function initialModel() {
     version: 0,
     error: null,
     ignoredStaleVersion: null,
+    connectionStatus: 'idle',
+    clientId: '',
   };
 }
 
 function decodeStateMessage(message) {
   if (!message || typeof message !== 'object') {
     return { ok: false, error: 'malformed message: expected object' };
+  }
+  if (message.type === 'error') {
+    return { ok: false, error: message.error || 'Server error.' };
   }
   if (message.type === 'BoardNotFound') {
     return { ok: false, error: message.message || 'Board not found or expired.', boardCode: message.boardCode || '' };
@@ -61,6 +67,89 @@ function applyState(model, message) {
   };
 }
 
+function getStorage() {
+  return window.localStorage || localStorage;
+}
+
+function getOrCreateClientId() {
+  const storage = getStorage();
+  const existing = storage?.getItem?.(CLIENT_ID_KEY);
+  if (existing) return existing;
+  const randomPart = Math.random().toString(36).slice(2, 12);
+  const id = `traceball-elm-${randomPart}`;
+  storage?.setItem?.(CLIENT_ID_KEY, id);
+  return id;
+}
+
+function websocketUrl() {
+  const loc = window.location || location;
+  const protocol = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${loc.host}/ws`;
+}
+
+function parseBoardCodeFromLocation() {
+  const loc = window.location || location;
+  const params = new URLSearchParams(loc.search || '');
+  return sanitizeBoardCode(params.get('board') || params.get('room') || params.get('code') || '');
+}
+
+function sanitizeBoardCode(value) {
+  const code = String(value || '').trim();
+  return /^[A-Za-z0-9_-]{6,32}$/.test(code) ? code : '';
+}
+
+function createSocketBridge({ boardCode, root, onModelChange } = {}) {
+  const code = sanitizeBoardCode(boardCode);
+  const bridge = {
+    boardCode: code,
+    clientId: getOrCreateClientId(),
+    model: { ...initialModel(), boardCode: code, clientId: getOrCreateClientId(), connectionStatus: 'connecting' },
+    socket: null,
+    close() {
+      if (bridge.socket) bridge.socket.close();
+    },
+  };
+  if (!code) {
+    bridge.model = { ...bridge.model, connectionStatus: 'error', error: 'Enter a valid board code to watch.' };
+    renderBridge(root, bridge, onModelChange);
+    return bridge;
+  }
+  const SocketCtor = window.WebSocket || WebSocket;
+  bridge.socket = new SocketCtor(websocketUrl());
+  bridge.socket.onopen = () => {
+    bridge.model = { ...bridge.model, connectionStatus: 'connected', error: null };
+    bridge.socket.send(JSON.stringify({ type: 'watch', roomId: code, clientId: bridge.clientId }));
+    renderBridge(root, bridge, onModelChange);
+  };
+  bridge.socket.onmessage = (event) => {
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch {
+      bridge.model = { ...bridge.model, error: 'malformed websocket message', connectionStatus: 'connected' };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId };
+    renderBridge(root, bridge, onModelChange);
+  };
+  bridge.socket.onerror = () => {
+    bridge.model = { ...bridge.model, connectionStatus: 'error', error: 'WebSocket connection error.' };
+    renderBridge(root, bridge, onModelChange);
+  };
+  bridge.socket.onclose = () => {
+    bridge.model = { ...bridge.model, connectionStatus: 'disconnected' };
+    renderBridge(root, bridge, onModelChange);
+  };
+  renderBridge(root, bridge, onModelChange);
+  return bridge;
+}
+
+function renderBridge(root, bridge, onModelChange) {
+  if (root) root.innerHTML = renderModel(bridge.model);
+  if (typeof onModelChange === 'function') onModelChange(bridge.model);
+}
+
 function seatLabel(seat) {
   if (!seat || seat.state === 'Vacant') return 'Open seat';
   const name = seat.player?.displayName || 'Unknown player';
@@ -75,17 +164,35 @@ function peopleList(title, people) {
   return `<section class="elm-people"><h3>${title}</h3>${items}</section>`;
 }
 
+function renderOpenBoardForm(model = initialModel()) {
+  const code = model.boardCode || '';
+  return `
+    <form class="elm-open-board" id="elmOpenBoardForm">
+      <label for="elmBoardCode">Open board as watcher</label>
+      <div class="elm-open-row">
+        <input id="elmBoardCode" name="board" value="${escapeHtml(code)}" placeholder="Board code" autocomplete="off" />
+        <button type="submit">Watch board</button>
+      </div>
+      <p class="elm-connection">Connection: ${escapeHtml(model.connectionStatus || 'idle')}</p>
+    </form>`;
+}
+
 function renderBoardMessage(message) {
   const model = applyState(initialModel(), message);
   return renderModel(model);
 }
 
 function renderModel(model) {
+  const shellHeader = `
+    <p class="eyebrow">Traceball Arena — Elm Shell</p>
+    <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
+    <p class="elm-shell-note">Phase 4 can open a live board as watcher over WebSocket while preserving a stable client id.</p>
+    ${renderOpenBoardForm(model)}`;
   if (model.error) {
-    return `<section class="elm-shell"><h1>Traceball Arena — Elm Shell</h1><p class="elm-error">${escapeHtml(model.error)}</p></section>`;
+    return `<section class="elm-shell">${shellHeader}<p class="elm-error">${escapeHtml(model.error)}</p></section>`;
   }
   if (!model.board) {
-    return '<section class="elm-shell"><h1>Traceball Arena — Elm Shell</h1><p>Loading board fixture…</p></section>';
+    return `<section class="elm-shell">${shellHeader}<p>Loading board state…</p></section>`;
   }
   const board = model.board;
   const session = board.currentSession;
@@ -93,9 +200,7 @@ function renderModel(model) {
   const staleNote = model.ignoredStaleVersion ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>` : '';
   return `
     <section class="elm-shell">
-      <p class="eyebrow">Traceball Arena — Elm Shell</p>
-      <h1>Board ${escapeHtml(board.code)}</h1>
-      <p class="elm-shell-note">Phase 3 decodes canonical board state and ignores stale versions beside the existing JavaScript frontend.</p>
+      ${shellHeader}
       ${staleNote}
       <div class="elm-board-shell">
         <header class="elm-board-header">
@@ -114,6 +219,21 @@ function renderModel(model) {
     </section>`;
 }
 
+function wireOpenBoardForm(root) {
+  const form = document.querySelector('#elmOpenBoardForm');
+  const input = document.querySelector('#elmBoardCode');
+  form?.addEventListener?.('submit', (event) => {
+    event.preventDefault();
+    const code = sanitizeBoardCode(input?.value || '');
+    if (code) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('board', code);
+      window.history?.replaceState?.({}, '', url);
+    }
+    createSocketBridge({ boardCode: code, root, onModelChange: () => wireOpenBoardForm(root) });
+  });
+}
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -126,18 +246,26 @@ function escapeHtml(value) {
 async function mount() {
   const root = document.querySelector('#elm-root');
   if (!root) return;
-  let model = initialModel();
+  const boardCode = parseBoardCodeFromLocation();
+  if (boardCode && (window.WebSocket || typeof WebSocket !== 'undefined')) {
+    createSocketBridge({ boardCode, root, onModelChange: () => wireOpenBoardForm(root) });
+    return;
+  }
+  let model = { ...initialModel(), clientId: getOrCreateClientId() };
   root.innerHTML = renderModel(model);
+  wireOpenBoardForm(root);
   try {
     const response = await fetch(FIXTURE_URL, { cache: 'no-store' });
     if (!response.ok) throw new Error(`Fixture request failed: ${response.status}`);
     const message = await response.json();
     model = applyState(model, message);
     root.innerHTML = renderModel(model);
+    wireOpenBoardForm(root);
   } catch (error) {
     root.innerHTML = renderModel({ ...model, error: error.message });
+    wireOpenBoardForm(root);
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, renderModel, renderBoardMessage, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, renderModel, renderBoardMessage, mount };
 mount();

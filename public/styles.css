@@ -727,3 +727,41 @@ body.menu-open { overflow: hidden; }
     border-radius: 18px;
   }
 }
+
+.elm-open-board {
+  display: grid;
+  gap: 0.55rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.07);
+}
+.elm-open-board label {
+  font-weight: 800;
+}
+.elm-open-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.elm-open-row input {
+  flex: 1 1 180px;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.2);
+  padding: 0.75rem 0.85rem;
+}
+.elm-open-row button {
+  border: 0;
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-weight: 800;
+  background: #51d6ff;
+  color: #07131f;
+}
+.elm-connection {
+  margin: 0;
+  color: #a9bbcc;
+  font-size: 0.95rem;
+}

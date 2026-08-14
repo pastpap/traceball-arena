@@ -75,9 +75,9 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current Elm shell route:
 
-- `/elm` renders the Phase 3 board-contract shell from the Phase 1 fixtures.
+- `/elm` renders the Phase 4 board shell from fixtures or a live board code query.
 - Existing `/` and `/room/:roomId` JavaScript frontend routes remain unchanged.
-- The Elm-side model now gates incoming state by monotonically increasing `version` and reports malformed/not-found messages as controlled errors.
+- The Elm-side model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript WebSocket bridge with stable `traceballElmClientId` identity.
 
 Architecture and rewrite docs:
 

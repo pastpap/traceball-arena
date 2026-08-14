@@ -4,17 +4,29 @@ import { describe, expect, it } from 'vitest';
 
 const shellSource = readFileSync('public/elm.js', 'utf8');
 
-function loadShell() {
+function loadShell(overrides = {}) {
   const root = { innerHTML: '' };
+  const storage = overrides.localStorage ?? {
+    values: new Map(),
+    getItem(key) { return this.values.get(key) ?? null; },
+    setItem(key, value) { this.values.set(key, String(value)); },
+  };
+  const location = overrides.location ?? { protocol: 'https:', host: 'example.test', search: '' };
   const context = {
     console,
-    window: {},
+    window: { location, localStorage: storage, WebSocket: overrides.WebSocket },
     document: { querySelector: () => root },
-    fetch: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+    location,
+    localStorage: storage,
+    WebSocket: overrides.WebSocket,
+    URLSearchParams,
+    setTimeout,
+    clearTimeout,
+    fetch: overrides.fetch ?? (async () => ({ ok: false, status: 404, json: async () => ({}) })),
   };
   vm.createContext(context);
   vm.runInContext(shellSource, context, { filename: 'public/elm.js' });
-  return { shell: context.window.TraceballElmShell, root };
+  return { shell: context.window.TraceballElmShell, root, storage, context };
 }
 
 function fixture(name) {
@@ -79,5 +91,41 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     const notFound = shell.applyState(shell.initialModel(), fixture('board-not-found'));
     expect(notFound.error).toContain('Board not found');
+  });
+
+  it('preserves an Elm client id through localStorage for WebSocket handoff', () => {
+    const { shell, storage } = loadShell();
+
+    const first = shell.getOrCreateClientId();
+    const second = shell.getOrCreateClientId();
+
+    expect(first).toMatch(/^traceball-elm-/);
+    expect(second).toBe(first);
+    expect(storage.getItem('traceballElmClientId')).toBe(first);
+  });
+
+  it('opens a board as watcher over WebSocket and applies live state', () => {
+    const sent = [];
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor(url) {
+        this.url = url;
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send(payload) { sent.push(JSON.parse(payload)); }
+      close() { this.closed = true; }
+    }
+
+    const { shell } = loadShell({ WebSocket: FakeWebSocket });
+    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root: { innerHTML: '' } });
+    sockets[0].onopen();
+    sockets[0].onmessage({ data: JSON.stringify(fixture('board-active-session')) });
+
+    expect(sockets[0].url).toBe('wss://example.test/ws');
+    expect(sent[0]).toMatchObject({ type: 'watch', roomId: 'ROOM123', clientId: bridge.clientId });
+    expect(bridge.model.board.state).toBe('SessionActive');
+    expect(bridge.model.connectionStatus).toBe('connected');
   });
 });

@@ -132,6 +132,7 @@ Deliverables:
   - connect/disconnect
   - send client command
   - receive server state/error messages
+- Additive JavaScript WebSocket bridge for `/elm?board=<code>` while Elm source keeps the same model/update contract for later ports.
 - Client identity handoff via JS/localStorage port.
 - Watch/open board by code.
 - Display connection status and reconnecting state.
