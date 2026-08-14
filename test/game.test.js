@@ -104,7 +104,7 @@ describe('traceball rules', () => {
     expect(game.segments).toHaveLength(0);
   });
 
-  it('resumes paused games on the same turn with a fresh timer', () => {
+  it('resumes paused games with only the remaining turn time, not a fresh timer', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;
     game.turnStartedAt = 1000;
@@ -113,11 +113,13 @@ describe('traceball rules', () => {
     expect(game.status).toBe('paused');
     expect(game.turn).toBe('p1');
     expect(game.turnStartedAt).toBe(null);
+    expect(game.pause).toMatchObject({ remainingMs: 4000 });
 
     expect(resumeGame(game, 3000).ok).toBe(true);
     expect(game.status).toBe('playing');
     expect(game.turn).toBe('p1');
-    expect(game.turnStartedAt).toBe(3000);
+    expect(game.turnStartedAt).toBe(2000);
+    expect(game.turnStartedAt + game.moveTimeLimitMs).toBe(7000);
     expect(game.pause).toBe(null);
     expect(game.consecutiveTimeouts).toBe(0);
   });

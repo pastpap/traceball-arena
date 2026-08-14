@@ -12,6 +12,7 @@ const elmDecode = readFileSync('src/elm/Board/Decode.elm', 'utf8');
 const elmView = readFileSync('src/elm/Board/View.elm', 'utf8');
 const elmTypes = readFileSync('src/elm/Board/Types.elm', 'utf8');
 const elmProtocol = readFileSync('src/elm/Protocol.elm', 'utf8');
+const gameSource = readFileSync('src/game.js', 'utf8');
 if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHtml.includes('Traceball Arena — Elm Shell')) {
   throw new Error('Elm shell HTML must mount #elm-root and load /elm.js with a clear title.');
 }
@@ -245,6 +246,18 @@ if (!app.includes('function setReplay(index)') || !app.includes('if (replayIndex
 }
 if (!app.includes('replayIndex >= game.moves.length') || !app.includes('replayIndex = null;')) {
   throw new Error('Incoming live/new-round state must clear replay mode when the replay cursor is at or beyond the live end.');
+}
+const drawMoveClockBody = app.slice(app.indexOf('function drawMoveClock()'), app.indexOf('function drawSevenSegmentNumber'));
+const shouldAnimateClockBody = app.slice(app.indexOf('function shouldAnimateClock()'), app.indexOf('function showInvite'));
+const drawLegalMovesBody = app.slice(app.indexOf('function drawLegalMoves()'), app.indexOf('function legalMoveHintColor'));
+if (drawMoveClockBody.includes('replayIndex !== null') || shouldAnimateClockBody.includes('replayIndex === null') || drawLegalMovesBody.includes('replayIndex !== null')) {
+  throw new Error('Live countdown and legal-move hints must remain visible/animated while only the board path is replayed.');
+}
+if (!gameSource.includes('remainingMs') || !gameSource.includes('Math.max(0, game.moveTimeLimitMs - elapsed)') || !gameSource.includes('now - (game.moveTimeLimitMs - remainingMs)')) {
+  throw new Error('Pause/resume must preserve the remaining turn time instead of resetting the timer.');
+}
+if (!app.includes('pause.remainingMs') || !app.includes('resumeLocalTurnClock')) {
+  throw new Error('Local pause/resume must preserve remaining timer time.');
 }
 if (!app.includes('resumeRoomSession') || !app.includes('wakeConnection') || !app.includes('visibilitychange')) {
   throw new Error('PWA/iPhone lifecycle events must reconnect and rejoin the player session.');

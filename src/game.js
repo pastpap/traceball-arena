@@ -285,6 +285,12 @@ export function applyTurnTimeout(game, now = Date.now()) {
 
 export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now() } = {}) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
+  const elapsed = game.moveTimeLimitMs > 0 && Number.isFinite(game.turnStartedAt)
+    ? Math.max(0, now - game.turnStartedAt)
+    : 0;
+  const remainingMs = game.moveTimeLimitMs > 0
+    ? Math.max(0, game.moveTimeLimitMs - elapsed)
+    : 0;
   game.status = 'paused';
   game.turnStartedAt = null;
   game.pause = {
@@ -292,6 +298,7 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
     byPlayerId,
     pausedAt: now,
     resumeTurn: game.turn,
+    remainingMs,
   };
   markUpdated(game, now);
   return { ok: true };
@@ -303,9 +310,16 @@ export function resumeGame(game, now = Date.now()) {
   if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before resuming.' };
   game.status = 'playing';
   game.turn = game.pause?.resumeTurn || game.turn;
+  const remainingMs = Number.isFinite(game.pause?.remainingMs)
+    ? Math.max(0, Math.min(game.moveTimeLimitMs || 0, game.pause.remainingMs))
+    : game.moveTimeLimitMs || 0;
   game.pause = null;
   game.consecutiveTimeouts = 0;
-  startTurnClock(game, now);
+  if (game.moveTimeLimitMs > 0) {
+    game.turnStartedAt = now - (game.moveTimeLimitMs - remainingMs);
+  } else {
+    game.turnStartedAt = null;
+  }
   markUpdated(game, now);
   return { ok: true };
 }

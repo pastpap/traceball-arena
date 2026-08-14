@@ -447,13 +447,14 @@ function pauseRound() {
 function resumeRound() {
   if (!game || game.status !== 'paused') return toast('Game is not paused.');
   if (gameMode === 'local') {
+    const pause = game.pause || {};
     game.status = 'playing';
-    game.turn = game.pause?.resumeTurn || game.turn;
+    game.turn = pause.resumeTurn || game.turn;
     game.pause = null;
     game.consecutiveTimeouts = 0;
     localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
     renderSuspendedLocalCard();
-    restartLocalTurnClock();
+    resumeLocalTurnClock(pause);
     updateUi();
     draw();
     toast('Game resumed.');
@@ -465,14 +466,20 @@ function resumeRound() {
 
 function pauseLocalGame(reason = 'manual', byPlayerId = null) {
   if (!game || game.status !== 'playing') return;
+  const now = Date.now();
+  const elapsed = game.moveTimeLimitMs > 0 && Number.isFinite(game.turnStartedAt)
+    ? Math.max(0, now - game.turnStartedAt)
+    : 0;
+  const remainingMs = game.moveTimeLimitMs > 0 ? Math.max(0, game.moveTimeLimitMs - elapsed) : 0;
   game.status = 'paused';
   game.turnStartedAt = null;
   clearLocalTurnTimeout();
   game.pause = {
     reason,
     byPlayerId,
-    pausedAt: Date.now(),
+    pausedAt: now,
     resumeTurn: game.turn,
+    remainingMs,
   };
   replayIndex = null;
   saveSuspendedLocalGame();
@@ -743,6 +750,19 @@ function localIsLegalTarget(localGame, to) {
 function restartLocalTurnClock() {
   if (!game || game.status !== 'playing') return;
   game.turnStartedAt = game.moveTimeLimitMs > 0 ? Date.now() : null;
+  scheduleLocalTurnTimeout();
+}
+
+function resumeLocalTurnClock(pause = {}) {
+  if (!game || game.status !== 'playing') return;
+  if (game.moveTimeLimitMs > 0) {
+    const remainingMs = Number.isFinite(pause.remainingMs)
+      ? Math.max(0, Math.min(game.moveTimeLimitMs, pause.remainingMs))
+      : game.moveTimeLimitMs;
+    game.turnStartedAt = Date.now() - (game.moveTimeLimitMs - remainingMs);
+  } else {
+    game.turnStartedAt = null;
+  }
   scheduleLocalTurnTimeout();
 }
 
@@ -1231,7 +1251,7 @@ function syncClockAnimation() {
 }
 
 function shouldAnimateClock() {
-  return Boolean(game && game.status === 'playing' && game.moveTimeLimitMs > 0 && game.turnStartedAt && replayIndex === null);
+  return Boolean(game && game.status === 'playing' && game.moveTimeLimitMs > 0 && game.turnStartedAt);
 }
 
 function showInvite() {
@@ -1579,7 +1599,7 @@ function turnClockSpot(player) {
 }
 
 function drawMoveClock() {
-  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt || replayIndex !== null) return;
+  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
   const spot = turnClockSpot(game.turn);
   const remaining = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now());
   const seconds = Math.max(0, Math.ceil(remaining / 1000));
@@ -1758,7 +1778,7 @@ function drawSoccerBall(x, y, radius) {
 function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; }
 
 function drawLegalMoves() {
-  if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (!game || game.status !== 'playing') return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
   syncLegalMoveHintFade();
   const alpha = legalMoveHintAlpha();
@@ -1801,10 +1821,10 @@ function startLegalMoveHintFade(nextKey) {
 }
 
 function scheduleLegalMoveHintFadeFrame(alpha) {
-  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
+  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing') return;
   legalMoveHintFadeRaf = requestAnimationFrame(() => {
     legalMoveHintFadeRaf = 0;
-    if (!game || game.status !== 'playing' || replayIndex !== null) return;
+    if (!game || game.status !== 'playing') return;
     draw();
   });
 }
