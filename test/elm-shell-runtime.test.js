@@ -258,6 +258,75 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(root.innerHTML).toContain('Starting next round…');
   });
 
+  it('renders Phase 7 disconnected-seat grace and free-seat recovery controls only for the seated opponent', () => {
+    const { shell } = loadShell();
+    const during = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-during-grace'));
+    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
+
+    const watcherDuringGrace = shell.renderModel({ ...during, ownSeat: null });
+    const opponentDuringGrace = shell.renderModel({ ...during, ownSeat: 'p1' });
+    const opponentAfterGrace = shell.renderModel({ ...eligible, ownSeat: 'p1' });
+    const disconnectedOwnView = shell.renderModel({ ...eligible, ownSeat: 'p2' });
+
+    expect(opponentDuringGrace).toContain('data-elm-disconnected-seat="red"');
+    expect(opponentDuringGrace).toContain('Friend disconnected. Seat reserved during grace.');
+    expect(opponentDuringGrace).toContain('Make seat available in 60s');
+    expect(opponentDuringGrace).not.toContain('data-elm-command="free-seat"');
+
+    expect(opponentAfterGrace).toContain('data-elm-command="free-seat"');
+    expect(opponentAfterGrace).toContain('data-elm-seat="p2"');
+    expect(opponentAfterGrace).toContain('Make Red seat available');
+    expect(watcherDuringGrace).not.toContain('data-elm-command="free-seat"');
+    expect(disconnectedOwnView).toContain('Your seat is reserved — reconnect from the same browser to reclaim it.');
+  });
+
+  it('sends freeSeat only for a seated opponent whose disconnected grace expired', () => {
+    const sent = [];
+    const { shell } = loadShell();
+    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
+    const during = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-during-grace'));
+    const bridge = {
+      model: { ...eligible, ownSeat: null },
+      freeSeat(seatId) { sent.push({ type: 'freeSeat', seatId }); return true; },
+    };
+
+    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
+    bridge.model = { ...during, ownSeat: 'p1' };
+    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
+    bridge.model = { ...eligible, ownSeat: 'p2' };
+    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
+    bridge.model = { ...eligible, ownSeat: 'p1' };
+    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(true);
+
+    expect(sent).toEqual([{ type: 'freeSeat', seatId: 'p2' }]);
+    expect(bridge.model.pendingFreeSeat).toBe('p2');
+  });
+
+  it('wires Phase 7 Make seat available clicks to the freeSeat command', () => {
+    const sent = [];
+    const recoveryActions = {
+      handler: null,
+      addEventListener(type, handler) {
+        if (type === 'click') this.handler = handler;
+      },
+    };
+    const target = { dataset: { elmCommand: 'free-seat', elmSeat: 'p2' } };
+    const { shell, root } = loadShell({
+      document: { querySelector: (selector) => (selector === '[data-elm-disconnect-actions]' ? recoveryActions : null) },
+    });
+    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
+    const bridge = {
+      model: { ...eligible, ownSeat: 'p1' },
+      freeSeat(seatId) { sent.push({ type: 'freeSeat', seatId }); return true; },
+    };
+
+    shell.wireDisconnectActions(root, bridge);
+    recoveryActions.handler({ target, preventDefault() { this.prevented = true; } });
+
+    expect(sent).toEqual([{ type: 'freeSeat', seatId: 'p2' }]);
+    expect(root.innerHTML).toContain('Making seat available…');
+  });
+
   it('keeps the newer model when a stale state message arrives', () => {
     const { shell } = loadShell();
     const current = shell.applyState(shell.initialModel(), fixture('board-active-session'));

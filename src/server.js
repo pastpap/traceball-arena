@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, freeDisconnectedSeat, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
 import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
@@ -161,7 +161,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'leave') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'You are not occupying a seat.' });
       const leavingPlayerId = socketState.playerId;
-      const result = leavePlayer(game, leavingPlayerId);
+      const result = leavePlayerAfterOpponentGrace(game, leavingPlayerId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.playerId = null;
       send(ws, 'left', {
@@ -169,6 +169,20 @@ wss.on('connection', (ws) => {
         roomId: socketState.roomId,
         forfeit: result.forfeit,
         winner: result.winner,
+      });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'freeSeat') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'Only the seated opponent can free a disconnected seat.' });
+      const result = freeDisconnectedSeat(game, socketState.playerId, msg.seatId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      send(ws, 'seatFreed', {
+        playerId: result.playerId,
+        roomId: socketState.roomId,
+        winner: result.winner,
+        forfeit: result.forfeit,
       });
       broadcast(socketState.roomId);
       return;
@@ -199,7 +213,13 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const state = sockets.get(ws);
     sockets.delete(ws);
+    if (!state?.roomId || !state.playerId) return;
+    const game = rooms.get(state.roomId);
+    if (!game) return;
+    const result = markPlayerDisconnected(game, state.playerId);
+    if (result.ok) broadcast(state.roomId);
   });
 });
 

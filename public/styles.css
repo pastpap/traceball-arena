@@ -954,3 +954,17 @@ body.menu-open { overflow: hidden; }
 .elm-round-result .elm-action-row { justify-content: flex-start; }
 .elm-primary { border-color: rgba(141,255,174,.72); box-shadow: 0 0 0 1px rgba(141,255,174,.18); }
 .elm-primary:disabled { opacity: .68; cursor: progress; }
+
+
+.elm-disconnect-recovery {
+  display: grid;
+  gap: .75rem;
+}
+.elm-disconnected-seat {
+  padding: .9rem;
+  border: 1px solid rgba(255, 190, 80, .38);
+  border-radius: 18px;
+  background: rgba(255, 190, 80, .11);
+}
+.elm-disconnected-seat h3 { margin: 0 0 .35rem; }
+.elm-disconnected-seat p { margin: .25rem 0; }

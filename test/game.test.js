@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, applyTurnTimeout, createGame, legalMoves, makeMove, pauseGame, resumeGame } from '../src/game.js';
+import { addPlayer, applyTurnTimeout, claimSeat, createGame, freeDisconnectedSeat, leavePlayerAfterOpponentGrace, legalMoves, makeMove, markPlayerDisconnected, pauseGame, resumeGame } from '../src/game.js';
 
 function readyGame() {
   const game = createGame('room-test');
@@ -156,5 +156,52 @@ describe('traceball rules', () => {
     expect(game.status).toBe('finished');
     expect(game.winner).toBe('p2');
     expect(game.endReason).toContain('Own goal');
+  });
+
+  it('reserves a disconnected seat during grace and allows same-client reclaim', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+
+    const disconnected = markPlayerDisconnected(game, 'p2', 10_000);
+
+    expect(disconnected).toMatchObject({ ok: true, playerId: 'p2', canBeFreedAt: 70_000 });
+    expect(game.status).toBe('paused');
+    expect(game.players.p2).toMatchObject({ status: 'disconnected', clientId: 'red-phone', disconnectedAt: 10_000, canBeFreedAt: 70_000 });
+    expect(claimSeat(game, 'p2', 'Red returns', 'red-phone', 20_000)).toMatchObject({ ok: true, playerId: 'p2', rejoined: true });
+    expect(game.players.p2).toMatchObject({ status: 'active', name: 'Red returns', clientId: 'red-phone' });
+    expect(game.status).toBe('playing');
+  });
+
+  it('blocks freeing a disconnected opponent until grace expires, then awards a forfeit point', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+    markPlayerDisconnected(game, 'p2', 10_000);
+
+    expect(freeDisconnectedSeat(game, 'p1', 'p2', 69_999)).toMatchObject({ ok: false });
+    const freed = freeDisconnectedSeat(game, 'p1', 'p2', 70_000);
+
+    expect(freed).toMatchObject({ ok: true, playerId: 'p2', winner: 'p1', forfeit: true });
+    expect(game.players.p2.status).toBe('vacant');
+    expect(game.score.p1).toBe(1);
+    expect(game.status).toBe('waiting');
+    expect(game.history.at(-1)).toMatchObject({ winner: 'p1', loser: 'p2', reason: 'disconnect-forfeit' });
+  });
+
+  it('clears the board without a ghost forfeit when the remaining player leaves after opponent grace expires', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+    markPlayerDisconnected(game, 'p2', 10_000);
+
+    const left = leavePlayerAfterOpponentGrace(game, 'p1', 70_000);
+
+    expect(left).toMatchObject({ ok: true, abandoned: true });
+    expect(game.score.p1).toBe(0);
+    expect(game.score.p2).toBe(0);
+    expect(game.status).toBe('waiting');
+    expect(game.players.p1.status).toBe('vacant');
+    expect(game.players.p2.status).toBe('vacant');
   });
 });

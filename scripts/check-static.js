@@ -37,6 +37,12 @@ if (!elmBundle.includes('submitMoveFromLegalTarget') || !elmBundle.includes('wir
 if (!elmBundle.includes('renderRoundResult') || !elmBundle.includes('data-elm-round-result') || !elmBundle.includes('data-elm-round-actions') || !elmBundle.includes("type: 'reset'") || !elmBundle.includes('Continue / New Round')) {
   throw new Error('public/elm.js must support Phase 6D between-round result UI and new-round reset command.');
 }
+if (!elmBundle.includes('renderDisconnectedSeatRecovery') || !elmBundle.includes('data-elm-disconnected-seat') || !elmBundle.includes('data-elm-disconnect-actions') || !elmBundle.includes("type: 'freeSeat'") || !elmBundle.includes('Make seat available')) {
+  throw new Error('public/elm.js must support Phase 7 disconnected-seat recovery UI and freeSeat command.');
+}
+if (!gameSource.includes('export function markPlayerDisconnected') || !gameSource.includes('export function freeDisconnectedSeat') || !gameSource.includes('disconnect-forfeit')) {
+  throw new Error('Game model must support Phase 7 disconnected seat reservation and free-after-grace forfeit handling.');
+}
 if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
   throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');
 }
@@ -70,6 +76,9 @@ if (!css.includes('.elm-legal-own-turn') || !css.includes('.elm-legal-opponent-t
 }
 if (!css.includes('.elm-round-result') || !css.includes('.elm-primary:disabled')) {
   throw new Error('public/styles.css must style Phase 6D between-round result panel and pending new-round button.');
+}
+if (!css.includes('.elm-disconnect-recovery') || !css.includes('.elm-disconnected-seat')) {
+  throw new Error('public/styles.css must style Phase 7 disconnected-seat recovery panels.');
 }
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');

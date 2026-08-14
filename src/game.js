@@ -7,6 +7,7 @@ export const GOAL_X_MAX = 5;
 export const START = { x: 4, y: 6 };
 export const MOVE_TIME_LIMIT_OPTIONS_MS = [0, 5000, 10000, 15000, 20000, 30000];
 export const DEFAULT_MOVE_TIME_LIMIT_MS = 15000;
+export const DISCONNECT_GRACE_MS = 60_000;
 
 export function createGame(roomId, options = {}) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -78,7 +79,13 @@ export function addPlayer(game, name, clientId) {
         const cleanName = cleanPlayerName(name, id);
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        markUpdated(game);
+        game.players[id].disconnectedAt = null;
+        game.players[id].canBeFreedAt = null;
+        if (game.status === 'paused' && bothSeatsActive(game)) {
+          resumeGame(game);
+        } else {
+          markUpdated(game);
+        }
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -99,7 +106,15 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
       if (game.players[id]?.clientId === cleanClientId) {
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        markUpdated(game, now);
+        game.players[id].disconnectedAt = null;
+        game.players[id].canBeFreedAt = null;
+        forgetWatcherClient(game, cleanClientId);
+        removeWaitingClient(game, cleanClientId);
+        if (game.status === 'paused' && bothSeatsActive(game)) {
+          resumeGame(game, now);
+        } else {
+          markUpdated(game, now);
+        }
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -184,6 +199,70 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   markUpdated(game, now);
 
   return { ok: true, playerId, winner: historyEntry?.winner || null, forfeit: historyEntry?.reason === 'forfeit', historyEntry };
+}
+
+export function markPlayerDisconnected(game, playerId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };
+  const player = game.players[playerId];
+  if (!isSeatActive(player)) return { ok: false, error: 'That seat is not active.' };
+  player.status = 'disconnected';
+  player.disconnectedAt = now;
+  player.canBeFreedAt = now + DISCONNECT_GRACE_MS;
+  if (game.status === 'playing') {
+    pauseGame(game, { reason: 'disconnect', byPlayerId: playerId, now });
+  } else {
+    markUpdated(game, now);
+  }
+  return { ok: true, playerId, canBeFreedAt: player.canBeFreedAt };
+}
+
+export function freeDisconnectedSeat(game, actorPlayerId, seatId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(actorPlayerId) || !['p1', 'p2'].includes(seatId)) return { ok: false, error: 'Invalid seat.' };
+  if (actorPlayerId === seatId) return { ok: false, error: 'You cannot free your own reserved seat.' };
+  if (!isSeatActive(game.players[actorPlayerId])) return { ok: false, error: 'Only the seated opponent can free a disconnected seat.' };
+  const seat = game.players[seatId];
+  if (seat?.status !== 'disconnected') return { ok: false, error: 'That seat is not disconnected.' };
+  if (!Number.isFinite(seat.canBeFreedAt) || now < seat.canBeFreedAt) return { ok: false, error: 'Disconnect grace has not expired.' };
+
+  const wasSessionActive = Boolean(game.sessionStartedAt && ['playing', 'paused', 'finished'].includes(game.status));
+  let historyEntry = null;
+  if (wasSessionActive) {
+    game.score = game.score || { p1: 0, p2: 0 };
+    game.score[actorPlayerId] = (game.score[actorPlayerId] || 0) + 1;
+    historyEntry = archiveSessionResult(game, {
+      winner: actorPlayerId,
+      loser: seatId,
+      reason: 'disconnect-forfeit',
+      endReason: `${playerName(game, seatId)} did not return. ${playerName(game, actorPlayerId)} wins by disconnect forfeit.`,
+      now,
+    });
+  }
+
+  game.players[seatId] = createSeat(seatId);
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: true });
+  game.status = 'waiting';
+  markUpdated(game, now);
+  return { ok: true, playerId: seatId, winner: actorPlayerId, forfeit: wasSessionActive, historyEntry };
+}
+
+export function leavePlayerAfterOpponentGrace(game, playerId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };
+  const opponentId = otherPlayer(playerId);
+  const opponent = game.players[opponentId];
+  if (!isSeatActive(game.players[playerId])) return { ok: false, error: 'That seat is already vacant.' };
+  if (opponent?.status !== 'disconnected' || !Number.isFinite(opponent.canBeFreedAt) || now < opponent.canBeFreedAt) {
+    return leavePlayer(game, playerId, now);
+  }
+
+  game.players[playerId] = createSeat(playerId);
+  game.players[opponentId] = createSeat(opponentId);
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: false });
+  game.status = 'waiting';
+  markUpdated(game, now);
+  return { ok: true, playerId, abandoned: true };
 }
 
 export function makeMove(game, playerId, to, now = Date.now()) {
@@ -488,6 +567,8 @@ function publicPlayer(player, id) {
     name: seat.name || (id === 'p1' ? 'Blue' : 'Red'),
     color: seat.color || (id === 'p1' ? '#0b7cff' : '#ff3b30'),
     status: seat.status || 'active',
+    disconnectedAt: seat.disconnectedAt ?? null,
+    canBeFreedAt: seat.canBeFreedAt ?? null,
   };
 }
 

@@ -75,11 +75,11 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current Elm shell route:
 
-- `/elm` renders the Phase 6D board shell from fixtures or a live board code query, including an SVG board preview from canonical round state.
+- `/elm` renders the Phase 7 board shell from fixtures or a live board code query, including an SVG board preview from canonical round state.
 - Existing `/` and `/room/:roomId` JavaScript frontend routes remain unchanged.
 - The Elm-side model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript WebSocket bridge with stable `traceballElmClientId` identity.
 - The `/elm` shell has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
-- Phase 6D keeps the server authoritative: own-turn legal SVG targets submit `{ type: 'move', to }`, between-round result panels show winner/reason/score, and only seated players can send `{ type: 'reset' }` to continue with a new round.
+- Phase 7 keeps the server authoritative: own-turn legal SVG targets submit `{ type: 'move', to }`, seated players continue between rounds with `{ type: 'reset' }`, disconnected seats are reserved for same-client reconnect during grace, and only the seated opponent can send `{ type: 'freeSeat', seatId }` after grace.
 
 Architecture and rewrite docs:
 

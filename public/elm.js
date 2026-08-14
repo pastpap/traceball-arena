@@ -15,6 +15,7 @@ function initialModel() {
     autoJoinAttempted: false,
     pendingMoveKey: null,
     pendingNewRound: false,
+    pendingFreeSeat: null,
   };
 }
 
@@ -136,6 +137,9 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
     newRound() {
       return bridge.sendCommand({ type: 'reset' });
     },
+    freeSeat(seatId) {
+      return bridge.sendCommand({ type: 'freeSeat', seatId });
+    },
   };
   if (!code) {
     bridge.model = { ...bridge.model, connectionStatus: 'error', error: 'Enter a valid board code to watch.' };
@@ -159,7 +163,7 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       return;
     }
     if (message.type === 'joined') {
-      bridge.model = { ...bridge.model, ownSeat: message.playerId || bridge.model.ownSeat, waitingListMember: false, error: null, pendingMoveKey: null, pendingNewRound: false };
+      bridge.model = { ...bridge.model, ownSeat: message.playerId || bridge.model.ownSeat, waitingListMember: false, error: null, pendingMoveKey: null, pendingNewRound: false, pendingFreeSeat: null };
       renderBridge(root, bridge, onModelChange);
       return;
     }
@@ -178,7 +182,12 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       renderBridge(root, bridge, onModelChange);
       return;
     }
-    bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId, ownSeat: bridge.model.ownSeat, waitingListMember: bridge.model.waitingListMember, autoJoinAttempted: bridge.model.autoJoinAttempted, pendingMoveKey: null, pendingNewRound: false };
+    if (message.type === 'seatFreed') {
+      bridge.model = { ...bridge.model, pendingFreeSeat: null, error: null };
+      renderBridge(root, bridge, onModelChange);
+      return;
+    }
+    bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId, ownSeat: bridge.model.ownSeat, waitingListMember: bridge.model.waitingListMember, autoJoinAttempted: bridge.model.autoJoinAttempted, pendingMoveKey: null, pendingNewRound: false, pendingFreeSeat: null };
     autoJoinSingleVacantSeat(bridge);
     renderBridge(root, bridge, onModelChange);
   };
@@ -374,6 +383,42 @@ function submitNewRound(bridge) {
   return true;
 }
 
+function seatColorToId(color) {
+  if (color === 'blue' || color === 'p1') return 'p1';
+  if (color === 'red' || color === 'p2') return 'p2';
+  return null;
+}
+
+function seatIdToColor(seatId) {
+  if (seatId === 'p1' || seatId === 'blue') return 'blue';
+  if (seatId === 'p2' || seatId === 'red') return 'red';
+  return null;
+}
+
+function disconnectedSeatEntries(board) {
+  return ['blue', 'red']
+    .map((color) => ({ color, seatId: seatColorToId(color), seat: board?.seats?.[color] }))
+    .filter((entry) => entry.seat?.state === 'DisconnectedReserved');
+}
+
+function canOwnSeatFreeDisconnectedSeat(model, targetSeatId) {
+  const ownSeat = normalizeSeatId(model?.ownSeat);
+  const targetColor = seatIdToColor(targetSeatId);
+  if (!ownSeat || !targetColor || ownSeat === targetColor) return false;
+  const seat = model?.board?.seats?.[targetColor];
+  return Boolean(seat?.state === 'DisconnectedReserved' && seat.canBeFreed);
+}
+
+function submitFreeDisconnectedSeat(bridge, seatId) {
+  if (!bridge || !canOwnSeatFreeDisconnectedSeat(bridge.model, seatId)) return false;
+  const submitted = typeof bridge.freeSeat === 'function'
+    ? bridge.freeSeat(seatId)
+    : bridge.sendCommand?.({ type: 'freeSeat', seatId });
+  if (!submitted) return false;
+  bridge.model = { ...bridge.model, pendingFreeSeat: seatId, error: null };
+  return true;
+}
+
 function submitMoveFromLegalTarget(bridge, key) {
   if (!bridge || !isOwnTurn(bridge.model) || !isLegalMoveKey(bridge.model, key)) return false;
   const point = parseElmPointKey(key);
@@ -492,6 +537,29 @@ function renderRoundResult(model) {
     </section>`;
 }
 
+function renderDisconnectedSeatRecovery(model) {
+  const board = model?.board;
+  const disconnected = disconnectedSeatEntries(board);
+  if (!disconnected.length) return '';
+  const ownSeatColor = normalizeSeatId(model?.ownSeat);
+  const rows = disconnected.map(({ color, seatId, seat }) => {
+    const label = color === 'red' ? 'Red' : 'Blue';
+    const player = seat?.player?.displayName || label;
+    const canFree = canOwnSeatFreeDisconnectedSeat(model, seatId);
+    const ownDisconnectedSeat = ownSeatColor === color;
+    const seconds = seat?.canBeFreedAt && seat?.disconnectedAt
+      ? Math.max(0, Math.ceil((Number(seat.canBeFreedAt) - Number(seat.disconnectedAt)) / 1000))
+      : 60;
+    const action = ownDisconnectedSeat
+      ? '<p class="elm-shell-note">Your seat is reserved — reconnect from the same browser to reclaim it.</p>'
+      : canFree
+        ? `<div class="elm-action-row" data-elm-disconnect-actions><button type="button" class="elm-primary" data-elm-command="free-seat" data-elm-seat="${seatId}"${model?.pendingFreeSeat === seatId ? ' disabled' : ''}>${model?.pendingFreeSeat === seatId ? 'Making seat available…' : `Make ${label} seat available`}</button></div>`
+        : `<p class="elm-shell-note">Make seat available in ${seconds}s.</p>`;
+    return `<article class="elm-disconnected-seat elm-disconnected-${color}" data-elm-disconnected-seat="${color}"><h3>${escapeHtml(player)} disconnected</h3><p>Friend disconnected. Seat reserved during grace.</p>${action}</article>`;
+  }).join('');
+  return `<section class="elm-disconnect-recovery">${rows}</section>`;
+}
+
 function renderSeatingActions(model) {
   const board = model.board;
   if (!board) return '';
@@ -527,7 +595,7 @@ function renderModel(model) {
   const shellHeader = `
     <p class="eyebrow">Traceball Arena — Elm Shell</p>
     <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
-    <p class="elm-shell-note">Phase 6D adds between-round results and Continue/New Round controls while the server remains authoritative.</p>
+    <p class="elm-shell-note">Phase 7 adds disconnected-seat grace, reconnect, and free-seat recovery while the server remains authoritative.</p>
     ${renderOpenBoardForm(model)}`;
   if (model.error) {
     return `<section class="elm-shell">${shellHeader}<p class="elm-error">${escapeHtml(model.error)}</p></section>`;
@@ -553,6 +621,7 @@ function renderModel(model) {
           <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
         </div>
         ${renderSeatingActions(model)}
+        ${renderDisconnectedSeatRecovery(model)}
         ${renderRoundResult(model)}
         ${renderReadOnlyBoard(board, model)}
         <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
@@ -595,6 +664,7 @@ function wireBoardMoveTargets(root, bridge) {
     wireOpenBoardForm(root);
     wireSeatingActions(root, bridge);
     wireBoardMoveTargets(root, bridge);
+    wireDisconnectActions(root, bridge);
   });
 }
 
@@ -610,6 +680,24 @@ function wireRoundActions(root, bridge) {
     wireSeatingActions(root, bridge);
     wireBoardMoveTargets(root, bridge);
     wireRoundActions(root, bridge);
+    wireDisconnectActions(root, bridge);
+  });
+}
+
+function wireDisconnectActions(root, bridge) {
+  const actions = document.querySelector('[data-elm-disconnect-actions]');
+  actions?.addEventListener?.('click', (event) => {
+    const command = event.target?.dataset?.elmCommand;
+    const seatId = event.target?.dataset?.elmSeat;
+    if (command !== 'free-seat') return;
+    if (!submitFreeDisconnectedSeat(bridge, seatId)) return;
+    event.preventDefault?.();
+    if (root) root.innerHTML = renderModel(bridge.model);
+    wireOpenBoardForm(root);
+    wireSeatingActions(root, bridge);
+    wireBoardMoveTargets(root, bridge);
+    wireRoundActions(root, bridge);
+    wireDisconnectActions(root, bridge);
   });
 }
 
@@ -625,11 +713,11 @@ function wireOpenBoardForm(root) {
       url.searchParams.set('board', code);
       window.history?.replaceState?.({}, '', url);
     }
-    createSocketBridge({ boardCode: code, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); } });
+    createSocketBridge({ boardCode: code, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
   });
   createButton?.addEventListener?.('click', async () => {
     try {
-      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); } });
+      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
     } catch (error) {
       if (root) root.innerHTML = renderModel({ ...initialModel(), error: error?.message || 'Create board failed.' });
     }
@@ -650,7 +738,7 @@ async function mount() {
   if (!root) return;
   const boardCode = parseBoardCodeFromLocation();
   if (boardCode && (window.WebSocket || typeof WebSocket !== 'undefined')) {
-    createSocketBridge({ boardCode, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); } });
+    createSocketBridge({ boardCode, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
     return;
   }
   let model = { ...initialModel(), clientId: getOrCreateClientId() };
@@ -669,5 +757,5 @@ async function mount() {
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, wireBoardMoveTargets, wireRoundActions, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
 mount();

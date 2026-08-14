@@ -189,12 +189,12 @@ Exit criteria:
 
 Deliverables:
 
-- Seat state `DisconnectedReserved` exposed to Elm.
-- 60-second grace display.
-- Reconnect by same `clientId`.
-- Opponent-only `Make seat available` control after grace.
-- Freeing stale opponent awards forfeit point and closes session.
-- Leaving after opponent grace has expired abandons/clears rather than awarding ghost point.
+- Seat state `DisconnectedReserved` exposed to Elm. ✅ Phase 1 state carries disconnected seat reservation metadata through the live `/elm` shell.
+- 60-second grace display. ✅ `/elm` shows the disconnected player, reserved-seat copy, and grace countdown text.
+- Reconnect by same `clientId`. ✅ Server marks dropped player sockets as disconnected instead of vacant; claiming with the same stable `clientId` reactivates the seat and resumes paused play.
+- Opponent-only `Make seat available` control after grace. ✅ Elm gates the `freeSeat` command to the seated opponent only after `canBeFreed` is true.
+- Freeing stale opponent awards forfeit point and closes session. ✅ `freeDisconnectedSeat` archives a `disconnect-forfeit`, increments the remaining player score, and opens the seat.
+- Leaving after opponent grace has expired abandons/clears rather than awarding ghost point. ✅ Server leave path clears both seats when the opponent is stale-disconnected past grace.
 
 Exit criteria:
 
