@@ -968,3 +968,42 @@ body.menu-open { overflow: hidden; }
 }
 .elm-disconnected-seat h3 { margin: 0 0 .35rem; }
 .elm-disconnected-seat p { margin: .25rem 0; }
+
+
+.elm-board-list {
+  display: grid;
+  gap: .85rem;
+  margin-top: 1rem;
+}
+.elm-board-card {
+  display: grid;
+  gap: .35rem;
+  padding: 1rem;
+  border: 1px solid rgba(141,255,174,.22);
+  border-radius: 18px;
+  background: rgba(255,255,255,.055);
+}
+.elm-board-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.elm-board-card p { margin: 0; }
+.elm-primary-link {
+  justify-self: start;
+  color: #0b1220;
+  background: #8dffae;
+  border-radius: 999px;
+  padding: .55rem .85rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.elm-board-recovery {
+  display: grid;
+  gap: .65rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 120, 120, .38);
+  border-radius: 18px;
+  background: rgba(255, 120, 120, .1);
+}

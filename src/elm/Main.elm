@@ -109,7 +109,7 @@ view : Model -> Html Msg
 view model =
     div [ class "elm-shell" ]
         [ h1 [] [ text "Traceball Arena — Elm Shell" ]
-        , p [ class "elm-shell-note" ] [ text "Phase 7 shows disconnected-seat grace/reconnect/free-seat recovery while keeping move, reset, and seat commands server-authoritative." ]
+        , p [ class "elm-shell-note" ] [ text "Phase 8 shows live board list, expiry metadata, and expired-board recovery while keeping move, reset, and seat commands server-authoritative." ]
         , p [ class "elm-connection" ] [ text ("Connection: " ++ model.connectionStatus) ]
         , viewStaleNotice model.ignoredStaleVersion
         , case model.error of

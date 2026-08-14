@@ -349,6 +349,58 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     const notFound = shell.applyState(shell.initialModel(), fixture('board-not-found'));
     expect(notFound.error).toContain('Board not found');
+    const notFoundHtml = shell.renderModel(notFound);
+    expect(notFoundHtml).toContain('data-elm-board-recovery');
+    expect(notFoundHtml).toContain('Create a fresh board');
+  });
+
+  it('renders Phase 8 board list cards with status, occupancy, activity, expiry, and Elm links', () => {
+    const { shell } = loadShell();
+    const html = shell.renderBoardList([
+      {
+        roomId: 'ROOM123',
+        elmUrl: '/elm?board=ROOM123',
+        state: 'SessionActive',
+        status: 'playing',
+        occupancy: { activeCount: 2, vacantCount: 0 },
+        score: { p1: 2, p2: 1 },
+        moveCount: 7,
+        lastActivityAt: 2000,
+        expiresAt: 604802000,
+      },
+      {
+        roomId: 'OPEN456',
+        elmUrl: '/elm?board=OPEN456',
+        state: 'WaitingForPlayers',
+        occupancy: { activeCount: 1, vacantCount: 1 },
+        lastActivityAt: 1000,
+        expiresAt: 604801000,
+      },
+    ]);
+
+    expect(html).toContain('data-elm-board-list');
+    expect(html).toContain('data-elm-board-card="ROOM123"');
+    expect(html).toContain('SessionActive');
+    expect(html).toContain('2 seated · 0 open');
+    expect(html).toContain('Score Blue 2 — Red 1');
+    expect(html).toContain('Last activity 2000');
+    expect(html).toContain('Expires 604802000');
+    expect(html).toContain('href="/elm?board=ROOM123"');
+    expect(html).toContain('Open board');
+  });
+
+  it('loads the Phase 8 board list for the Elm landing view', async () => {
+    const { shell, root } = loadShell({
+      fetch: async (url) => {
+        expect(url).toBe('/api/rooms');
+        return { ok: true, json: async () => ({ rooms: [{ roomId: 'ROOM123', elmUrl: '/elm?board=ROOM123', state: 'WaitingForPlayers', occupancy: { activeCount: 0, vacantCount: 2 }, lastActivityAt: 1000, expiresAt: 604801000 }] }) };
+      },
+    });
+
+    await shell.loadBoardList(root);
+
+    expect(root.innerHTML).toContain('data-elm-board-list');
+    expect(root.innerHTML).toContain('ROOM123');
   });
 
   it('preserves an Elm client id through localStorage for WebSocket handoff', () => {

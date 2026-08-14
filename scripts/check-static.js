@@ -13,6 +13,7 @@ const elmView = readFileSync('src/elm/Board/View.elm', 'utf8');
 const elmTypes = readFileSync('src/elm/Board/Types.elm', 'utf8');
 const elmProtocol = readFileSync('src/elm/Protocol.elm', 'utf8');
 const gameSource = readFileSync('src/game.js', 'utf8');
+const serverSource = readFileSync('src/server.js', 'utf8');
 if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHtml.includes('Traceball Arena — Elm Shell')) {
   throw new Error('Elm shell HTML must mount #elm-root and load /elm.js with a clear title.');
 }
@@ -39,6 +40,15 @@ if (!elmBundle.includes('renderRoundResult') || !elmBundle.includes('data-elm-ro
 }
 if (!elmBundle.includes('renderDisconnectedSeatRecovery') || !elmBundle.includes('data-elm-disconnected-seat') || !elmBundle.includes('data-elm-disconnect-actions') || !elmBundle.includes("type: 'freeSeat'") || !elmBundle.includes('Make seat available')) {
   throw new Error('public/elm.js must support Phase 7 disconnected-seat recovery UI and freeSeat command.');
+}
+if (!elmBundle.includes('renderBoardList') || !elmBundle.includes('loadBoardList') || !elmBundle.includes('data-elm-board-list') || !elmBundle.includes('data-elm-board-recovery') || !elmBundle.includes('/api/rooms')) {
+  throw new Error('public/elm.js must support Phase 8 board list and expired/not-found recovery UI.');
+}
+if (!gameSource.includes('export const BOARD_TTL_MS') || !gameSource.includes('export function boardExpiresAt') || !gameSource.includes('export function isBoardExpired')) {
+  throw new Error('src/game.js must expose Phase 8 board expiry helpers.');
+}
+if (!serverSource.includes('cleanupExpiredRooms') || !serverSource.includes('elmUrl') || !serverSource.includes('expiresAt') || !serverSource.includes('lastActivityAt')) {
+  throw new Error('src/server.js must cleanup expired rooms and expose Phase 8 board-list metadata.');
 }
 if (!gameSource.includes('export function markPlayerDisconnected') || !gameSource.includes('export function freeDisconnectedSeat') || !gameSource.includes('disconnect-forfeit')) {
   throw new Error('Game model must support Phase 7 disconnected seat reservation and free-after-grace forfeit handling.');
@@ -79,6 +89,9 @@ if (!css.includes('.elm-round-result') || !css.includes('.elm-primary:disabled')
 }
 if (!css.includes('.elm-disconnect-recovery') || !css.includes('.elm-disconnected-seat')) {
   throw new Error('public/styles.css must style Phase 7 disconnected-seat recovery panels.');
+}
+if (!css.includes('.elm-board-list') || !css.includes('.elm-board-card') || !css.includes('.elm-board-recovery')) {
+  throw new Error('public/styles.css must style Phase 8 board list and expired-board recovery panels.');
 }
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
@@ -190,7 +203,6 @@ if (!html.includes('localP1Name') || !html.includes('localP2Name')) {
 }
 if (!html.includes('copyInviteCard')) throw new Error('Copy invite button must live inside the Join this match card.');
 if (html.includes('id="copyInvite"')) throw new Error('Top-level copy invite button must be removed.');
-const serverSource = readFileSync('src/server.js', 'utf8');
 if (!serverSource.includes("app.get('/elm'") || !serverSource.includes("elm.html")) {
   throw new Error('Server must expose the Elm shell at /elm without replacing the current frontend.');
 }

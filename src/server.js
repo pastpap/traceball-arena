@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, freeDisconnectedSeat, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
 import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
@@ -21,10 +21,12 @@ const elmShellPath = fileURLToPath(new URL('../public/elm.html', import.meta.url
 app.use(express.static('public', { extensions: ['html'] }));
 
 app.get('/api/health', (_req, res) => {
+  cleanupExpiredRooms();
   res.json({ ok: true, rooms: rooms.size, uptime: process.uptime() });
 });
 
 app.post('/api/rooms', express.json(), (req, res) => {
+  cleanupExpiredRooms();
   const roomId = nanoid(8);
   const moveTimeLimitMs = normalizeMoveTimeLimitMs(Number(req.body?.moveTimeLimitSeconds) * 1000, 15000);
   const game = createGame(roomId, { moveTimeLimitMs });
@@ -33,6 +35,7 @@ app.post('/api/rooms', express.json(), (req, res) => {
 });
 
 app.get('/api/rooms', (req, res) => {
+  cleanupExpiredRooms();
   const origin = originFromRequest(req);
   const summaries = [...rooms.values()]
     .map((game) => publicRoomSummary(game, origin))
@@ -41,6 +44,7 @@ app.get('/api/rooms', (req, res) => {
 });
 
 app.get('/api/rooms/:roomId', (req, res) => {
+  cleanupExpiredRooms();
   const roomId = safeRoomId(req.params.roomId);
   if (!roomId) return res.status(400).json({ error: 'Invalid room code.' });
   const game = rooms.get(roomId);
@@ -78,6 +82,7 @@ wss.on('connection', (ws) => {
     } catch {
       return send(ws, 'error', { error: 'Invalid JSON.' });
     }
+    cleanupExpiredRooms();
 
     if (msg.type === 'join') {
       const roomId = safeRoomId(msg.roomId);
@@ -223,6 +228,21 @@ wss.on('connection', (ws) => {
   });
 });
 
+function cleanupExpiredRooms(now = Date.now()) {
+  for (const [roomId, game] of rooms.entries()) {
+    if (!isBoardExpired(game, now)) continue;
+    clearTimeout(roomTimers.get(roomId));
+    roomTimers.delete(roomId);
+    rooms.delete(roomId);
+    for (const [client, state] of sockets.entries()) {
+      if (state.roomId !== roomId) continue;
+      state.roomId = null;
+      state.playerId = null;
+      send(client, 'BoardNotFound', { boardCode: roomId, reason: 'not_found_or_expired', message: 'Board not found or expired.' });
+    }
+  }
+}
+
 function safeRoomId(value) {
   const roomId = String(value || '').trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
@@ -267,7 +287,9 @@ function publicRoomSummary(game, requestOrigin) {
   return {
     roomId: game.roomId,
     url: roomUrl(game.roomId, requestOrigin),
+    elmUrl: elmRoomUrl(game.roomId, requestOrigin),
     status: game.status,
+    state: publicState.status === 'finished' ? 'BetweenRounds' : publicState.status === 'playing' ? 'SessionActive' : publicState.status === 'paused' ? 'SessionPaused' : activeCount === 1 ? 'OneSeatOccupied' : 'WaitingForPlayers',
     players: publicState.players,
     occupancy: {
       activeCount,
@@ -281,12 +303,19 @@ function publicRoomSummary(game, requestOrigin) {
     lastResult,
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,
+    lastActivityAt: boardLastActivityAt(game),
+    expiresAt: boardExpiresAt(game),
   };
 }
 
 function roomUrl(roomId, requestOrigin) {
   const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
   return `${base}/room/${roomId}`;
+}
+
+function elmRoomUrl(roomId, requestOrigin) {
+  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
+  return `${base}/elm?board=${encodeURIComponent(roomId)}`;
 }
 
 function originFromRequest(req) {

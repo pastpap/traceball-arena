@@ -208,10 +208,10 @@ Exit criteria:
 
 Deliverables:
 
-- Board list shows public boards with useful status.
-- `lastActivityAt`/`expiresAt` exposed where useful.
-- 1-week inactivity cleanup.
-- Expired/not-found UI in Elm.
+- Board list shows public boards with useful status. ✅ `/elm` now loads `/api/rooms` and renders board cards with state, occupancy, score, moves, and Open board links.
+- `lastActivityAt`/`expiresAt` exposed where useful. ✅ Public game/list summaries include `createdAt`, `updatedAt`, `lastActivityAt`, and `expiresAt`.
+- 1-week inactivity cleanup. ✅ Server calls `cleanupExpiredRooms()` before health/list/create/detail/WebSocket message handling and removes timers/sockets for expired boards.
+- Expired/not-found UI in Elm. ✅ `BoardNotFound` messages render a recovery panel with Create a fresh board and Browse live boards paths.
 
 Exit criteria:
 

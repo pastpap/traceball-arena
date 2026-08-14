@@ -8,6 +8,7 @@ export const START = { x: 4, y: 6 };
 export const MOVE_TIME_LIMIT_OPTIONS_MS = [0, 5000, 10000, 15000, 20000, 30000];
 export const DEFAULT_MOVE_TIME_LIMIT_MS = 15000;
 export const DISCONNECT_GRACE_MS = 60_000;
+export const BOARD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function createGame(roomId, options = {}) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
@@ -64,9 +65,25 @@ export function publicGame(game) {
     sessionEndedAt: game.sessionEndedAt || null,
     history: Array.isArray(game.history) ? game.history.slice(-10) : [],
     historyCount: Array.isArray(game.history) ? game.history.length : 0,
+    createdAt: game.createdAt ?? null,
+    updatedAt: game.updatedAt ?? null,
+    lastActivityAt: boardLastActivityAt(game),
+    expiresAt: boardExpiresAt(game),
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
     board: { width: WIDTH, height: HEIGHT, goalXMin: GOAL_X_MIN, goalXMax: GOAL_X_MAX },
   };
+}
+
+export function boardLastActivityAt(game) {
+  return Number(game?.updatedAt ?? game?.createdAt ?? 0);
+}
+
+export function boardExpiresAt(game) {
+  return boardLastActivityAt(game) + BOARD_TTL_MS;
+}
+
+export function isBoardExpired(game, now = Date.now()) {
+  return Number(now) >= boardExpiresAt(game);
 }
 
 export function addPlayer(game, name, clientId) {

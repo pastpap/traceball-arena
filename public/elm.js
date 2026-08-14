@@ -591,14 +591,79 @@ function renderBoardMessage(message) {
   return renderModel(model);
 }
 
+function roomSummaryState(room) {
+  return room?.state || room?.boardState || room?.status || 'Unknown';
+}
+
+function roomSummaryScore(room) {
+  const score = room?.score || {};
+  return `Blue ${Number(score.blue ?? score.p1 ?? 0)} — Red ${Number(score.red ?? score.p2 ?? 0)}`;
+}
+
+function roomSummaryOccupancy(room) {
+  const occupancy = room?.occupancy || {};
+  const active = Number(occupancy.activeCount ?? 0);
+  const vacant = Number(occupancy.vacantCount ?? Math.max(0, 2 - active));
+  return `${active} seated · ${vacant} open`;
+}
+
+function renderBoardList(rooms = []) {
+  const visible = Array.isArray(rooms) ? rooms : [];
+  const cards = visible.map((room) => {
+    const code = room?.roomId || room?.code || '';
+    const elmUrl = room?.elmUrl || `/elm?board=${encodeURIComponent(code)}`;
+    const moves = Number(room?.moveCount || 0);
+    return `
+      <article class="elm-board-card" data-elm-board-card="${escapeHtml(code)}">
+        <header><strong>${escapeHtml(code)}</strong><span class="elm-pill">${escapeHtml(roomSummaryState(room))}</span></header>
+        <p>${escapeHtml(roomSummaryOccupancy(room))}</p>
+        <p>Score ${escapeHtml(roomSummaryScore(room))}</p>
+        <p>${moves} traced moves</p>
+        <p class="elm-shell-note">Last activity ${escapeHtml(room?.lastActivityAt ?? 'unknown')} · Expires ${escapeHtml(room?.expiresAt ?? 'unknown')}</p>
+        <a class="elm-primary-link" href="${escapeHtml(elmUrl)}">Open board</a>
+      </article>`;
+  }).join('');
+  return `
+    <section class="elm-board-list" data-elm-board-list>
+      <h2>Live boards</h2>
+      <p class="elm-shell-note">Public boards expire after one week of inactivity.</p>
+      ${cards || '<p>No public boards right now. Create a fresh board to start.</p>'}
+    </section>`;
+}
+
+async function loadBoardList(root) {
+  try {
+    const response = await fetch('/api/rooms', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Board list request failed: ${response.status}`);
+    const payload = await response.json();
+    if (root) root.innerHTML = renderBoardList(payload.rooms || []);
+    return payload.rooms || [];
+  } catch (error) {
+    if (root) root.innerHTML = `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error?.message || 'Could not load board list.')}</p></section>`;
+    return [];
+  }
+}
+
+function renderBoardRecovery(model) {
+  if (!model?.error || !/not found|expired/i.test(model.error)) return '';
+  return `
+    <section class="elm-board-recovery" data-elm-board-recovery>
+      <h2>Board unavailable</h2>
+      <p>${escapeHtml(model.error)}</p>
+      <p class="elm-shell-note">Boards expire after one week of inactivity and in-memory staging boards reset when the service restarts.</p>
+      <div class="elm-action-row"><button type="button" id="elmCreateBoard" class="elm-primary">Create a fresh board</button><a href="/elm">Browse live boards</a></div>
+    </section>`;
+}
+
 function renderModel(model) {
   const shellHeader = `
     <p class="eyebrow">Traceball Arena — Elm Shell</p>
     <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
-    <p class="elm-shell-note">Phase 7 adds disconnected-seat grace, reconnect, and free-seat recovery while the server remains authoritative.</p>
+    <p class="elm-shell-note">Phase 8 adds live board list, expiry metadata, and expired-board recovery while the server remains authoritative.</p>
     ${renderOpenBoardForm(model)}`;
   if (model.error) {
-    return `<section class="elm-shell">${shellHeader}<p class="elm-error">${escapeHtml(model.error)}</p></section>`;
+    const recovery = renderBoardRecovery(model);
+    return `<section class="elm-shell">${shellHeader}${recovery || `<p class="elm-error">${escapeHtml(model.error)}</p>`}</section>`;
   }
   if (!model.board) {
     return `<section class="elm-shell">${shellHeader}<p>Loading board state…</p></section>`;
@@ -745,17 +810,16 @@ async function mount() {
   root.innerHTML = renderModel(model);
   wireOpenBoardForm(root);
   try {
-    const response = await fetch(FIXTURE_URL, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Fixture request failed: ${response.status}`);
-    const message = await response.json();
-    model = applyState(model, message);
-    root.innerHTML = renderModel(model);
+    const response = await fetch('/api/rooms', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Board list request failed: ${response.status}`);
+    const payload = await response.json();
+    root.innerHTML = renderModel(model) + renderBoardList(payload.rooms || []);
     wireOpenBoardForm(root);
   } catch (error) {
-    root.innerHTML = renderModel({ ...model, error: error.message });
+    root.innerHTML = renderModel(model) + `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error.message)}</p></section>`;
     wireOpenBoardForm(root);
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
 mount();

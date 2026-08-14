@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, claimSeat, createGame, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
+import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
   it('newly created boards start with vacant blue and red seats plus empty session history', () => {
@@ -218,6 +218,27 @@ describe('room state lifecycle', () => {
 
     leavePlayer(game, 'p1', 1700);
     expect(game.version).toBe(8);
+  });
+
+  it('exposes board last-activity and expiry metadata for public lists', () => {
+    const game = createGame('room-test', { now: 1000 });
+
+    expect(BOARD_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(boardLastActivityAt(game)).toBe(1000);
+    expect(boardExpiresAt(game)).toBe(1000 + BOARD_TTL_MS);
+    expect(isBoardExpired(game, boardExpiresAt(game) - 1)).toBe(false);
+    expect(isBoardExpired(game, boardExpiresAt(game))).toBe(true);
+
+    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 2500);
+    const publicState = publicGame(game);
+
+    expect(boardLastActivityAt(game)).toBe(2500);
+    expect(publicState).toMatchObject({
+      createdAt: 1000,
+      updatedAt: 2500,
+      lastActivityAt: 2500,
+      expiresAt: 2500 + BOARD_TTL_MS,
+    });
   });
 
   it('resets a new round to waiting when a board has a vacant seat', () => {
