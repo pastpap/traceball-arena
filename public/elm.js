@@ -287,11 +287,47 @@ function playerColor(playerId) {
   return playerId === 'p2' || playerId === 'red' ? '#ff3b30' : '#0b7cff';
 }
 
+function normalizeSeatId(seatId) {
+  if (seatId === 'p1' || seatId === 'blue') return 'blue';
+  if (seatId === 'p2' || seatId === 'red') return 'red';
+  return null;
+}
+
+function legalMoveContext(model, round) {
+  const turn = normalizeSeatId(round?.turn) || 'blue';
+  const ownSeat = normalizeSeatId(model?.ownSeat);
+  if (!ownSeat) {
+    return {
+      name: 'watcher',
+      state: 'preview',
+      color: turn,
+      playable: false,
+      note: 'Watching: legal moves are preview only.',
+    };
+  }
+  if (ownSeat === turn) {
+    return {
+      name: 'own-turn',
+      state: 'ready',
+      color: turn,
+      playable: true,
+      note: 'Your legal moves. Input arrives in Phase 6C.',
+    };
+  }
+  return {
+    name: 'opponent-turn',
+    state: 'waiting',
+    color: turn,
+    playable: false,
+    note: 'Opponent turn: legal moves shown for orientation.',
+  };
+}
+
 function renderSvgLine(from, to, attrs = '') {
   return `<line x1="${elmScreenX(from.x)}" y1="${elmScreenY(from.y)}" x2="${elmScreenX(to.x)}" y2="${elmScreenY(to.y)}" ${attrs} />`;
 }
 
-function renderReadOnlyBoard(board) {
+function renderReadOnlyBoard(board, model = initialModel()) {
   const round = board?.currentSession?.round;
   if (!round) {
     return '<section class="elm-board-preview"><p>No round to render yet.</p></section>';
@@ -301,7 +337,8 @@ function renderReadOnlyBoard(board) {
   for (const move of moves) if (move?.to) visited.add(elmPointKey(move.to));
   const legalMoves = Array.isArray(round.legalMoves) ? round.legalMoves : [];
   const ball = round.ball || moves.at(-1)?.to || { x: 4, y: 6 };
-  const turn = round.turn || 'blue';
+  const legalContext = legalMoveContext(model, round);
+  const turn = legalContext.color;
   const pitchOutline = [
     renderSvgLine({ x: 0, y: 1 }, { x: 3, y: 1 }, 'class="elm-pitch-line"'),
     renderSvgLine({ x: 5, y: 1 }, { x: 8, y: 1 }, 'class="elm-pitch-line"'),
@@ -333,9 +370,10 @@ function renderReadOnlyBoard(board) {
     const segmentKey = escapeHtml(move.segment || `${elmPointKey(move.from)}|${elmPointKey(move.to)}`);
     return `<g data-elm-segment="${segmentKey}" class="elm-traced-segment">${renderSvgLine(move.from, move.to, `class="elm-segment-stroke" stroke="${playerColor(move.playerId)}"`)}${renderSvgLine(move.from, move.to, 'class="elm-segment-highlight"')}</g>`;
   }).join('');
+  const playableAttr = legalContext.playable ? ' data-elm-legal-playable="true"' : '';
   const legal = legalMoves.map((point) => {
     const key = elmPointKey(point);
-    return `<circle class="elm-legal-move elm-legal-${turn === 'red' || turn === 'p2' ? 'red' : 'blue'}" data-elm-legal-move="${key}" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="24" />`;
+    return `<g class="elm-legal-target elm-legal-${legalContext.name}" data-elm-legal-move="${key}" data-elm-legal-move-state="${legalContext.state}"${playableAttr}><circle class="elm-legal-hit-ring" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="34" /><circle class="elm-legal-move elm-legal-${turn}" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="24" /><text class="elm-legal-label" x="${elmScreenX(point.x)}" y="${elmScreenY(point.y) + 6}">•</text></g>`;
   }).join('');
   const ballKey = elmPointKey(ball);
   const ballSvg = `<g class="elm-ball" data-elm-ball="${ballKey}" transform="translate(${elmScreenX(ball.x)} ${elmScreenY(ball.y)})"><circle r="22" fill="#f8fff8"/><circle r="10" fill="#101820"/><path d="M-18 0 L18 0 M0 -18 L0 18" stroke="#101820" stroke-width="4" stroke-linecap="round" opacity=".72"/></g>`;
@@ -350,11 +388,12 @@ function renderReadOnlyBoard(board) {
         <g class="elm-pitch-outline">${pitchOutline}${gates}</g>
         <g class="elm-segments-layer">${segments}</g>
         <g class="elm-points-layer">${grid}</g>
-        <g class="elm-legal-layer">${legal}</g>
+        <g class="elm-legal-layer" data-elm-legal-context="${legalContext.name}">${legal}</g>
         ${ballSvg}
         ${turnMarker}
       </svg>
-      <p class="elm-shell-note">Read-only Phase 6A board: live state is rendered; move input stays disabled until Phase 6C.</p>
+      <div class="elm-board-legend" data-elm-legal-context="${legalContext.name}"><span class="elm-legend-dot elm-legal-${legalContext.color}"></span>${escapeHtml(legalContext.note)}</div>
+      <p class="elm-shell-note">Read-only Phase 6B board: live legal moves are context-aware; move input stays disabled until Phase 6C.</p>
     </section>`;
 }
 
@@ -393,7 +432,7 @@ function renderModel(model) {
   const shellHeader = `
     <p class="eyebrow">Traceball Arena — Elm Shell</p>
     <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
-    <p class="elm-shell-note">Phase 6A renders a read-only live board preview from authoritative state while the current JavaScript frontend remains playable.</p>
+    <p class="elm-shell-note">Phase 6B renders context-aware legal-move previews from authoritative state while the current JavaScript frontend remains playable.</p>
     ${renderOpenBoardForm(model)}`;
   if (model.error) {
     return `<section class="elm-shell">${shellHeader}<p class="elm-error">${escapeHtml(model.error)}</p></section>`;
@@ -419,7 +458,7 @@ function renderModel(model) {
           <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
         </div>
         ${renderSeatingActions(model)}
-        ${renderReadOnlyBoard(board)}
+        ${renderReadOnlyBoard(board, model)}
         <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
         ${peopleList('Watchers', board.watchers)}
         ${peopleList('Waiting list', board.waitingList)}

@@ -882,3 +882,59 @@ body.menu-open { overflow: hidden; }
   .elm-board-preview { padding: 0.65rem; border-radius: 20px; }
   .elm-board-preview svg { width: 100%; border-radius: 18px; }
 }
+
+.elm-board-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  min-height: 2.4rem;
+  padding: 0.62rem 0.8rem;
+  border: 1px solid rgba(141,255,174,.28);
+  border-radius: 16px;
+  background: rgba(0,0,0,.22);
+  color: #dfffe6;
+  font-weight: 800;
+  text-align: center;
+}
+.elm-legend-dot {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,.8);
+  background: #0b7cff;
+  box-shadow: 0 0 18px rgba(141,255,174,.48);
+}
+.elm-legend-dot.elm-legal-red { background: #ff3b30; }
+.elm-legal-layer { pointer-events: none; }
+.elm-legal-target { opacity: .92; }
+.elm-legal-hit-ring {
+  fill: rgba(141,255,174,.11);
+  stroke: rgba(141,255,174,.35);
+  stroke-width: 2;
+}
+.elm-legal-own-turn .elm-legal-hit-ring {
+  fill: rgba(141,255,174,.2);
+  stroke: #8dffae;
+  stroke-width: 4;
+}
+.elm-legal-opponent-turn { opacity: .58; }
+.elm-legal-opponent-turn .elm-legal-hit-ring {
+  fill: rgba(255,255,255,.08);
+  stroke: rgba(255,255,255,.28);
+  stroke-dasharray: 10 8;
+}
+.elm-legal-watcher { opacity: .72; }
+.elm-legal-watcher .elm-legal-hit-ring {
+  fill: rgba(141,255,174,.1);
+  stroke: rgba(141,255,174,.42);
+  stroke-dasharray: 12 8;
+}
+.elm-legal-label {
+  fill: white;
+  font: 900 24px system-ui, -apple-system, sans-serif;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+}

@@ -103,6 +103,40 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).toContain('data-elm-ball="5,5"');
   });
 
+  it('renders legal moves as read-only watcher hints when the viewer is not seated', () => {
+    const { shell } = loadShell();
+
+    const html = shell.renderBoardMessage(fixture('board-active-session'));
+
+    expect(html).toContain('data-elm-legal-context="watcher"');
+    expect(html).toContain('data-elm-legal-move-state="preview"');
+    expect(html).toContain('Watching: legal moves are preview only.');
+    expect(html).not.toContain('data-elm-legal-playable="true"');
+  });
+
+  it('distinguishes own-turn legal move hints from waiting-for-opponent hints', () => {
+    const { shell } = loadShell();
+    const message = fixture('board-active-session');
+
+    const ownTurn = shell.renderModel({
+      ...shell.applyState(shell.initialModel(), message),
+      ownSeat: 'p1',
+    });
+    const waitingTurn = shell.renderModel({
+      ...shell.applyState(shell.initialModel(), message),
+      ownSeat: 'p2',
+    });
+
+    expect(ownTurn).toContain('data-elm-legal-context="own-turn"');
+    expect(ownTurn).toContain('data-elm-legal-playable="true"');
+    expect(ownTurn).toContain('Your legal moves. Input arrives in Phase 6C.');
+
+    expect(waitingTurn).toContain('data-elm-legal-context="opponent-turn"');
+    expect(waitingTurn).toContain('data-elm-legal-move-state="waiting"');
+    expect(waitingTurn).toContain('Opponent turn: legal moves shown for orientation.');
+    expect(waitingTurn).not.toContain('data-elm-legal-playable="true"');
+  });
+
   it('keeps the newer model when a stale state message arrives', () => {
     const { shell } = loadShell();
     const current = shell.applyState(shell.initialModel(), fixture('board-active-session'));

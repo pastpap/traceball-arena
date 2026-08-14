@@ -25,8 +25,11 @@ if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'wat
 if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
   throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
 }
-if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6A board')) {
-  throw new Error('public/elm.js must render the Phase 6A read-only SVG board with traced segments and legal-move markers.');
+if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6B board')) {
+  throw new Error('public/elm.js must render the Phase 6B read-only SVG board with traced segments and context-aware legal-move markers.');
+}
+if (!elmBundle.includes('data-elm-legal-context') || !elmBundle.includes('data-elm-legal-playable') || !elmBundle.includes('own-turn') || !elmBundle.includes('opponent-turn') || !elmBundle.includes('Watching: legal moves are preview only.')) {
+  throw new Error('public/elm.js must expose Phase 6B legal-move context markers for own turn, opponent turn, and watcher previews.');
 }
 if (!gameSource.includes('export function joinWaitingList') || !gameSource.includes('export function leaveWaitingList') || !gameSource.includes('removeWaitingClient')) {
   throw new Error('Game model must support explicit waiting-list join/leave and remove clients from waiting when seated.');
@@ -56,6 +59,9 @@ const railway = JSON.parse(readFileSync('railway.json', 'utf8'));
 if (railway.deploy.healthcheckPath !== '/api/health') throw new Error('Railway healthcheck must be /api/health');
 
 const css = readFileSync('public/styles.css', 'utf8');
+if (!css.includes('.elm-legal-own-turn') || !css.includes('.elm-legal-opponent-turn') || !css.includes('.elm-legal-watcher') || !css.includes('.elm-board-legend')) {
+  throw new Error('public/styles.css must style Phase 6B legal-move readability states and legend.');
+}
 if (!css.includes('aspect-ratio: 720 / 920')) throw new Error('Board canvas must preserve its 720/920 aspect ratio.');
 if (!css.includes('max-width: 720px')) throw new Error('Board canvas must be capped so it does not over-stretch on wide screens.');
 if (css.includes('object-fit: contain')) throw new Error('Canvas must not use object-fit: contain because it letterboxes the visual bitmap inside a larger click box.');
