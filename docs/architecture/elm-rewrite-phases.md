@@ -225,10 +225,10 @@ Exit criteria:
 
 Deliverables:
 
-- Elm route becomes default app route.
-- Old JS frontend removed or kept behind a temporary fallback flag.
-- PWA service worker cache version bumped.
-- README updated with Elm development commands.
+- Elm route becomes default app route. ✅ `/` now serves the board-centric Elm shell; `/room/:roomId` redirects to `/?board=<roomId>` for old invite compatibility.
+- Old JS frontend removed or kept behind a temporary fallback flag. ✅ Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls back root/old room routes.
+- PWA service worker cache version bumped. ✅ Cache is `traceball-arena-v33` and includes `/`, `/elm.html`, `/elm.js`, and legacy assets.
+- README updated with Elm development commands. ✅ README documents default/fallback routes, rollback flag, and the Elm-shell development flow.
 
 Exit criteria:
 

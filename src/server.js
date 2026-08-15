@@ -17,8 +17,36 @@ const sockets = new Map();
 const roomTimers = new Map();
 const appShellPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
 const elmShellPath = fileURLToPath(new URL('../public/elm.html', import.meta.url));
+const FRONTEND_MODE = process.env.TRACEBALL_FRONTEND || 'elm';
 
-app.use(express.static('public', { extensions: ['html'] }));
+function useLegacyDefaultFrontend() {
+  return FRONTEND_MODE === 'legacy';
+}
+
+function servePrimaryShell(_req, res) {
+  res.type('html').send(readFileSync(useLegacyDefaultFrontend() ? appShellPath : elmShellPath, 'utf8'));
+}
+
+function serveElmShell(_req, res) {
+  res.type('html').send(readFileSync(elmShellPath, 'utf8'));
+}
+
+function serveLegacyShell(_req, res) {
+  res.type('html').send(readFileSync(appShellPath, 'utf8'));
+}
+
+app.get('/', servePrimaryShell);
+app.get('/elm', serveElmShell);
+app.get('/legacy', serveLegacyShell);
+app.get('/legacy/room/:roomId', serveLegacyShell);
+app.get('/room/:roomId', (req, res) => {
+  const roomId = safeRoomId(req.params.roomId);
+  if (useLegacyDefaultFrontend()) return serveLegacyShell(req, res);
+  if (!roomId) return res.redirect(302, '/');
+  return res.redirect(302, `/?board=${encodeURIComponent(roomId)}`);
+});
+
+app.use(express.static('public', { extensions: ['html'], index: false }));
 
 app.get('/api/health', (_req, res) => {
   cleanupExpiredRooms();
@@ -61,14 +89,6 @@ app.get('/api/qr', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Could not generate QR code.' });
   }
-});
-
-app.get('/elm', (_req, res) => {
-  res.type('html').send(readFileSync(elmShellPath, 'utf8'));
-});
-
-app.get('/room/:roomId', (_req, res) => {
-  res.type('html').send(readFileSync(appShellPath, 'utf8'));
 });
 
 wss.on('connection', (ws) => {
@@ -288,6 +308,7 @@ function publicRoomSummary(game, requestOrigin) {
     roomId: game.roomId,
     url: roomUrl(game.roomId, requestOrigin),
     elmUrl: elmRoomUrl(game.roomId, requestOrigin),
+    legacyUrl: legacyRoomUrl(game.roomId, requestOrigin),
     status: game.status,
     state: publicState.status === 'finished' ? 'BetweenRounds' : publicState.status === 'playing' ? 'SessionActive' : publicState.status === 'paused' ? 'SessionPaused' : activeCount === 1 ? 'OneSeatOccupied' : 'WaitingForPlayers',
     players: publicState.players,
@@ -310,12 +331,16 @@ function publicRoomSummary(game, requestOrigin) {
 
 function roomUrl(roomId, requestOrigin) {
   const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
-  return `${base}/room/${roomId}`;
+  return `${base}/?board=${encodeURIComponent(roomId)}`;
+}
+
+function legacyRoomUrl(roomId, requestOrigin) {
+  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
+  return `${base}/legacy/room/${encodeURIComponent(roomId)}`;
 }
 
 function elmRoomUrl(roomId, requestOrigin) {
-  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
-  return `${base}/elm?board=${encodeURIComponent(roomId)}`;
+  return roomUrl(roomId, requestOrigin);
 }
 
 function originFromRequest(req) {

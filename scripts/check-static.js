@@ -204,7 +204,10 @@ if (!html.includes('localP1Name') || !html.includes('localP2Name')) {
 if (!html.includes('copyInviteCard')) throw new Error('Copy invite button must live inside the Join this match card.');
 if (html.includes('id="copyInvite"')) throw new Error('Top-level copy invite button must be removed.');
 if (!serverSource.includes("app.get('/elm'") || !serverSource.includes("elm.html")) {
-  throw new Error('Server must expose the Elm shell at /elm without replacing the current frontend.');
+  throw new Error('Server must expose the Elm shell at /elm for direct compatibility links.');
+}
+if (!serverSource.includes('TRACEBALL_FRONTEND') || !serverSource.includes("app.get('/legacy'") || !serverSource.includes("app.get('/legacy/room/:roomId'") || !serverSource.includes("app.get('/room/:roomId'") || !serverSource.includes('redirect(302, `/?board=${encodeURIComponent(roomId)}`)') || !serverSource.includes('return `${base}/?board=${encodeURIComponent(roomId)}`;')) {
+  throw new Error('Phase 9 must make the Elm shell the default app route, preserve /legacy fallback routes, redirect old room links to root board links, and keep a TRACEBALL_FRONTEND=legacy rollback flag.');
 }
 if (!html.includes('rel="icon" href="/icon.svg"') || !html.includes('rel="manifest" href="/manifest.webmanifest"')) {
   throw new Error('Favicon and PWA manifest links are required.');
@@ -373,7 +376,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v32') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js')) throw new Error('PWA service worker must force an app-shell refresh for installed apps and cache the history module.');
+if (!sw.includes('traceball-arena-v33') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js') || !sw.includes('/elm.js') || !sw.includes('/elm.html') || !sw.includes("cached || caches.match('/')")) throw new Error('PWA service worker must force a Phase 9 app-shell refresh, cache the Elm default shell, preserve legacy assets, and fall back to the cached default route.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);

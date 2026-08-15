@@ -51,7 +51,7 @@ Visual feedback:
 - **Realtime:** `ws` WebSocket rooms with in-memory room state
 - **IDs:** `nanoid` room codes
 - **QR:** `qrcode` endpoint for invite links
-- **Frontend:** vanilla HTML/CSS/JavaScript canvas renderer
+- **Frontend:** board-centric Elm-shell runtime on the default route, plus a temporary legacy vanilla HTML/CSS/JavaScript canvas fallback
 - **PWA:** manifest + service worker app-shell cache with forced refresh on updates
 - **Tests:** Vitest rule/state tests plus static build checks for UI and deployment contracts
 - **Deployment:** Railway single-service Node app using `railway.json`
@@ -73,13 +73,16 @@ The implementation intentionally stays no-DB for now: rooms, scores, and replays
 
 The `elm-rewrite` branch is the staging branch for introducing Elm into the frontend while the Node backend stays authoritative.
 
-Current Elm shell route:
+Current default frontend:
 
-- `/elm` renders the Phase 8 board shell from fixtures, a live board code query, or the public live board list, including an SVG board preview from canonical round state.
-- Existing `/` and `/room/:roomId` JavaScript frontend routes remain unchanged.
+- `/` renders the Phase 9 board-centric Elm shell from the public board list or a `?board=<code>` query.
+- `/room/:roomId` redirects to `/?board=<roomId>` so older invite links continue into the primary board-centric frontend.
+- `/elm` remains as a direct compatibility alias for the Elm shell.
+- `/legacy` and `/legacy/room/:roomId` keep the old JavaScript frontend available as a temporary fallback; setting `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
 - The Elm-side model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript WebSocket bridge with stable `traceballElmClientId` identity.
-- The `/elm` shell has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
-- Phase 8 keeps the server authoritative: own-turn legal SVG targets submit `{ type: 'move', to }`, seated players continue between rounds with `{ type: 'reset' }`, disconnected seats use grace/reconnect/free-seat recovery, and `/api/rooms` exposes live board list cards with `lastActivityAt`/`expiresAt` while expired boards are cleaned up.
+- The default shell has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
+- Phase 9 keeps the server authoritative: own-turn legal SVG targets submit `{ type: 'move', to }`, seated players continue between rounds with `{ type: 'reset' }`, disconnected seats use grace/reconnect/free-seat recovery, and `/api/rooms` exposes live board list cards with `lastActivityAt`/`expiresAt` while expired boards are cleaned up.
+- PWA cache version is bumped so installed clients fetch the new default shell.
 
 Architecture and rewrite docs:
 

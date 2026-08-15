@@ -219,6 +219,10 @@ function autoJoinSingleVacantSeat(bridge) {
   bridge.claimSeat(openSeats[0], 'Elm Player');
 }
 
+function boardUrl(code = '') {
+  return `/?board=${encodeURIComponent(code)}`;
+}
+
 async function createBoardAsBlue({ root, name = 'Elm Player', moveTimeLimitSeconds = 15, onModelChange } = {}) {
   const response = await fetch('/api/rooms', {
     method: 'POST',
@@ -229,6 +233,7 @@ async function createBoardAsBlue({ root, name = 'Elm Player', moveTimeLimitSecon
   const data = await response.json();
   const boardCode = sanitizeBoardCode(data.roomId);
   if (!boardCode) throw new Error('Create board failed: invalid board code.');
+  if (window.history?.replaceState) window.history.replaceState({}, '', boardUrl(boardCode));
   const bridge = createSocketBridge({ boardCode, root, onModelChange });
   const originalOnOpen = bridge.socket?.onopen;
   if (bridge.socket) {
@@ -611,7 +616,7 @@ function renderBoardList(rooms = []) {
   const visible = Array.isArray(rooms) ? rooms : [];
   const cards = visible.map((room) => {
     const code = room?.roomId || room?.code || '';
-    const elmUrl = room?.elmUrl || `/elm?board=${encodeURIComponent(code)}`;
+    const elmUrl = room?.elmUrl || boardUrl(code);
     const moves = Number(room?.moveCount || 0);
     return `
       <article class="elm-board-card" data-elm-board-card="${escapeHtml(code)}">
@@ -651,7 +656,7 @@ function renderBoardRecovery(model) {
       <h2>Board unavailable</h2>
       <p>${escapeHtml(model.error)}</p>
       <p class="elm-shell-note">Boards expire after one week of inactivity and in-memory staging boards reset when the service restarts.</p>
-      <div class="elm-action-row"><button type="button" id="elmCreateBoard" class="elm-primary">Create a fresh board</button><a href="/elm">Browse live boards</a></div>
+      <div class="elm-action-row"><button type="button" id="elmCreateBoard" class="elm-primary">Create a fresh board</button><a href="/">Browse live boards</a></div>
     </section>`;
 }
 
@@ -823,3 +828,10 @@ async function mount() {
 
 window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
 mount();
+
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then((registration) => {
+    registration.update?.().catch?.(() => {});
+    if (registration.waiting) registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  }).catch(() => {});
+}

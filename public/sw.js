@@ -1,6 +1,8 @@
-const CACHE_NAME = 'traceball-arena-v32';
+const CACHE_NAME = 'traceball-arena-v33';
 const APP_SHELL = [
   '/',
+  '/elm.html',
+  '/elm.js',
   '/index.html',
   '/styles.css',
   '/app.js',
@@ -41,6 +43,6 @@ self.addEventListener('fetch', (event) => {
         event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)));
         return response;
       })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('/index.html')))
+      .catch(() => caches.match(request).then((cached) => cached || caches.match('/')))
   );
 });
