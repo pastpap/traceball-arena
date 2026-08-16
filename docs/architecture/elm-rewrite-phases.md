@@ -168,7 +168,7 @@ Exit criteria:
 
 ## Phase 6: Elm board rendering and move UX
 
-**Goal:** Replace canvas-heavy gameplay UI with Elm-owned board rendering.
+**Goal:** Prove Elm can consume live board state and submit move intent. This phase is functional, not visual-parity-complete.
 
 Deliverables:
 
@@ -219,16 +219,34 @@ Exit criteria:
 - Direct link to expired board shows clear recovery path.
 - Cleanup is covered by tests.
 
-## Phase 9: Switch default frontend
+## Phase 9: Visual parity with the JavaScript frontend
 
-**Goal:** Make Elm the primary frontend when feature parity and reliability are proven.
+**Goal:** Make the Elm route look and feel like the current JavaScript frontend before it can become the default production UI.
 
 Deliverables:
 
-- Elm route becomes default app route. ✅ `/` now serves the board-centric Elm shell; `/room/:roomId` redirects to `/?board=<roomId>` for old invite compatibility.
-- Old JS frontend removed or kept behind a temporary fallback flag. ✅ Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls back root/old room routes.
-- PWA service worker cache version bumped. ✅ Cache is `traceball-arena-v34` and includes `/`, `/elm.html`, `/elm.js`, and legacy assets.
-- README updated with Elm development commands. ✅ README documents default/fallback routes, rollback flag, and the Elm-shell development flow.
+- Reuse the same page shell/layout structure as `public/index.html`: Home, Boards, Play, Match, replay, rules, history, board-stage, winner/pause overlays, mobile tabs, and action placement.
+- Reuse the same CSS classes and visual design tokens from `public/styles.css` where possible instead of inventing separate `elm-*` panels.
+- Port or share the same board graphics/artifacts from `public/app.js`: canvas dimensions/fit, pitch geometry, wall/gate strokes, margin lines, black gate-mouth bounce dots, grid/visited points, player-colored traced segments, ball graphic, turn marker behavior, legal-move affordances, winner overlay, confetti, pause blur, replay scrubber, and older-device/mobile spacing.
+- Keep the Elm-owned state and server-authoritative command flow from Phases 3-8; do not reintroduce ambiguous join/waiting-list behavior while copying the legacy UI.
+- Add visual/parity regression checks that assert the Elm shell renders the legacy structural markers (`board-stage`, `board-card`, replay controls, side/match cards, winner overlay hooks) and either shares or intentionally mirrors the legacy board renderer.
+
+Exit criteria:
+
+- On staging, a user cannot tell at first glance whether they are using the JavaScript UI or Elm UI except for intentionally improved lifecycle copy.
+- iPad/iOS 15 smoke passes for home, board list, join/watch/rejoin, move input, between-round, replay, and leave/forfeit flows.
+- The PR body explicitly lists any remaining non-parity gaps; if there are non-trivial gaps, Phase 10 cannot proceed.
+
+## Phase 10: Switch default frontend
+
+**Goal:** Make Elm the primary frontend only after functional parity, lifecycle reliability, and visual parity are proven.
+
+Deliverables:
+
+- Elm route becomes default app route only after Phase 9 visual parity is complete. ⚠️ Current `elm-rewrite` staging serves the functional Elm shell by default for testing, but this is not production-ready UI parity.
+- Old JS frontend removed or kept behind a temporary fallback flag. ⚠️ Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
+- PWA service worker cache version bumped after parity cutover. ⚠️ Current staging cache is `traceball-arena-v34` for shell testing, not final production parity.
+- README updated with Elm development commands and explicit visual-parity status.
 
 Exit criteria:
 

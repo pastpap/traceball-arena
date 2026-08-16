@@ -75,7 +75,8 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current default frontend:
 
-- `/` renders the Phase 9 board-centric Elm shell from the public board list or a `?board=<code>` query.
+- `/` currently renders the functional Phase 8/10-testing Elm shell on `elm-rewrite` staging so lifecycle flows can be tested end-to-end, but it is **not production-ready visual parity** yet.
+- Phase 9 is now explicit: the Elm UI must match the JavaScript UI layout, graphics, board artifacts, overlays, replay, and mobile behavior before the default-route cutover is considered complete.
 - `/room/:roomId` redirects to `/?board=<roomId>` so older invite links continue into the primary board-centric frontend.
 - `/elm` remains as a direct compatibility alias for the Elm shell.
 - `/legacy` and `/legacy/room/:roomId` keep the old JavaScript frontend available as a temporary fallback; setting `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
