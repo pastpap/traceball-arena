@@ -28,6 +28,18 @@ describe('Phase 1 canonical protocol adapter', () => {
     expect(message).toEqual(fixture('board-active-session'));
   });
 
+  it('exposes server-authoritative move timer metadata in active sessions', () => {
+    const game = createGame('ROOM123', { moveTimeLimitMs: 30000, now: 1000 });
+    claimSeat(game, 'p1', 'Stefan', 'client-blue', 1000);
+    claimSeat(game, 'p2', 'Friend', 'client-red', 2000);
+    game.turnStartedAt = 2000;
+
+    const message = toPhase1StateMessage(game, { version: 2, now: 2000 });
+
+    expect(message.board.currentSession.moveTimeLimitSeconds).toBe(30);
+    expect(message.board.currentSession.round.deadlineAt).toBe(32000);
+  });
+
   it('maps a scored round to BetweenRounds so Elm can render the Continue flow', () => {
     const game = createGame('ROOM123', { moveTimeLimitMs: 15000, now: 1000 });
     claimSeat(game, 'p1', 'Stefan', 'client-blue', 1000);

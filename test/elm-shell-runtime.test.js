@@ -106,7 +106,7 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
   it('renders Home with persisted player name, online setup, and local setup controls', () => {
     const storage = {
-      values: new Map([['traceballPlayerName', 'Stefan']]),
+      values: new Map([['traceballPlayerName', 'Stefan'], ['traceballOnlineMoveTimer', '30']]),
       getItem(key) { return this.values.get(key) ?? null; },
       setItem(key, value) { this.values.set(key, String(value)); },
     };
@@ -122,7 +122,26 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).toContain('id="localP1Name"');
     expect(html).toContain('id="localP2Name"');
     expect(html).toContain('id="localMoveTimer"');
+    expect(html).toContain('id="onlineMoveTimer"');
+    expect(html).toContain('<option value="30" selected>30 seconds</option>');
     expect(html).not.toContain('id="elmPlayerName"');
+  });
+
+  it('renders online timer metadata in Match and Play without enforcing it client-side', () => {
+    const { shell } = loadShell();
+    const message = fixture('board-active-session');
+    message.board.currentSession.moveTimeLimitSeconds = 30;
+    message.board.currentSession.round.deadlineAt = 32000;
+    const model = { ...shell.applyState(shell.initialModel(), message), ownSeat: 'p1', connectionStatus: 'connected' };
+
+    const html = shell.renderModel(model);
+    const playSection = html.slice(html.indexOf('class="board-card mobile-page active"'), html.indexOf('<aside class="side mobile-page"'));
+    const matchSection = html.slice(html.indexOf('<aside class="side mobile-page"'));
+
+    expect(playSection).toContain('data-elm-timer-display');
+    expect(playSection).toContain('Timer: 30s');
+    expect(playSection).toContain('Deadline 32000');
+    expect(matchSection).toContain('<strong>Timer:</strong> 30s · deadline 32000');
   });
 
   it('renders the current created/joined board in Boards tab and restores share link plus QR', () => {
@@ -661,19 +680,22 @@ describe('Phase 3 Elm shell runtime contract', () => {
       close() { this.closed = true; }
     }
 
+    let createBody;
     const { shell, root } = loadShell({
       WebSocket: FakeWebSocket,
       fetch: async (url, options) => {
         expect(url).toBe('/api/rooms');
         expect(options.method).toBe('POST');
+        createBody = JSON.parse(options.body);
         return { ok: true, json: async () => ({ roomId: 'NEW12345' }) };
       },
     });
 
-    const bridge = await shell.createBoardAsBlue({ root, name: 'Creator' });
+    const bridge = await shell.createBoardAsBlue({ root, name: 'Creator', moveTimeLimitSeconds: 30 });
     sockets[0].onopen();
 
     expect(bridge.boardCode).toBe('NEW12345');
+    expect(createBody).toEqual({ moveTimeLimitSeconds: 30 });
     expect(sent).toEqual([
       { type: 'watch', roomId: 'NEW12345', clientId: bridge.clientId },
       { type: 'claimSeat', roomId: 'NEW12345', seatId: 'p1', name: 'Creator', clientId: bridge.clientId },

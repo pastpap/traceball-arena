@@ -1,6 +1,7 @@
 const FIXTURE_URL = '/fixtures/phase1/board-active-session.json';
 const CLIENT_ID_KEY = 'traceballElmClientId';
 const PLAYER_NAME_KEY = 'traceballPlayerName';
+const ONLINE_TIMER_KEY = 'traceballOnlineMoveTimer';
 
 function initialModel() {
   return {
@@ -97,6 +98,21 @@ function getStoredPlayerName() {
 function persistPlayerName(name) {
   const value = String(name || '').trim().slice(0, 24) || 'Elm Player';
   getStorage()?.setItem?.(PLAYER_NAME_KEY, value);
+  return value;
+}
+
+function normalizeMoveTimerSeconds(value, fallback = 15) {
+  const seconds = Number(value);
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : fallback;
+}
+
+function getStoredOnlineMoveTimer() {
+  return normalizeMoveTimerSeconds(getStorage()?.getItem?.(ONLINE_TIMER_KEY), 15);
+}
+
+function persistOnlineMoveTimer(seconds) {
+  const value = normalizeMoveTimerSeconds(seconds, 15);
+  getStorage()?.setItem?.(ONLINE_TIMER_KEY, String(value));
   return value;
 }
 
@@ -311,6 +327,7 @@ function peopleList(title, people) {
 function renderOpenBoardForm(model = initialModel()) {
   const code = model.boardCode || '';
   const playerName = getStoredPlayerName();
+  const onlineTimer = getStoredOnlineMoveTimer();
   return `
     <div id="homeModeToggle" class="home-mode-toggle mobile-page active" data-mobile-page="invite" role="group" aria-label="Home game type">
       <button id="onlineMode" class="active" type="button" data-home-mode="online" aria-pressed="true">Online</button>
@@ -328,7 +345,7 @@ function renderOpenBoardForm(model = initialModel()) {
           <button type="submit">Watch board</button>
           <button type="button" id="elmCreateBoard">Create board as Blue</button>
         </div>
-        <label class="timer-setting" for="onlineMoveTimer"><span>Move timer</span><select id="onlineMoveTimer">${timerOptions(15)}</select></label>
+        <label class="timer-setting" for="onlineMoveTimer"><span>Move timer</span><select id="onlineMoveTimer">${timerOptions(onlineTimer)}</select></label>
         <p class="elm-connection">Connection: ${escapeHtml(model.connectionStatus || 'idle')}</p>
       </form>
     </div>
@@ -779,6 +796,32 @@ function renderPlayBoardBody(model, board) {
   return renderReadOnlyBoard(board, model);
 }
 
+function onlineTimerMeta(board) {
+  const session = board?.currentSession;
+  const round = session?.round;
+  const rawSeconds = session?.moveTimeLimitSeconds ?? round?.moveTimeLimitSeconds ?? board?.moveTimeLimitSeconds;
+  const rawMs = session?.moveTimeLimitMs ?? round?.moveTimeLimitMs ?? board?.moveTimeLimitMs;
+  const seconds = Number.isFinite(Number(rawSeconds)) ? Number(rawSeconds) : (Number.isFinite(Number(rawMs)) ? Math.round(Number(rawMs) / 1000) : null);
+  const deadlineAt = round?.deadlineAt ?? session?.deadlineAt ?? null;
+  if ((!seconds || seconds <= 0) && deadlineAt == null) return null;
+  return { seconds: seconds && seconds > 0 ? seconds : null, deadlineAt };
+}
+
+function onlineTimerText(board) {
+  const timer = onlineTimerMeta(board);
+  if (!timer) return '';
+  const limit = timer.seconds ? `${timer.seconds}s` : 'server timer';
+  return timer.deadlineAt == null ? `${limit}` : `${limit} · deadline ${timer.deadlineAt}`;
+}
+
+function renderBoardTimerDisplay(board) {
+  const timer = onlineTimerMeta(board);
+  if (!timer) return '';
+  const limit = timer.seconds ? `${timer.seconds}s` : 'server timer';
+  const deadline = timer.deadlineAt == null ? '' : `<span>Deadline ${escapeHtml(timer.deadlineAt)}</span>`;
+  return `<section class="elm-timer-display" data-elm-timer-display aria-label="Move timer"><span>Timer: ${escapeHtml(limit)}</span>${deadline}</section>`;
+}
+
 function titleCase(value) {
   const text = String(value || '').trim();
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
@@ -811,6 +854,7 @@ function renderBoardHud(model) {
       <span>${escapeHtml(viewerRoleLabel(model))}</span>
       <span>Turn: ${escapeHtml(turn)}</span>
       <span>${escapeHtml(status)}</span>
+      ${renderBoardTimerDisplay(board)}
     </section>`;
 }
 
@@ -824,6 +868,7 @@ function renderMatchDetails(model) {
   const watchers = Array.isArray(board.watchers) ? board.watchers : [];
   const waiting = Array.isArray(board.waitingList) ? board.waitingList : [];
   const moveCount = Number(session?.round?.moves?.length || 0);
+  const timerText = onlineTimerText(board);
   return `
     <section class="match-details" data-elm-match-details>
       <p><strong>Board:</strong> ${escapeHtml(board.code)}</p>
@@ -835,6 +880,7 @@ function renderMatchDetails(model) {
       <p><strong>Score:</strong> ${escapeHtml(score)}</p>
       <p><strong>Turn:</strong> ${escapeHtml(session?.round?.turn || 'none')}</p>
       <p><strong>Replay:</strong> ${moveCount} traced moves</p>
+      ${timerText ? `<p><strong>Timer:</strong> ${escapeHtml(timerText)}</p>` : ''}
       <p><strong>Watching:</strong> ${watchers.length}</p>
       <p><strong>Waiting list:</strong> ${waiting.length}${waiting.length ? ` — ${escapeHtml(waiting.map((p) => p.displayName || 'Anonymous').join(', '))}` : ''}</p>
       ${peopleList('Watchers', watchers)}
@@ -1026,9 +1072,14 @@ function activateHomeMode(mode = 'online') {
   document.querySelector('#localPanel')?.classList?.toggle?.('hidden', online);
 }
 
+function selectedMoveTimerSeconds(selector, fallback = 15) {
+  const value = normalizeMoveTimerSeconds(document.querySelector(selector)?.value ?? fallback, fallback);
+  if (selector === '#onlineMoveTimer') persistOnlineMoveTimer(value);
+  return value;
+}
+
 function selectedMoveTimer(selector, fallback = 15) {
-  const value = Number(document.querySelector(selector)?.value ?? fallback);
-  return Number.isFinite(value) && value >= 0 ? value : fallback;
+  return selectedMoveTimerSeconds(selector, fallback);
 }
 
 function wirePhase9ShellActions(root, bridge) {

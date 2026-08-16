@@ -21,6 +21,8 @@ Completed in PR branch `phase9-home-boards-match`:
 - Home restores share affordances for the active board: invite link, copy button, and QR code.
 - Play is focused on board/replay/leave; join/waiting/session details live in Match.
 - Task 1 Board HUD/orientation is implemented: Play shows board code, viewer role, turn, connection state, and a `data-elm-orientation` marker.
+- Task 2 one-shot move feedback is implemented with `data-elm-move-feedback="pending"` and a non-infinite CSS animation.
+- Task 3 online timer display/settings is implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
 
 ## Play tab parity reminders
 
@@ -154,7 +156,9 @@ git commit -m "feat: add one-shot move feedback"
 
 **Files:**
 - Modify: `test/elm-shell-runtime.test.js`
+- Modify: `test/phase1-protocol.test.js`
 - Modify: `public/elm.js`
+- Modify: `src/protocol/phase1.js`
 
 **Step 1: Write failing tests**
 
@@ -179,7 +183,7 @@ Run targeted tests, `npm test`, `npm run build`, and local smoke creating a time
 **Step 5: Commit**
 
 ```bash
-git add public/elm.js test/elm-shell-runtime.test.js
+git add public/elm.js src/protocol/phase1.js test/elm-shell-runtime.test.js test/phase1-protocol.test.js docs/plans/phase9-continuation-plan.md
 git commit -m "feat: surface online move timer settings"
 ```
 

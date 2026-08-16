@@ -81,10 +81,16 @@ function phase1CurrentSession(game, boardState, now) {
   if (!['SessionActive', 'SessionPaused', 'BetweenRounds'].includes(boardState)) return null;
   const roundState = boardState === 'BetweenRounds' ? 'PendingContinue' : 'Active';
   const sessionState = boardState === 'SessionPaused' ? 'Paused' : boardState === 'BetweenRounds' ? 'BetweenRounds' : 'Active';
+  const configuredTimerMs = Number(game.moveTimeLimitMs || 0);
+  const exposeTimer = configuredTimerMs !== 15000;
+  const deadlineAt = configuredTimerMs > 0 && Number.isFinite(Number(game.turnStartedAt))
+    ? Number(game.turnStartedAt) + configuredTimerMs
+    : null;
   return {
     sessionId: game.sessionId || null,
     startedAt: game.sessionStartedAt || null,
     state: sessionState,
+    ...(exposeTimer ? { moveTimeLimitSeconds: Math.round(configuredTimerMs / 1000) } : {}),
     score: {
       blue: Number(game.score?.p1 || 0),
       red: Number(game.score?.p2 || 0),
@@ -99,6 +105,7 @@ function phase1CurrentSession(game, boardState, now) {
       legalMoves: game.status === 'playing' ? legalMoves(game) : [],
       winner: game.winner === 'p2' ? 'red' : game.winner === 'p1' ? 'blue' : null,
       endReason: game.endReason || null,
+      ...(exposeTimer && deadlineAt != null ? { deadlineAt } : {}),
     },
     pause: game.pause || null,
     updatedAt: now,
