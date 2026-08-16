@@ -646,45 +646,155 @@ function renderBoardRecovery(model) {
 }
 
 function renderModel(model) {
-  const shellHeader = `
-    <p class="eyebrow">Traceball Arena — Elm Shell</p>
-    <h1>${model.board ? `Board ${escapeHtml(model.board.code)}` : 'Traceball Arena — Elm Shell'}</h1>
-    <p class="elm-shell-note">Phase 8 adds live board list, expiry metadata, and expired-board recovery while the server remains authoritative.</p>
-    ${renderOpenBoardForm(model)}`;
-  if (model.error) {
-    const recovery = renderBoardRecovery(model);
-    return `<section class="elm-shell">${shellHeader}${recovery || `<p class="elm-error">${escapeHtml(model.error)}</p>`}</section>`;
-  }
-  if (!model.board) {
-    return `<section class="elm-shell">${shellHeader}<p>Loading board state…</p></section>`;
-  }
   const board = model.board;
-  const session = board.currentSession;
+  const session = board?.currentSession;
   const score = session?.score ? `Blue ${session.score.blue} — Red ${session.score.red}` : 'No session score yet';
+  const boardTitle = board ? `Board ${escapeHtml(board.code)}` : 'Traceball Arena';
+  const stateLabel = board ? escapeHtml(board.state) : 'No board open';
   const staleNote = model.ignoredStaleVersion ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>` : '';
+  const boardBody = model.error
+    ? (renderBoardRecovery(model) || `<p class="elm-error">${escapeHtml(model.error)}</p>`)
+    : board
+      ? `
+        ${staleNote}
+        <div class="elm-board-shell">
+          <header class="elm-board-header">
+            <span class="elm-pill">${stateLabel}</span>
+            <span class="elm-version">v${Number(board.version || model.version || 0)}</span>
+          </header>
+          <div class="elm-seats">
+            <article class="elm-seat elm-seat-blue"><strong>Blue</strong><p>${escapeHtml(seatLabel(board.seats?.blue))}</p></article>
+            <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
+          </div>
+          ${renderSeatingActions(model)}
+          ${renderDisconnectedSeatRecovery(model)}
+          ${renderRoundResult(model)}
+          ${renderReadOnlyBoard(board, model)}
+          <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
+          ${peopleList('Watchers', board.watchers)}
+          ${peopleList('Waiting list', board.waitingList)}
+        </div>`
+      : '<p>Loading board state…</p>';
+
   return `
-    <section class="elm-shell">
-      ${shellHeader}
-      ${staleNote}
-      <div class="elm-board-shell">
-        <header class="elm-board-header">
-          <span class="elm-pill">${escapeHtml(board.state)}</span>
-          <span class="elm-version">v${Number(board.version || model.version || 0)}</span>
-        </header>
-        <div class="elm-seats">
-          <article class="elm-seat elm-seat-blue"><strong>Blue</strong><p>${escapeHtml(seatLabel(board.seats?.blue))}</p></article>
-          <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
+    <main class="shell" data-elm-phase="9">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Realtime paper-soccer</p>
+          <h1>Traceball Arena</h1>
+          <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
-        ${renderSeatingActions(model)}
-        ${renderDisconnectedSeatRecovery(model)}
-        ${renderRoundResult(model)}
-        ${renderReadOnlyBoard(board, model)}
-        <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
-        ${peopleList('Watchers', board.watchers)}
-        ${peopleList('Waiting list', board.waitingList)}
+        <button id="appMenuButton" class="app-menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenuOverlay">
+          <span aria-hidden="true">☰</span>
+        </button>
+      </section>
+
+      <nav class="mobile-nav" aria-label="Mobile game pages">
+        <button type="button" class="mobile-tab" data-page-target="invite">Home</button>
+        <button type="button" class="mobile-tab" data-page-target="boards">Boards</button>
+        <button type="button" class="mobile-tab active" data-page-target="play">Play</button>
+        <button type="button" class="mobile-tab" data-page-target="match">Match</button>
+      </nav>
+
+      <section id="joinPanel" class="card join-panel mobile-page" data-mobile-page="invite">
+        <div class="online-header">
+          <h2>Online game</h2>
+          <p>Open a board as watcher, then choose an open seat when you are ready to play.</p>
+        </div>
+        ${renderOpenBoardForm(model)}
+      </section>
+
+      <section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">
+        <div class="boards-header">
+          <div>
+            <p class="boards-kicker">Server lobby</p>
+            <h2>Boards</h2>
+            <p>Live board list is available from the lobby route.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="game-layout">
+        <div class="board-card mobile-page active" data-mobile-page="play">
+          <div id="playStatus" class="play-status">${boardTitle}</div>
+          <div id="turnIndicator" class="turn-indicator" aria-live="polite">${stateLabel}</div>
+          <div class="play-board-actions">
+            <button id="playClaimP1" class="play-join-button ghost hidden" type="button">Join Blue</button>
+            <button id="playClaimP2" class="play-join-button ghost hidden" type="button">Join Red</button>
+            <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
+            <button id="playLeaveSeat" class="play-leave-button ghost danger hidden" type="button">Leave / forfeit</button>
+          </div>
+          <div class="board-stage">
+            ${boardBody}
+            <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+              <div class="pause-card">
+                <div class="pause-kicker">Paused</div>
+                <h2 id="pauseTitle">Game paused</h2>
+                <p id="pauseMessage">Board hidden while paused.</p>
+                <p id="pauseTurn">Turn resumes here.</p>
+                <div class="pause-actions">
+                  <button id="resumeGame" class="primary" type="button">Resume game</button>
+                  <button id="pauseNewRound" class="ghost" type="button">New round</button>
+                </div>
+              </div>
+            </div>
+            <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
+              <div class="winner-card">
+                <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
+                <div class="winner-kicker">Winner</div>
+                <div id="winnerName" class="winner-name">Player</div>
+                <button id="winnerNewRound" class="winner-new-round" type="button">New Round</button>
+              </div>
+            </div>
+          </div>
+          <div class="board-replay replay">
+            <h2>Replay</h2>
+            <div class="replay-controls">
+              <button id="replayStart">Start</button>
+              <button id="replayPrev">‹</button>
+              <button id="replayNext">›</button>
+              <button id="replayEnd">End</button>
+            </div>
+            <input id="replayRange" type="range" min="0" max="0" value="0" />
+            <p id="replayText">Replay appears once moves are made.</p>
+          </div>
+        </div>
+        <aside class="side mobile-page" data-mobile-page="match">
+          <div class="card scoreboard">
+            <h2>Match</h2>
+            <div id="status">${boardTitle}</div>
+            <div class="players score-strip" aria-label="Room score">
+              <div class="score-name blue-name"><span class="dot blue"></span><strong id="p1">${escapeHtml(playerDisplayName(board, 'blue'))}</strong></div>
+              <div class="score-spacer" aria-hidden="true"></div>
+              <div class="score-name red-name"><strong id="p2">${escapeHtml(playerDisplayName(board, 'red'))}</strong><span class="dot red"></span></div>
+              <div id="p1Score" class="score-number blue-score">${Number(session?.score?.blue || 0)}</div>
+              <div class="score-dash">-</div>
+              <div id="p2Score" class="score-number red-score">${Number(session?.score?.red || 0)}</div>
+            </div>
+            <div id="seatActions" class="seat-actions"></div>
+            <button id="pauseGame" class="ghost">Pause game</button>
+            <button id="reset" class="ghost">New round</button>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <div id="appMenuDropdown" class="app-menu-dropdown hidden" role="menu" aria-label="App menu">
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="history">Play History</button>
+      <button class="app-menu-choice" type="button" role="menuitem" data-menu-view="rules">Rules</button>
+      <p class="app-menu-note">More settings later.</p>
+    </div>
+    <div id="appContentOverlay" class="app-content-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="appContentTitle">
+      <div class="app-content-panel">
+        <div class="app-content-header">
+          <div>
+            <p class="app-menu-kicker">Traceball Arena</p>
+            <h2 id="appContentTitle">Menu</h2>
+          </div>
+          <button id="appContentClose" class="app-menu-close" type="button" aria-label="Close window">×</button>
+        </div>
       </div>
-      <p class="elm-shell-link"><a href="/">Back to current JavaScript frontend</a></p>
-    </section>`;
+    </div>
+    <div id="toast" role="status"></div>`;
 }
 
 

@@ -14,8 +14,8 @@ const elmTypes = readFileSync('src/elm/Board/Types.elm', 'utf8');
 const elmProtocol = readFileSync('src/elm/Protocol.elm', 'utf8');
 const gameSource = readFileSync('src/game.js', 'utf8');
 const serverSource = readFileSync('src/server.js', 'utf8');
-if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHtml.includes('Traceball Arena — Elm Shell')) {
-  throw new Error('Elm shell HTML must mount #elm-root and load /elm.js with a clear title.');
+if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHtml.includes('<title>Traceball Arena</title>') || !elmHtml.includes('name="theme-color"') || !elmHtml.includes('rel="apple-touch-icon"') || elmHtml.includes('Elm Shell')) {
+  throw new Error('Elm route HTML must mount #elm-root, load /elm.js, and use the production Traceball Arena PWA shell metadata.');
 }
 if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-active-session.json')) {
   throw new Error('public/elm.js must provide the minimal Elm-shell runtime and load a Phase 1 fixture.');

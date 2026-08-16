@@ -48,8 +48,9 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     for (const name of fixtureNames) {
       const html = shell.renderBoardMessage(fixture(name));
-      expect(html).toContain('Traceball Arena — Elm Shell');
+      expect(html).toContain('Traceball Arena');
       expect(html).toContain('Board ROOM123');
+      expect(html).toContain('class="board-stage"');
     }
   });
 
@@ -67,6 +68,39 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(waitingHtml).toContain('Watcher One');
     expect(waitingHtml).toContain('Waiting list');
     expect(waitingHtml).toContain('Next Player');
+  });
+
+  it('renders Phase 9 legacy shell structure around live Elm board state', () => {
+    const { shell } = loadShell();
+    const html = shell.renderBoardMessage(fixture('board-active-session'));
+
+    for (const marker of [
+      'class="shell"',
+      'class="hero"',
+      'class="mobile-nav"',
+      'data-page-target="invite"',
+      'data-page-target="boards"',
+      'data-page-target="play"',
+      'data-page-target="match"',
+      'id="joinPanel"',
+      'id="boardsPanel"',
+      'class="game-layout"',
+      'class="board-card mobile-page active"',
+      'class="board-stage"',
+      'id="pauseOverlay"',
+      'id="winnerOverlay"',
+      'class="board-replay replay"',
+      'id="replayRange"',
+      'class="side mobile-page"',
+      'class="card scoreboard"',
+      'id="seatActions"',
+      'id="appMenuDropdown"',
+      'id="appContentOverlay"',
+      'id="toast"',
+    ]) {
+      expect(html).toContain(marker);
+    }
+    expect(html).not.toContain('Traceball Arena — Elm Shell');
   });
 
   it('renders a read-only SVG board with grid, gates, ball, and live legal-move overlay', () => {
