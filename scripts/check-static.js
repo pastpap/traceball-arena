@@ -223,8 +223,11 @@ if (!html.includes('id="playClaimP1"') || !html.includes('id="playClaimP2"') || 
 if (!app.includes('let leavingSeat = false') || !app.includes('leavingSeat = true') || !app.includes('if (leavingSeat) return') || !app.includes('wantsPlayerSession = false;')) {
   throw new Error('Explicit Leave must keep the browser as a watcher and block auto-rejoin until the user presses a join button.');
 }
-if (!app.includes('cachedBoards = rooms') || !app.includes('function vacantSeatForRoom(room)') || !app.includes('openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {') || !app.includes('claimOnlineSeat(seatId)')) {
-  throw new Error('Lobby Open / join must use the board summary to auto-claim an open seat instead of opening Play as watcher-only.');
+const openLobbyStart = app.indexOf('function openLobbyBoard(nextRoomId)');
+const openLobbyEnd = app.indexOf('function claimOnlineSeat', openLobbyStart);
+const openLobbySection = openLobbyStart >= 0 && openLobbyEnd > openLobbyStart ? app.slice(openLobbyStart, openLobbyEnd) : '';
+if (!app.includes('cachedBoards = rooms') || !openLobbySection.includes('Board opened for watching. Choose an open seat when you want to play.') || openLobbySection.includes('claimOnlineSeat(')) {
+  throw new Error('Lobby Watch board must open the board as a watcher only; explicit Join Blue/Join Red buttons claim seats.');
 }
 if (!app.includes('sessionTimeText(entry)') || !app.includes('entry.finalScore') || !app.includes('formatHistoryDate(entry.endedAt') || !app.includes('formatHistoryDate(entry.startedAt')) {
   throw new Error('Server board session history must show saved session score plus start/end date-times.');

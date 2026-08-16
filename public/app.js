@@ -866,7 +866,7 @@ function renderBoardCard(room) {
   const p2 = room.players?.p2 || { name: 'Red', status: 'vacant' };
   const status = boardStatusLabel(room);
   const last = room.lastResult ? `<p class="board-card-last">Last: ${escapeHtml(historyText(room.lastResult))}</p>` : '<p class="board-card-last">No finished sessions yet.</p>';
-  const action = room.occupancy?.vacantCount > 0 ? 'Open / join' : 'Watch';
+  const action = 'Watch board';
   return `
     <article class="lobby-board-card">
       <div class="board-card-top">
@@ -892,20 +892,8 @@ function seatLabel(seat, fallback) {
   return seat && seat.status !== 'vacant' ? seat.name || fallback : 'Open';
 }
 
-function vacantSeatForRoom(room) {
-  if (room?.players?.p1?.status === 'vacant') return 'p1';
-  if (room?.players?.p2?.status === 'vacant') return 'p2';
-  return null;
-}
-
 function openLobbyBoard(nextRoomId) {
-  const room = cachedBoards.find((entry) => entry.roomId === nextRoomId);
-  const seatId = vacantSeatForRoom(room);
-  const message = seatId ? `Joining ${seatId === 'p1' ? 'Blue' : 'Red'} seat…` : 'Board opened for watching.';
-  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {
-    if (!seatId) return;
-    claimOnlineSeat(seatId);
-  });
+  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, 'Board opened for watching. Choose an open seat when you want to play.');
   setMobilePage('play');
 }
 
