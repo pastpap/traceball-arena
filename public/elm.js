@@ -548,7 +548,7 @@ function renderReadOnlyBoard(board, model = initialModel()) {
   const playableAttr = legalContext.playable ? ' data-elm-legal-playable="true"' : '';
   const legal = legalMoves.map((point) => {
     const key = elmPointKey(point);
-    const pendingAttr = model?.pendingMoveKey === key ? ` data-elm-pending-move="${key}"` : '';
+    const pendingAttr = model?.pendingMoveKey === key ? ` data-elm-pending-move="${key}" data-elm-move-feedback="pending"` : '';
     return `<g class="elm-legal-target elm-legal-${legalContext.name}${pendingAttr ? ' elm-legal-pending' : ''}" data-elm-legal-move="${key}" data-elm-legal-move-state="${legalContext.state}"${playableAttr}${pendingAttr}><circle class="elm-legal-hit-ring" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="34" /><circle class="elm-legal-move elm-legal-${turn}" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="24" /><text class="elm-legal-label" x="${elmScreenX(point.x)}" y="${elmScreenY(point.y) + 6}">•</text></g>`;
   }).join('');
   const ballKey = elmPointKey(ball);

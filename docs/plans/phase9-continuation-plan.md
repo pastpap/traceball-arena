@@ -2,9 +2,9 @@
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
-**Goal:** Continue Phase 9 toward visual/product parity while keeping the game board-centric and reviewable in small PR slices.
+**Goal:** Continue Phase 9 toward visual/product parity while keeping the game board-centric. Push completed slices directly to `elm-rewrite` unless Stefan explicitly asks for branches/PRs again.
 
-**Architecture:** The current default shell is rendered by `public/elm.js` and tested by `test/elm-shell-runtime.test.js`. Each slice should begin with a failing runtime/static test, implement the smallest UI/runtime change, run `npm test`, `npm run build`, and a local HTTP/WebSocket smoke before pushing. Keep online server state authoritative; local same-screen runtime can be isolated in the shell until it is promoted to shared game helpers.
+**Architecture:** The current default shell is rendered by `public/elm.js` and tested by `test/elm-shell-runtime.test.js`. Each slice should begin with a failing runtime/static test, implement the smallest UI/runtime change, run `npm test`, `npm run build`, and a local HTTP/WebSocket smoke before pushing directly to `elm-rewrite`. Keep online server state authoritative; local same-screen runtime can be isolated in the shell until it is promoted to shared game helpers.
 
 **Tech Stack:** Node.js, Express, WebSocket `ws`, Vitest, static HTML/CSS/JS in `public/`, checked-in Elm shell fallback.
 
@@ -20,6 +20,17 @@ Completed in PR branch `phase9-home-boards-match`:
 - The current online board is visible in the Boards tab immediately after create/join, and the Boards tab can still be replaced by `/api/rooms` results.
 - Home restores share affordances for the active board: invite link, copy button, and QR code.
 - Play is focused on board/replay/leave; join/waiting/session details live in Match.
+- Task 1 Board HUD/orientation is implemented: Play shows board code, viewer role, turn, connection state, and a `data-elm-orientation` marker.
+
+## Play tab parity reminders
+
+When reaching full Play tab parity with the legacy JS version, do not forget:
+
+- Reuse existing assets and animations rather than replacing them with plain placeholders.
+- Keep the win modal/overlay after a win, including a clear button to start a new match/round.
+- Add countdown timers into/onto the board surface like the JS version, not only as side-panel text.
+- Render player names and the current session score in the board surface itself so the board remains self-contained.
+- Keep Play board-centric: these overlays belong on/around the board; lobby/join/watch details still belong in Home/Boards/Match.
 
 ## Guardrails
 

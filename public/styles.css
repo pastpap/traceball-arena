@@ -951,6 +951,20 @@ body.menu-open { overflow: hidden; }
 .elm-legal-layer { pointer-events: auto; }
 .elm-legal-target { opacity: .92; cursor: default; }
 .elm-legal-own-turn { cursor: pointer; touch-action: manipulation; }
+.elm-legal-pending .elm-legal-hit-ring {
+  fill: rgba(255,255,255,.26);
+  stroke: #ffffff;
+  animation: elm-move-confirm-once .42s ease-out;
+}
+.elm-legal-pending .elm-legal-move {
+  animation: elm-move-confirm-once .42s ease-out;
+  filter: drop-shadow(0 0 14px rgba(141,255,174,.86));
+}
+@keyframes elm-move-confirm-once {
+  0% { transform: scale(1); opacity: .82; }
+  45% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(1); opacity: .9; }
+}
 .elm-legal-hit-ring {
   fill: rgba(141,255,174,.11);
   stroke: rgba(141,255,174,.35);

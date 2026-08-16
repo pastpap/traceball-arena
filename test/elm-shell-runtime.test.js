@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 const shellSource = readFileSync('public/elm.js', 'utf8');
+const cssSource = readFileSync('public/styles.css', 'utf8');
 
 function loadShell(overrides = {}) {
   const root = { innerHTML: '' };
@@ -278,6 +279,24 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(waitingTurn).toContain('data-elm-legal-move-state="waiting"');
     expect(waitingTurn).toContain('Opponent turn: legal moves shown for orientation.');
     expect(waitingTurn).not.toContain('data-elm-legal-playable="true"');
+  });
+
+  it('renders pending move feedback as a one-shot animation without continuous pulsing', () => {
+    const { shell } = loadShell();
+    const model = {
+      ...shell.applyState(shell.initialModel(), fixture('board-active-session')),
+      ownSeat: 'p1',
+      pendingMoveKey: '4,5',
+    };
+
+    const html = shell.renderModel(model);
+
+    expect(html).toContain('data-elm-pending-move="4,5"');
+    expect(html).toContain('data-elm-move-feedback="pending"');
+    expect(html).toContain('elm-legal-pending');
+    expect(cssSource).toContain('.elm-legal-pending');
+    expect(cssSource).toContain('@keyframes elm-move-confirm-once');
+    expect(cssSource).not.toMatch(/elm-legal-pending[\s\S]{0,260}infinite/);
   });
 
   it('submits a server-authoritative move from an own-turn Elm legal target', () => {
