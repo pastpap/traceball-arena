@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leaveWaitingList, makeMove, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
+import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, pauseGame, publicGame, resetGame, resumeGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
   it('newly created boards start with vacant blue and red seats plus empty session history', () => {
@@ -136,6 +136,22 @@ describe('room state lifecycle', () => {
     expect(game.sessionStartedAt).toBe(4000);
     expect(game.history).toHaveLength(1);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
+  });
+
+  it('opens both seats when the remaining player leaves while the opponent is disconnected', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1000);
+    claimSeat(game, 'p2', 'Red Player', 'red-client', 2000);
+    markPlayerDisconnected(game, 'p1', 3000);
+
+    const result = leavePlayerAfterOpponentGrace(game, 'p2', 4000);
+
+    expect(result).toMatchObject({ ok: true, abandoned: true });
+    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
+    expect(game.players.p2).toMatchObject({ id: 'p2', name: 'Red', clientId: null, status: 'vacant' });
+    expect(game.status).toBe('waiting');
+    expect(claimSeat(game, 'p1', 'Fresh Blue', 'fresh-blue', 5000)).toEqual({ ok: true, playerId: 'p1' });
+    expect(claimSeat(game, 'p2', 'Fresh Red', 'fresh-red', 6000)).toEqual({ ok: true, playerId: 'p2' });
   });
 
   it('starts a new round without resetting the active player-session score or recording table history', () => {

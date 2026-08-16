@@ -270,7 +270,7 @@ export function leavePlayerAfterOpponentGrace(game, playerId, now = Date.now()) 
   const opponentId = otherPlayer(playerId);
   const opponent = game.players[opponentId];
   if (!isSeatActive(game.players[playerId])) return { ok: false, error: 'That seat is already vacant.' };
-  if (opponent?.status !== 'disconnected' || !Number.isFinite(opponent.canBeFreedAt) || now < opponent.canBeFreedAt) {
+  if (opponent?.status !== 'disconnected') {
     return leavePlayer(game, playerId, now);
   }
 
