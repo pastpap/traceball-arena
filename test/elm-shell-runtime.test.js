@@ -124,6 +124,26 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).not.toContain('id="elmPlayerName"');
   });
 
+  it('renders the current created/joined board in Boards tab and restores share link plus QR', () => {
+    const { shell } = loadShell({ location: { protocol: 'https:', host: 'traceball.test', search: '?board=ROOM123' } });
+    const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1' };
+
+    const html = shell.renderModel(model);
+    const homeSection = html.slice(html.indexOf('id="joinPanel"'), html.indexOf('id="boardsPanel"'));
+    const boardsSection = html.slice(html.indexOf('id="boardsPanel"'), html.indexOf('<section class="game-layout"'));
+
+    expect(homeSection).toContain('id="inviteBox"');
+    expect(homeSection).toContain('id="inviteLink"');
+    expect(homeSection).toContain('value="https://traceball.test/room/ROOM123"');
+    expect(homeSection).toContain('id="copyInviteCard"');
+    expect(homeSection).toContain('id="qr"');
+    expect(homeSection).toContain('/api/qr?url=');
+
+    expect(boardsSection).toContain('data-elm-board-list');
+    expect(boardsSection).toContain('data-elm-board-card="ROOM123"');
+    expect(boardsSection).toContain('Open board');
+  });
+
   it('keeps Play focused on board/replay/leave and moves join controls to Match/Home', () => {
     const { shell } = loadShell();
     const oneSeat = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
