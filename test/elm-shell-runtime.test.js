@@ -103,6 +103,52 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).not.toContain('Traceball Arena — Elm Shell');
   });
 
+  it('renders Phase 9 shell buttons as visible command controls from live board state', () => {
+    const { shell } = loadShell();
+    const oneSeat = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
+    const oneSeatHtml = shell.renderModel(oneSeat);
+    expect(oneSeatHtml).toContain('id="playClaimP2" class="play-join-button ghost"');
+    expect(oneSeatHtml).toContain('id="claimP2" class="ghost"');
+    expect(oneSeatHtml).toContain('data-elm-command="claim-red"');
+
+    const full = shell.applyState(shell.initialModel(), fixture('board-active-session'));
+    const fullHtml = shell.renderModel(full);
+    expect(fullHtml).toContain('id="playJoinWaitingList" class="play-join-button ghost"');
+    expect(fullHtml).toContain('data-elm-command="join-waiting-list"');
+  });
+
+  it('wires Phase 9 visible shell buttons to existing Elm bridge commands', () => {
+    const sent = [];
+    const shellActions = {
+      handler: null,
+      addEventListener(type, handler) {
+        if (type === 'click') this.handler = handler;
+      },
+    };
+    const { shell, root } = loadShell({
+      document: {
+        body: { dataset: {}, classList: { toggle() {} } },
+        querySelector: (selector) => (selector === '[data-elm-shell-actions]' ? shellActions : null),
+        querySelectorAll: () => [],
+      },
+    });
+    const base = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
+    const bridge = {
+      model: { ...base, ownSeat: null },
+      claimSeat(seatId, name) { sent.push({ type: 'claimSeat', seatId, name }); return true; },
+      joinWaitingList(name) { sent.push({ type: 'joinWaitingList', name }); return true; },
+      leaveWaitingList() { sent.push({ type: 'leaveWaitingList' }); return true; },
+      leaveSeat() { sent.push({ type: 'leave' }); return true; },
+      newRound() { sent.push({ type: 'reset' }); return true; },
+    };
+
+    shell.wirePhase9ShellActions(root, bridge);
+    shellActions.handler({ target: { dataset: { elmCommand: 'claim-red' } }, preventDefault() {} });
+
+    expect(sent).toEqual([{ type: 'claimSeat', seatId: 'p2', name: 'Elm Player' }]);
+    expect(root.innerHTML).toContain('Board ROOM123');
+  });
+
   it('renders a read-only SVG board with grid, gates, ball, and live legal-move overlay', () => {
     const { shell } = loadShell();
 

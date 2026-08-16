@@ -645,6 +645,40 @@ function renderBoardRecovery(model) {
     </section>`;
 }
 
+function phase9CommandVisibility(model) {
+  const board = model?.board;
+  const ownSeat = model?.ownSeat;
+  const blueVacant = board?.seats?.blue?.state === 'Vacant';
+  const redVacant = board?.seats?.red?.state === 'Vacant';
+  const full = board && !blueVacant && !redVacant;
+  const waiting = model?.waitingListMember;
+  return {
+    showBlue: !ownSeat && blueVacant,
+    showRed: !ownSeat && redVacant,
+    showWaitingJoin: full && !ownSeat && !waiting,
+    showWaitingLeave: full && !ownSeat && waiting,
+    showLeave: Boolean(ownSeat),
+    showNewRound: isSeated(model),
+  };
+}
+
+function hiddenClass(visible) {
+  return visible ? '' : ' hidden';
+}
+
+function renderPhase9SeatButtons(model, scope = 'play') {
+  const visibility = phase9CommandVisibility(model);
+  const play = scope === 'play';
+  const buttonClass = play ? 'play-join-button ghost' : 'ghost';
+  const leaveClass = play ? 'play-leave-button ghost danger' : 'ghost danger';
+  return `
+    <button id="${play ? 'playClaimP1' : 'claimP1'}" class="${buttonClass}${hiddenClass(visibility.showBlue)}" type="button" data-elm-command="claim-blue">Join Blue</button>
+    <button id="${play ? 'playClaimP2' : 'claimP2'}" class="${buttonClass}${hiddenClass(visibility.showRed)}" type="button" data-elm-command="claim-red">Join Red</button>
+    <button id="${play ? 'playJoinWaitingList' : 'joinWaitingList'}" class="${buttonClass}${hiddenClass(visibility.showWaitingJoin)}" type="button" data-elm-command="join-waiting-list">Join waiting list</button>
+    <button id="${play ? 'playLeaveWaitingList' : 'leaveWaitingList'}" class="${buttonClass}${hiddenClass(visibility.showWaitingLeave)}" type="button" data-elm-command="leave-waiting-list">Leave waiting list</button>
+    <button id="${play ? 'playLeaveSeat' : 'leaveSeat'}" class="${leaveClass}${hiddenClass(visibility.showLeave)}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
+}
+
 function renderModel(model) {
   const board = model.board;
   const session = board?.currentSession;
@@ -652,6 +686,7 @@ function renderModel(model) {
   const boardTitle = board ? `Board ${escapeHtml(board.code)}` : 'Traceball Arena';
   const stateLabel = board ? escapeHtml(board.state) : 'No board open';
   const staleNote = model.ignoredStaleVersion ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>` : '';
+  const newRoundControlAttr = isSeated(model) ? 'data-elm-command="new-round"' : 'disabled aria-disabled="true"';
   const boardBody = model.error
     ? (renderBoardRecovery(model) || `<p class="elm-error">${escapeHtml(model.error)}</p>`)
     : board
@@ -677,7 +712,7 @@ function renderModel(model) {
       : '<p>Loading board state…</p>';
 
   return `
-    <main class="shell" data-elm-phase="9">
+    <main class="shell" data-elm-phase="9" data-elm-shell-actions>
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Realtime paper-soccer</p>
@@ -719,10 +754,8 @@ function renderModel(model) {
           <div id="playStatus" class="play-status">${boardTitle}</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">${stateLabel}</div>
           <div class="play-board-actions">
-            <button id="playClaimP1" class="play-join-button ghost hidden" type="button">Join Blue</button>
-            <button id="playClaimP2" class="play-join-button ghost hidden" type="button">Join Red</button>
-            <button id="playPauseGame" class="play-pause-button ghost" type="button"><span aria-hidden="true">⏸</span> Pause</button>
-            <button id="playLeaveSeat" class="play-leave-button ghost danger hidden" type="button">Leave / forfeit</button>
+            ${renderPhase9SeatButtons(model, 'play')}
+            <button id="playPauseGame" class="play-pause-button ghost" type="button" data-elm-command="pause"><span aria-hidden="true">⏸</span> Pause</button>
           </div>
           <div class="board-stage">
             ${boardBody}
@@ -733,27 +766,27 @@ function renderModel(model) {
                 <p id="pauseMessage">Board hidden while paused.</p>
                 <p id="pauseTurn">Turn resumes here.</p>
                 <div class="pause-actions">
-                  <button id="resumeGame" class="primary" type="button">Resume game</button>
-                  <button id="pauseNewRound" class="ghost" type="button">New round</button>
+                  <button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>
+                  <button id="pauseNewRound" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
                 </div>
               </div>
             </div>
             <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
               <div class="winner-card">
-                <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner">×</button>
+                <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner" data-elm-command="close-winner">×</button>
                 <div class="winner-kicker">Winner</div>
                 <div id="winnerName" class="winner-name">Player</div>
-                <button id="winnerNewRound" class="winner-new-round" type="button">New Round</button>
+                <button id="winnerNewRound" class="winner-new-round" type="button" ${newRoundControlAttr}>New Round</button>
               </div>
             </div>
           </div>
           <div class="board-replay replay">
             <h2>Replay</h2>
             <div class="replay-controls">
-              <button id="replayStart">Start</button>
-              <button id="replayPrev">‹</button>
-              <button id="replayNext">›</button>
-              <button id="replayEnd">End</button>
+              <button id="replayStart" type="button" data-elm-command="replay-start">Start</button>
+              <button id="replayPrev" type="button" data-elm-command="replay-prev">‹</button>
+              <button id="replayNext" type="button" data-elm-command="replay-next">›</button>
+              <button id="replayEnd" type="button" data-elm-command="replay-end">End</button>
             </div>
             <input id="replayRange" type="range" min="0" max="0" value="0" />
             <p id="replayText">Replay appears once moves are made.</p>
@@ -771,9 +804,9 @@ function renderModel(model) {
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">${Number(session?.score?.red || 0)}</div>
             </div>
-            <div id="seatActions" class="seat-actions"></div>
-            <button id="pauseGame" class="ghost">Pause game</button>
-            <button id="reset" class="ghost">New round</button>
+            <div id="seatActions" class="seat-actions">${renderPhase9SeatButtons(model, 'match')}</div>
+            <button id="pauseGame" class="ghost" type="button" data-elm-command="pause">Pause game</button>
+            <button id="reset" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
           </div>
         </aside>
       </section>
@@ -803,6 +836,68 @@ function playerNameFromRoot(root) {
   return String(input?.value || 'Elm Player').trim().slice(0, 24) || 'Elm Player';
 }
 
+function rewireBridgeView(root, bridge) {
+  wireOpenBoardForm(root);
+  wireSeatingActions(root, bridge);
+  wirePhase9ShellActions(root, bridge);
+  wireBoardMoveTargets(root, bridge);
+  wireRoundActions(root, bridge);
+  wireDisconnectActions(root, bridge);
+}
+
+function refreshBridgeRender(root, bridge) {
+  if (root) root.innerHTML = renderModel(bridge.model);
+  rewireBridgeView(root, bridge);
+}
+
+function activateMobilePage(page) {
+  if (!page) return;
+  const body = document.body;
+  if (body?.dataset) body.dataset.mobilePage = page;
+  document.querySelectorAll?.('.mobile-tab')?.forEach?.((tab) => {
+    tab.classList?.toggle?.('active', tab?.dataset?.pageTarget === page);
+  });
+  document.querySelectorAll?.('.mobile-page')?.forEach?.((panel) => {
+    panel.classList?.toggle?.('active', panel?.dataset?.mobilePage === page);
+  });
+}
+
+function setToast(message) {
+  const toast = document.querySelector('#toast');
+  if (toast) toast.textContent = message;
+}
+
+function wirePhase9ShellActions(root, bridge) {
+  const shell = document.querySelector('[data-elm-shell-actions]');
+  shell?.addEventListener?.('click', (event) => {
+    const target = event.target?.closest?.('[data-elm-command], [data-page-target]') || event.target;
+    const page = target?.dataset?.pageTarget;
+    if (page) {
+      event.preventDefault?.();
+      activateMobilePage(page);
+      return;
+    }
+    const command = target?.dataset?.elmCommand;
+    if (!command) return;
+    event.preventDefault?.();
+    const name = playerNameFromRoot(root);
+    let changed = false;
+    if (command === 'claim-blue') changed = bridge.claimSeat?.('p1', name) || false;
+    if (command === 'claim-red') changed = bridge.claimSeat?.('p2', name) || false;
+    if (command === 'join-waiting-list') changed = bridge.joinWaitingList?.(name) || false;
+    if (command === 'leave-waiting-list') changed = bridge.leaveWaitingList?.() || false;
+    if (command === 'leave-seat') {
+      const confirmed = window.confirm ? window.confirm('Leave your seat? This may forfeit the current session.') : true;
+      if (confirmed) changed = bridge.leaveSeat?.() || false;
+    }
+    if (command === 'new-round') changed = submitNewRound(bridge);
+    if (command === 'pause' || command === 'resume' || command.startsWith('replay-') || command === 'close-winner') {
+      setToast('This control is wired; full visual parity for this action is coming in the next Phase 9 slice.');
+    }
+    if (changed) refreshBridgeRender(root, bridge);
+  });
+}
+
 function wireSeatingActions(root, bridge) {
   const actions = document.querySelector('[data-elm-actions]');
   actions?.addEventListener?.('click', (event) => {
@@ -825,11 +920,7 @@ function wireBoardMoveTargets(root, bridge) {
     const key = target.dataset.elmLegalMove;
     if (!submitMoveFromLegalTarget(bridge, key)) return;
     event.preventDefault?.();
-    if (root) root.innerHTML = renderModel(bridge.model);
-    wireOpenBoardForm(root);
-    wireSeatingActions(root, bridge);
-    wireBoardMoveTargets(root, bridge);
-    wireDisconnectActions(root, bridge);
+    refreshBridgeRender(root, bridge);
   });
 }
 
@@ -840,12 +931,7 @@ function wireRoundActions(root, bridge) {
     if (command !== 'new-round') return;
     if (!submitNewRound(bridge)) return;
     event.preventDefault?.();
-    if (root) root.innerHTML = renderModel(bridge.model);
-    wireOpenBoardForm(root);
-    wireSeatingActions(root, bridge);
-    wireBoardMoveTargets(root, bridge);
-    wireRoundActions(root, bridge);
-    wireDisconnectActions(root, bridge);
+    refreshBridgeRender(root, bridge);
   });
 }
 
@@ -857,12 +943,7 @@ function wireDisconnectActions(root, bridge) {
     if (command !== 'free-seat') return;
     if (!submitFreeDisconnectedSeat(bridge, seatId)) return;
     event.preventDefault?.();
-    if (root) root.innerHTML = renderModel(bridge.model);
-    wireOpenBoardForm(root);
-    wireSeatingActions(root, bridge);
-    wireBoardMoveTargets(root, bridge);
-    wireRoundActions(root, bridge);
-    wireDisconnectActions(root, bridge);
+    refreshBridgeRender(root, bridge);
   });
 }
 
@@ -878,11 +959,11 @@ function wireOpenBoardForm(root) {
       url.searchParams.set('board', code);
       window.history?.replaceState?.({}, '', url);
     }
-    createSocketBridge({ boardCode: code, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
+    createSocketBridge({ boardCode: code, root, onModelChange: (_model, bridge) => { rewireBridgeView(root, bridge); } });
   });
   createButton?.addEventListener?.('click', async () => {
     try {
-      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
+      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { rewireBridgeView(root, bridge); } });
     } catch (error) {
       if (root) root.innerHTML = renderModel({ ...initialModel(), error: error?.message || 'Create board failed.' });
     }
@@ -903,25 +984,28 @@ async function mount() {
   if (!root) return;
   const boardCode = parseBoardCodeFromLocation();
   if (boardCode && (window.WebSocket || typeof WebSocket !== 'undefined')) {
-    createSocketBridge({ boardCode, root, onModelChange: (_model, bridge) => { wireOpenBoardForm(root); wireSeatingActions(root, bridge); wireBoardMoveTargets(root, bridge); wireRoundActions(root, bridge); wireDisconnectActions(root, bridge); } });
+    createSocketBridge({ boardCode, root, onModelChange: (_model, bridge) => { rewireBridgeView(root, bridge); } });
     return;
   }
   let model = { ...initialModel(), clientId: getOrCreateClientId() };
   root.innerHTML = renderModel(model);
   wireOpenBoardForm(root);
+  wirePhase9ShellActions(root, { model });
   try {
     const response = await fetch('/api/rooms', { cache: 'no-store' });
     if (!response.ok) throw new Error(`Board list request failed: ${response.status}`);
     const payload = await response.json();
     root.innerHTML = renderModel(model) + renderBoardList(payload.rooms || []);
     wireOpenBoardForm(root);
+    wirePhase9ShellActions(root, { model });
   } catch (error) {
     root.innerHTML = renderModel(model) + `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error.message)}</p></section>`;
     wireOpenBoardForm(root);
+    wirePhase9ShellActions(root, { model });
   }
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wirePhase9ShellActions, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
 mount();
 
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
