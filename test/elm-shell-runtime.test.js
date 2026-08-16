@@ -103,18 +103,48 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).not.toContain('Traceball Arena — Elm Shell');
   });
 
-  it('renders Phase 9 shell buttons as visible command controls from live board state', () => {
+  it('renders Home with persisted player name, online setup, and local setup controls', () => {
+    const storage = {
+      values: new Map([['traceballPlayerName', 'Stefan']]),
+      getItem(key) { return this.values.get(key) ?? null; },
+      setItem(key, value) { this.values.set(key, String(value)); },
+    };
+    const { shell } = loadShell({ localStorage: storage });
+
+    const html = shell.renderModel(shell.initialModel());
+
+    expect(html).toContain('id="playerNameInput"');
+    expect(html).toContain('value="Stefan"');
+    expect(html).toContain('id="onlineMode"');
+    expect(html).toContain('id="localMode"');
+    expect(html).toContain('id="localForm"');
+    expect(html).toContain('id="localP1Name"');
+    expect(html).toContain('id="localP2Name"');
+    expect(html).toContain('id="localMoveTimer"');
+    expect(html).not.toContain('id="elmPlayerName"');
+  });
+
+  it('keeps Play focused on board/replay/leave and moves join controls to Match/Home', () => {
     const { shell } = loadShell();
     const oneSeat = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
     const oneSeatHtml = shell.renderModel(oneSeat);
-    expect(oneSeatHtml).toContain('id="playClaimP2" class="play-join-button ghost"');
+    const playSection = oneSeatHtml.slice(oneSeatHtml.indexOf('class="board-card mobile-page active"'), oneSeatHtml.indexOf('<aside class="side mobile-page"'));
+
+    expect(playSection).toContain('class="board-stage"');
+    expect(playSection).toContain('class="board-replay replay"');
+    expect(playSection).not.toContain('id="playClaimP2"');
+    expect(playSection).not.toContain('data-elm-actions');
+    expect(playSection).not.toContain('class="elm-seats"');
+    expect(playSection).not.toContain('data-elm-round-result');
+
     expect(oneSeatHtml).toContain('id="claimP2" class="ghost"');
     expect(oneSeatHtml).toContain('data-elm-command="claim-red"');
 
-    const full = shell.applyState(shell.initialModel(), fixture('board-active-session'));
-    const fullHtml = shell.renderModel(full);
-    expect(fullHtml).toContain('id="playJoinWaitingList" class="play-join-button ghost"');
-    expect(fullHtml).toContain('data-elm-command="join-waiting-list"');
+    const seated = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1' };
+    const seatedHtml = shell.renderModel(seated);
+    const seatedPlay = seatedHtml.slice(seatedHtml.indexOf('class="board-card mobile-page active"'), seatedHtml.indexOf('<aside class="side mobile-page"'));
+    expect(seatedPlay).toContain('id="playLeaveSeat"');
+    expect(seatedPlay).toContain('data-elm-command="leave-seat"');
   });
 
   it('wires Phase 9 visible shell buttons to existing Elm bridge commands', () => {
@@ -469,18 +499,23 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).toContain('Open board');
   });
 
-  it('loads the Phase 8 board list for the Elm landing view', async () => {
+  it('loads active online boards into the Boards tab without replacing the whole shell', async () => {
     const { shell, root } = loadShell({
       fetch: async (url) => {
         expect(url).toBe('/api/rooms');
         return { ok: true, json: async () => ({ rooms: [{ roomId: 'ROOM123', elmUrl: '/elm?board=ROOM123', state: 'WaitingForPlayers', occupancy: { activeCount: 0, vacantCount: 2 }, lastActivityAt: 1000, expiresAt: 604801000 }] }) };
       },
     });
+    root.innerHTML = shell.renderModel(shell.initialModel());
 
     await shell.loadBoardList(root);
 
+    expect(root.innerHTML).toContain('id="boardsPanel"');
     expect(root.innerHTML).toContain('data-elm-board-list');
-    expect(root.innerHTML).toContain('ROOM123');
+    expect(root.innerHTML).toContain('data-elm-board-card="ROOM123"');
+    expect(root.innerHTML).toContain('href="/elm?board=ROOM123"');
+    expect(root.innerHTML).toContain('id="joinPanel"');
+    expect(root.innerHTML).toContain('class="board-card mobile-page active"');
   });
 
   it('preserves an Elm client id through localStorage for WebSocket handoff', () => {
