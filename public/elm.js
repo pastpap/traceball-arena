@@ -226,6 +226,47 @@ function boardUrl(code = '') {
   return `/?board=${encodeURIComponent(code)}`;
 }
 
+function absoluteRoomInviteUrl(code = '') {
+  const loc = window.location || location;
+  const origin = loc.origin || `${loc.protocol}//${loc.host}`;
+  return `${origin}/room/${encodeURIComponent(code)}`;
+}
+
+function roomSummaryFromBoard(board) {
+  if (!board?.code) return null;
+  const session = board.currentSession;
+  const activeCount = ['blue', 'red'].filter((seat) => board.seats?.[seat]?.state !== 'Vacant').length;
+  return {
+    roomId: board.code,
+    elmUrl: boardUrl(board.code),
+    state: board.state,
+    status: session?.state || board.state,
+    occupancy: { activeCount, vacantCount: Math.max(0, 2 - activeCount) },
+    score: session?.score || { blue: 0, red: 0 },
+    moveCount: session?.round?.moves?.length || 0,
+    watcherCount: Array.isArray(board.watchers) ? board.watchers.length : 0,
+    waitingListCount: Array.isArray(board.waitingList) ? board.waitingList.length : 0,
+    lastActivityAt: board.updatedAt || 'current board',
+    expiresAt: board.expiresAt || 'unknown',
+  };
+}
+
+function renderInviteShare(model = initialModel()) {
+  const code = sanitizeBoardCode(model?.boardCode || model?.board?.code || '');
+  if (!code) return '';
+  const inviteUrl = absoluteRoomInviteUrl(code);
+  return `
+    <section id="inviteBox" class="invite" aria-label="Share this match">
+      <img id="qr" alt="QR code for board ${escapeHtml(code)}" src="/api/qr?url=${encodeURIComponent(inviteUrl)}" />
+      <div>
+        <label for="inviteLink">Send this link to a friend</label>
+        <input id="inviteLink" readonly value="${escapeHtml(inviteUrl)}" />
+        <button id="copyInviteCard" class="ghost" type="button" data-elm-command="copy-invite">Copy invite link</button>
+        <p id="roomText" class="elm-shell-note">Board ${escapeHtml(code)} · friends can scan the QR or open the link.</p>
+      </div>
+    </section>`;
+}
+
 async function createBoardAsBlue({ root, name = 'Elm Player', moveTimeLimitSeconds = 15, onModelChange } = {}) {
   const response = await fetch('/api/rooms', {
     method: 'POST',
@@ -806,16 +847,18 @@ function renderModel(model) {
           <p>Open a board as watcher, then choose an open seat when you are ready to play.</p>
         </div>
         ${renderOpenBoardForm(model)}
+        ${renderInviteShare(model)}
       </section>
 
       <section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">
+        ${board ? renderBoardList([roomSummaryFromBoard(board)].filter(Boolean)) : `
         <div class="boards-header">
           <div>
             <p class="boards-kicker">Server lobby</p>
             <h2>Boards</h2>
             <p>Live board list is available from the lobby route.</p>
           </div>
-        </div>
+        </div>`}
       </section>
 
       <section class="game-layout">
@@ -982,6 +1025,17 @@ function wirePhase9ShellActions(root, bridge) {
       if (confirmed) changed = bridge.leaveSeat?.() || false;
     }
     if (command === 'new-round') changed = submitNewRound(bridge);
+    if (command === 'copy-invite') {
+      const input = document.querySelector('#inviteLink');
+      input?.select?.();
+      const value = input?.value || absoluteRoomInviteUrl(bridge.model?.boardCode || bridge.model?.board?.code || '');
+      const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : null;
+      clipboard?.writeText?.(value).then?.(() => setToast('Invite link copied.'));
+      if (!clipboard) setToast('Invite link ready to copy.');
+    }
+    if (command === 'refresh-boards') {
+      loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
+    }
     if (command === 'pause' || command === 'resume' || command.startsWith('replay-') || command === 'close-winner') {
       setToast('This control is wired; full visual parity for this action is coming in the next Phase 9 slice.');
     }
