@@ -153,7 +153,7 @@ Deliverables:
 - Create board -> creator immediately joins Blue. ✅ Phase 5 bridge path added in `/elm` runtime.
 - Open code behavior:
   - both vacant -> choose color. ✅ Vacant seats render explicit Join Blue/Join Red controls.
-  - one vacant -> auto-join vacant seat. ✅ Single-vacancy state triggers a targeted `claimSeat` command.
+  - one vacant -> watch only until the user explicitly claims the open color. ✅ Single-vacancy boards no longer auto-claim from the watch/open path.
   - full -> watch only. ✅ Full boards stay watcher-only unless the user explicitly joins the waiting list.
 - Explicit `Join waiting list` / `Leave waiting list` controls. ✅ Backed by server commands.
 - Claim seat from waiting-list opportunity. ✅ Claiming a seat removes the client from waiting-list state.
@@ -191,7 +191,7 @@ Deliverables:
 
 - Seat state `DisconnectedReserved` exposed to Elm. ✅ Phase 1 state carries disconnected seat reservation metadata through the live `/elm` shell.
 - 60-second grace display. ✅ `/elm` shows the disconnected player, reserved-seat copy, and grace countdown text.
-- Reconnect by same `clientId`. ✅ Server marks dropped player sockets as disconnected instead of vacant; claiming with the same stable `clientId` reactivates the seat and resumes paused play.
+- Reconnect by same `clientId`. ✅ Server marks dropped player sockets as disconnected instead of vacant; opening/watching with the same stable `clientId` reclaims the reserved seat and resumes paused play, while fresh watchers stay seatless.
 - Opponent-only `Make seat available` control after grace. ✅ Elm gates the `freeSeat` command to the seated opponent only after `canBeFreed` is true.
 - Freeing stale opponent awards forfeit point and closes session. ✅ `freeDisconnectedSeat` archives a `disconnect-forfeit`, increments the remaining player score, and opens the seat.
 - Leaving after opponent grace has expired abandons/clears rather than awarding ghost point. ✅ Server leave path clears both seats when the opponent is stale-disconnected past grace.
@@ -227,7 +227,7 @@ Deliverables:
 
 - Elm route becomes default app route. ✅ `/` now serves the board-centric Elm shell; `/room/:roomId` redirects to `/?board=<roomId>` for old invite compatibility.
 - Old JS frontend removed or kept behind a temporary fallback flag. ✅ Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls back root/old room routes.
-- PWA service worker cache version bumped. ✅ Cache is `traceball-arena-v33` and includes `/`, `/elm.html`, `/elm.js`, and legacy assets.
+- PWA service worker cache version bumped. ✅ Cache is `traceball-arena-v34` and includes `/`, `/elm.html`, `/elm.js`, and legacy assets.
 - README updated with Elm development commands. ✅ README documents default/fallback routes, rollback flag, and the Elm-shell development flow.
 
 Exit criteria:

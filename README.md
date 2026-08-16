@@ -80,7 +80,7 @@ Current default frontend:
 - `/elm` remains as a direct compatibility alias for the Elm shell.
 - `/legacy` and `/legacy/room/:roomId` keep the old JavaScript frontend available as a temporary fallback; setting `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
 - The Elm-side model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript WebSocket bridge with stable `traceballElmClientId` identity.
-- The default shell has board-centric seating actions: create board as Blue, auto-join the single vacant seat, choose Blue/Red when both seats are open, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
+- The default shell has board-centric seating actions: create board as Blue, watch boards without claiming a seat, choose Blue/Red explicitly when seats are open, reclaim your own reserved seat on reload, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
 - Phase 9 keeps the server authoritative: own-turn legal SVG targets submit `{ type: 'move', to }`, seated players continue between rounds with `{ type: 'reset' }`, disconnected seats use grace/reconnect/free-seat recovery, and `/api/rooms` exposes live board list cards with `lastActivityAt`/`expiresAt` while expired boards are cleaned up.
 - PWA cache version is bumped so installed clients fetch the new default shell.
 

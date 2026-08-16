@@ -382,7 +382,7 @@ const icon = readFileSync('public/icon.svg', 'utf8');
 if (!icon.includes('<svg') || !icon.includes('Traceball Arena icon')) throw new Error('Traceball SVG icon is required.');
 const sw = readFileSync('public/sw.js', 'utf8');
 if (!sw.includes('self.addEventListener') || !sw.includes('CACHE_NAME')) throw new Error('PWA service worker shell cache is required.');
-if (!sw.includes('traceball-arena-v33') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js') || !sw.includes('/elm.js') || !sw.includes('/elm.html') || !sw.includes("cached || caches.match('/')")) throw new Error('PWA service worker must force a Phase 9 app-shell refresh, cache the Elm default shell, preserve legacy assets, and fall back to the cached default route.');
+if (!sw.includes('traceball-arena-v34') || !sw.includes('SKIP_WAITING') || !sw.includes('/history.js') || !sw.includes('/elm.js') || !sw.includes('/elm.html') || !sw.includes("cached || caches.match('/')")) throw new Error('PWA service worker must force a Phase 9 app-shell refresh, cache the Elm default shell, preserve legacy assets, and fall back to the cached default route.');
 
 for (const marker of ['.online-form-stack', 'padding: 18px', '.invite {', 'padding: 16px', '.online-action-toggle {', 'margin-top: 2px']) {
   if (!css.includes(marker)) throw new Error(`Home form spacing must let name/action/invite sections breathe: missing ${marker}`);
