@@ -779,6 +779,41 @@ function renderPlayBoardBody(model, board) {
   return renderReadOnlyBoard(board, model);
 }
 
+function titleCase(value) {
+  const text = String(value || '').trim();
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+}
+
+function colorLabel(color) {
+  const normalized = normalizeSeatId(color);
+  if (normalized === 'red') return 'Red';
+  if (normalized === 'blue') return 'Blue';
+  return 'None';
+}
+
+function viewerRoleLabel(model) {
+  const ownSeat = normalizeSeatId(model?.ownSeat);
+  if (ownSeat) return `You are ${colorLabel(ownSeat)}`;
+  if (model?.waitingListMember) return 'Waiting list';
+  return 'Watching';
+}
+
+function renderBoardHud(model) {
+  const board = model?.board;
+  if (!board) return '';
+  const round = board.currentSession?.round;
+  const turn = colorLabel(round?.turn || board.currentSession?.turn || '');
+  const orientation = normalizeSeatId(model?.ownSeat) || 'watcher';
+  const status = titleCase(model?.connectionStatus || 'idle');
+  return `
+    <section class="elm-board-hud" data-elm-board-hud data-elm-orientation="${escapeHtml(orientation)}" aria-label="Board status">
+      <span><strong>${escapeHtml(board.code)}</strong></span>
+      <span>${escapeHtml(viewerRoleLabel(model))}</span>
+      <span>Turn: ${escapeHtml(turn)}</span>
+      <span>${escapeHtml(status)}</span>
+    </section>`;
+}
+
 function renderMatchDetails(model) {
   const board = model?.board;
   const session = board?.currentSession;
@@ -865,6 +900,7 @@ function renderModel(model) {
         <div class="board-card mobile-page active" data-mobile-page="play">
           <div id="playStatus" class="play-status">${boardTitle}</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">${stateLabel}</div>
+          ${renderBoardHud(model)}
           <div class="play-board-actions">
             ${renderPlayLeaveButton(model)}
             <button id="playPauseGame" class="play-pause-button ghost" type="button" data-elm-command="pause"><span aria-hidden="true">⏸</span> Pause</button>

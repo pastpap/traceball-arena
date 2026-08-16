@@ -144,6 +144,19 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(boardsSection).toContain('Open board');
   });
 
+  it('renders a concise board HUD with viewer role, turn, and orientation', () => {
+    const { shell } = loadShell();
+    const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1', connectionStatus: 'connected' };
+    const html = shell.renderModel(model);
+    const playSection = html.slice(html.indexOf('class="board-card mobile-page active"'), html.indexOf('<aside class="side mobile-page"'));
+
+    expect(playSection).toContain('data-elm-board-hud');
+    expect(playSection).toContain('data-elm-orientation="blue"');
+    expect(playSection).toContain('You are Blue');
+    expect(playSection).toContain('Turn: Blue');
+    expect(playSection).toContain('Connected');
+  });
+
   it('keeps Play focused on board/replay/leave and moves join controls to Match/Home', () => {
     const { shell } = loadShell();
     const oneSeat = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
