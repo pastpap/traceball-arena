@@ -459,7 +459,9 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     expect(root.innerHTML).toContain('Join Red');
     expect(root.innerHTML).not.toContain('Join Game');
-    expect(sent[1]).toMatchObject({ type: 'claimSeat', roomId: 'ROOM123', seatId: 'p2', clientId: bridge.clientId });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ type: 'watch', roomId: 'ROOM123', clientId: bridge.clientId });
+    expect(bridge.model.ownSeat).toBe(null);
 
     bridge.claimSeat('p1', 'Elm Blue');
     bridge.claimSeat('p2', 'Elm Red');
@@ -467,7 +469,7 @@ describe('Phase 3 Elm shell runtime contract', () => {
     bridge.leaveWaitingList();
     bridge.leaveSeat();
 
-    expect(sent.slice(2)).toEqual([
+    expect(sent.slice(1)).toEqual([
       { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p1', name: 'Elm Blue', clientId: bridge.clientId },
       { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p2', name: 'Elm Red', clientId: bridge.clientId },
       { type: 'joinWaitingList', roomId: 'ROOM123', name: 'Elm Waiter', clientId: bridge.clientId },

@@ -188,7 +188,6 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       return;
     }
     bridge.model = { ...applyState(bridge.model, message), connectionStatus: bridge.model.connectionStatus, clientId: bridge.clientId, ownSeat: bridge.model.ownSeat, waitingListMember: bridge.model.waitingListMember, autoJoinAttempted: bridge.model.autoJoinAttempted, pendingMoveKey: null, pendingNewRound: false, pendingFreeSeat: null };
-    autoJoinSingleVacantSeat(bridge);
     renderBridge(root, bridge, onModelChange);
   };
   bridge.socket.onerror = () => {
@@ -204,20 +203,6 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
 }
 
 
-
-function vacantSeatIds(board) {
-  const seats = [];
-  if (board?.seats?.blue?.state === 'Vacant') seats.push('p1');
-  if (board?.seats?.red?.state === 'Vacant') seats.push('p2');
-  return seats;
-}
-
-function autoJoinSingleVacantSeat(bridge) {
-  const openSeats = vacantSeatIds(bridge.model.board);
-  if (bridge.model.autoJoinAttempted || bridge.model.ownSeat || bridge.model.waitingListMember || openSeats.length !== 1) return;
-  bridge.model = { ...bridge.model, autoJoinAttempted: true };
-  bridge.claimSeat(openSeats[0], 'Elm Player');
-}
 
 function boardUrl(code = '') {
   return `/?board=${encodeURIComponent(code)}`;

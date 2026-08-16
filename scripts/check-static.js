@@ -26,6 +26,9 @@ if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'wat
 if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
   throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
 }
+if (/autoJoinSingleVacantSeat\(bridge\)/.test(elmBundle)) {
+  throw new Error('Watching a board must stay seatless; Elm shell must not auto-claim the only vacant seat.');
+}
 if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-board-svg') || !elmBundle.includes('viewBox="0 0 900 1300"') || !elmBundle.includes('data-elm-legal-move') || !elmBundle.includes('data-elm-segment') || !elmBundle.includes('Phase 6C board')) {
   throw new Error('public/elm.js must render the Phase 6C SVG board with traced segments and context-aware legal-move targets.');
 }

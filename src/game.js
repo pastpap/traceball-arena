@@ -264,6 +264,24 @@ export function freeDisconnectedSeat(game, actorPlayerId, seatId, now = Date.now
   return { ok: true, playerId: seatId, winner: actorPlayerId, forfeit: wasSessionActive, historyEntry };
 }
 
+export function releaseExpiredDisconnectedSeats(game, now = Date.now()) {
+  normalizeSeats(game);
+  const released = [];
+  for (const playerId of ['p1', 'p2']) {
+    const seat = game.players[playerId];
+    if (seat?.status !== 'disconnected') continue;
+    if (!Number.isFinite(seat.canBeFreedAt) || now < seat.canBeFreedAt) continue;
+    game.players[playerId] = createSeat(playerId);
+    released.push(playerId);
+  }
+  if (!released.length) return { ok: false, released };
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: false });
+  game.status = 'waiting';
+  game.turnStartedAt = null;
+  markUpdated(game, now);
+  return { ok: true, released };
+}
+
 export function leavePlayerAfterOpponentGrace(game, playerId, now = Date.now()) {
   normalizeSeats(game);
   if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };

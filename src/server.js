@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from './game.js';
 import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
@@ -250,6 +250,7 @@ wss.on('connection', (ws) => {
 
 function cleanupExpiredRooms(now = Date.now()) {
   for (const [roomId, game] of rooms.entries()) {
+    releaseExpiredDisconnectedSeats(game, now);
     if (!isBoardExpired(game, now)) continue;
     clearTimeout(roomTimers.get(roomId));
     roomTimers.delete(roomId);
@@ -271,6 +272,7 @@ function safeRoomId(value) {
 function broadcast(roomId) {
   const game = rooms.get(roomId);
   if (!game) return;
+  releaseExpiredDisconnectedSeats(game);
   applyTurnTimeout(game);
   const payload = toLegacyCompatibleStateMessage(game);
   for (const [client, state] of sockets.entries()) {
@@ -285,12 +287,24 @@ function scheduleRoomTimeout(roomId) {
   clearTimeout(roomTimers.get(roomId));
   roomTimers.delete(roomId);
   const game = rooms.get(roomId);
-  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
-  const delay = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now() + 30);
+  if (!game) return;
+  const now = Date.now();
+  const delays = [];
+  if (game.status === 'playing' && game.moveTimeLimitMs && game.turnStartedAt) {
+    delays.push(game.turnStartedAt + game.moveTimeLimitMs - now + 30);
+  }
+  for (const playerId of ['p1', 'p2']) {
+    const canBeFreedAt = game.players?.[playerId]?.status === 'disconnected' ? game.players[playerId].canBeFreedAt : null;
+    if (Number.isFinite(canBeFreedAt)) delays.push(canBeFreedAt - now + 30);
+  }
+  if (!delays.length) return;
+  const delay = Math.max(0, Math.min(...delays));
   const timer = setTimeout(() => {
     const current = rooms.get(roomId);
     if (!current) return;
-    if (applyTurnTimeout(current).ok) broadcast(roomId);
+    const released = releaseExpiredDisconnectedSeats(current);
+    const timeout = applyTurnTimeout(current);
+    if (released.ok || timeout.ok) broadcast(roomId);
     else scheduleRoomTimeout(roomId);
   }, delay);
   roomTimers.set(roomId, timer);
