@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, pauseGame, publicGame, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from '../src/game.js';
+import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, pauseGame, publicGame, rejoinPlayerByClient, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from '../src/game.js';
 
 describe('room state lifecycle', () => {
   it('newly created boards start with vacant blue and red seats plus empty session history', () => {
@@ -152,6 +152,21 @@ describe('room state lifecycle', () => {
     expect(game.status).toBe('waiting');
     expect(claimSeat(game, 'p1', 'Fresh Blue', 'fresh-blue', 5000)).toEqual({ ok: true, playerId: 'p1' });
     expect(claimSeat(game, 'p2', 'Fresh Red', 'fresh-red', 6000)).toEqual({ ok: true, playerId: 'p2' });
+  });
+
+  it('reclaims a reserved seat for the same browser client during disconnect grace', () => {
+    const game = createGame('room-test');
+    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1000);
+    claimSeat(game, 'p2', 'Red Player', 'red-client', 2000);
+    markPlayerDisconnected(game, 'p2', 3000);
+
+    const result = rejoinPlayerByClient(game, 'red-client', 4000);
+
+    expect(result).toEqual({ ok: true, playerId: 'p2', rejoined: true });
+    expect(game.players.p2).toMatchObject({ name: 'Red Player', clientId: 'red-client', status: 'active' });
+    expect(game.players.p2.disconnectedAt).toBe(null);
+    expect(game.players.p2.canBeFreedAt).toBe(null);
+    expect(game.status).toBe('playing');
   });
 
   it('automatically releases disconnected reserved seats after the grace period expires', () => {

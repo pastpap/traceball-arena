@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, rejoinPlayerByClient, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from './game.js';
 import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
@@ -121,9 +121,15 @@ wss.on('connection', (ws) => {
     if (msg.type === 'watch') {
       const roomId = safeRoomId(msg.roomId);
       if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
-      if (!rooms.has(roomId)) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
       if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
+      const rejoin = rejoinPlayerByClient(game, msg.clientId);
+      if (rejoin.ok) {
+        socketState.playerId = rejoin.playerId;
+        send(ws, 'joined', { playerId: rejoin.playerId, roomId, rejoined: true });
+      }
       broadcast(roomId);
       return;
     }

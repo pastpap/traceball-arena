@@ -147,6 +147,29 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
   return { ok: true, playerId: seatId };
 }
 
+export function rejoinPlayerByClient(game, clientId, now = Date.now()) {
+  normalizeSeats(game);
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  for (const id of ['p1', 'p2']) {
+    const player = game.players[id];
+    if (player?.clientId !== cleanClientId) continue;
+    if (player.status === 'vacant') return { ok: false, error: 'That seat is vacant.' };
+    player.status = 'active';
+    player.disconnectedAt = null;
+    player.canBeFreedAt = null;
+    forgetWatcherClient(game, cleanClientId);
+    removeWaitingClient(game, cleanClientId);
+    if (game.status === 'paused' && bothSeatsActive(game)) {
+      resumeGame(game, now);
+    } else {
+      markUpdated(game, now);
+    }
+    return { ok: true, playerId: id, rejoined: true };
+  }
+  return { ok: false, error: 'No reserved seat for this client.' };
+}
+
 export function joinWaitingList(game, name, clientId, now = Date.now()) {
   normalizeSeats(game);
   game.waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
