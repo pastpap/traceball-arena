@@ -1,5 +1,6 @@
 const FIXTURE_URL = '/fixtures/phase1/board-active-session.json';
 const CLIENT_ID_KEY = 'traceballElmClientId';
+const PLAYER_NAME_KEY = 'traceballPlayerName';
 
 function initialModel() {
   return {
@@ -85,6 +86,23 @@ function getOrCreateClientId() {
   const id = `traceball-elm-${randomPart}`;
   storage?.setItem?.(CLIENT_ID_KEY, id);
   return id;
+}
+
+function getStoredPlayerName() {
+  const storage = getStorage();
+  const stored = String(storage?.getItem?.(PLAYER_NAME_KEY) || '').trim();
+  return stored.slice(0, 24) || 'Elm Player';
+}
+
+function persistPlayerName(name) {
+  const value = String(name || '').trim().slice(0, 24) || 'Elm Player';
+  getStorage()?.setItem?.(PLAYER_NAME_KEY, value);
+  return value;
+}
+
+function timerOptions(selectedSeconds = 15) {
+  const options = [0, 5, 10, 15, 30, 60];
+  return options.map((seconds) => `<option value="${seconds}"${Number(selectedSeconds) === seconds ? ' selected' : ''}>${seconds === 0 ? 'Off' : `${seconds} seconds`}</option>`).join('');
 }
 
 function websocketUrl() {
@@ -251,16 +269,38 @@ function peopleList(title, people) {
 
 function renderOpenBoardForm(model = initialModel()) {
   const code = model.boardCode || '';
+  const playerName = getStoredPlayerName();
   return `
-    <form class="elm-open-board" id="elmOpenBoardForm">
-      <label for="elmBoardCode">Open board as watcher</label>
-      <div class="elm-open-row">
-        <input id="elmBoardCode" name="board" value="${escapeHtml(code)}" placeholder="Board code" autocomplete="off" />
-        <button type="submit">Watch board</button>
-        <button type="button" id="elmCreateBoard">Create board as Blue</button>
-      </div>
-      <p class="elm-connection">Connection: ${escapeHtml(model.connectionStatus || 'idle')}</p>
-    </form>`;
+    <div id="homeModeToggle" class="home-mode-toggle mobile-page active" data-mobile-page="invite" role="group" aria-label="Home game type">
+      <button id="onlineMode" class="active" type="button" data-home-mode="online" aria-pressed="true">Online</button>
+      <button id="localMode" type="button" data-home-mode="local" aria-pressed="false">Local</button>
+    </div>
+    <div class="online-form-stack">
+      <label class="player-name-field" for="playerNameInput">
+        <span>Your name</span>
+        <input id="playerNameInput" autocomplete="nickname" maxlength="24" placeholder="Your name" value="${escapeHtml(playerName)}" required />
+      </label>
+      <form class="elm-open-board" id="elmOpenBoardForm">
+        <label for="elmBoardCode">Open board as watcher</label>
+        <div class="elm-open-row">
+          <input id="elmBoardCode" name="board" value="${escapeHtml(code)}" placeholder="Board code" autocomplete="off" />
+          <button type="submit">Watch board</button>
+          <button type="button" id="elmCreateBoard">Create board as Blue</button>
+        </div>
+        <label class="timer-setting" for="onlineMoveTimer"><span>Move timer</span><select id="onlineMoveTimer">${timerOptions(15)}</select></label>
+        <p class="elm-connection">Connection: ${escapeHtml(model.connectionStatus || 'idle')}</p>
+      </form>
+    </div>
+    <section id="localPanel" class="card join-panel local-panel mobile-page hidden" data-mobile-page="invite">
+      <div><h2>Local same-screen PvP</h2><p>Players face each other and play on this device. The pitch stays fixed for local play.</p></div>
+      <section id="resumeLocalCard" class="resume-local-card hidden" aria-live="polite"><div><strong>Paused local game</strong><p id="resumeLocalText">Resume the saved same-device game.</p></div><div class="resume-local-actions"><button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button><button id="discardLocalSaved" class="ghost" type="button">Discard</button></div></section>
+      <form id="localForm">
+        <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
+        <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
+        <label class="timer-setting" for="localMoveTimer"><span>Move timer</span><select id="localMoveTimer">${timerOptions(15)}</select></label>
+        <button id="startLocal" class="primary" type="submit">Start local match</button>
+      </form>
+    </section>`;
 }
 
 
@@ -603,22 +643,31 @@ function renderBoardList(rooms = []) {
     const code = room?.roomId || room?.code || '';
     const elmUrl = room?.elmUrl || boardUrl(code);
     const moves = Number(room?.moveCount || 0);
+    const watchers = Number(room?.watcherCount ?? room?.watchers?.length ?? 0);
+    const waiting = Number(room?.waitingListCount ?? room?.waitingList?.length ?? 0);
     return `
       <article class="elm-board-card" data-elm-board-card="${escapeHtml(code)}">
         <header><strong>${escapeHtml(code)}</strong><span class="elm-pill">${escapeHtml(roomSummaryState(room))}</span></header>
         <p>${escapeHtml(roomSummaryOccupancy(room))}</p>
         <p>Score ${escapeHtml(roomSummaryScore(room))}</p>
-        <p>${moves} traced moves</p>
+        <p>${moves} traced moves · ${watchers} watching · ${waiting} waiting</p>
         <p class="elm-shell-note">Last activity ${escapeHtml(room?.lastActivityAt ?? 'unknown')} · Expires ${escapeHtml(room?.expiresAt ?? 'unknown')}</p>
         <a class="elm-primary-link" href="${escapeHtml(elmUrl)}">Open board</a>
       </article>`;
   }).join('');
   return `
     <section class="elm-board-list" data-elm-board-list>
-      <h2>Live boards</h2>
-      <p class="elm-shell-note">Public boards expire after one week of inactivity.</p>
+      <div class="boards-header"><div><p class="boards-kicker">Server lobby</p><h2>Boards</h2><p class="elm-shell-note">Public boards expire after one week of inactivity.</p></div><button type="button" id="refreshBoards" class="ghost" data-elm-command="refresh-boards">Refresh</button></div>
       ${cards || '<p>No public boards right now. Create a fresh board to start.</p>'}
     </section>`;
+}
+
+function replaceBoardsPanelContent(root, html) {
+  if (!root || typeof root.innerHTML !== 'string' || !root.innerHTML.includes('id="boardsPanel"')) {
+    if (root) root.innerHTML = html;
+    return;
+  }
+  root.innerHTML = root.innerHTML.replace(/<section id="boardsPanel"[\s\S]*?<\/section>\s*<section class="game-layout">/, `<section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">${html}</section>\n\n      <section class="game-layout">`);
 }
 
 async function loadBoardList(root) {
@@ -626,10 +675,10 @@ async function loadBoardList(root) {
     const response = await fetch('/api/rooms', { cache: 'no-store' });
     if (!response.ok) throw new Error(`Board list request failed: ${response.status}`);
     const payload = await response.json();
-    if (root) root.innerHTML = renderBoardList(payload.rooms || []);
+    replaceBoardsPanelContent(root, renderBoardList(payload.rooms || []));
     return payload.rooms || [];
   } catch (error) {
-    if (root) root.innerHTML = `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error?.message || 'Could not load board list.')}</p></section>`;
+    replaceBoardsPanelContent(root, `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error?.message || 'Could not load board list.')}</p></section>`);
     return [];
   }
 }
@@ -666,7 +715,7 @@ function hiddenClass(visible) {
   return visible ? '' : ' hidden';
 }
 
-function renderPhase9SeatButtons(model, scope = 'play') {
+function renderPhase9SeatButtons(model, scope = 'match') {
   const visibility = phase9CommandVisibility(model);
   const play = scope === 'play';
   const buttonClass = play ? 'play-join-button ghost' : 'ghost';
@@ -679,6 +728,48 @@ function renderPhase9SeatButtons(model, scope = 'play') {
     <button id="${play ? 'playLeaveSeat' : 'leaveSeat'}" class="${leaveClass}${hiddenClass(visibility.showLeave)}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
 }
 
+function renderPlayLeaveButton(model) {
+  return `<button id="playLeaveSeat" class="play-leave-button ghost danger${hiddenClass(Boolean(model?.ownSeat))}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
+}
+
+function renderPlayBoardBody(model, board) {
+  if (model.error) return renderBoardRecovery(model) || `<p class="elm-error">${escapeHtml(model.error)}</p>`;
+  if (!board) return '<p>Loading board state…</p>';
+  return renderReadOnlyBoard(board, model);
+}
+
+function renderMatchDetails(model) {
+  const board = model?.board;
+  const session = board?.currentSession;
+  const score = session?.score ? `Blue ${session.score.blue} — Red ${session.score.red}` : 'No session score yet';
+  const ownSeat = normalizeSeatId(model?.ownSeat);
+  const role = ownSeat ? (ownSeat === 'blue' ? 'Blue player' : 'Red player') : (model?.waitingListMember ? 'Waiting list' : 'Watcher');
+  if (!board) return `<section class="match-details" data-elm-match-details><p>Open a board to see match details.</p></section>`;
+  const watchers = Array.isArray(board.watchers) ? board.watchers : [];
+  const waiting = Array.isArray(board.waitingList) ? board.waitingList : [];
+  const moveCount = Number(session?.round?.moves?.length || 0);
+  return `
+    <section class="match-details" data-elm-match-details>
+      <p><strong>Board:</strong> ${escapeHtml(board.code)}</p>
+      <p><strong>Connection:</strong> ${escapeHtml(model.connectionStatus || 'idle')}</p>
+      <p><strong>Your role:</strong> ${escapeHtml(role)}</p>
+      <p><strong>Blue:</strong> ${escapeHtml(seatLabel(board.seats?.blue))}</p>
+      <p><strong>Red:</strong> ${escapeHtml(seatLabel(board.seats?.red))}</p>
+      <p><strong>Session:</strong> ${escapeHtml(session?.state || board.state)}</p>
+      <p><strong>Score:</strong> ${escapeHtml(score)}</p>
+      <p><strong>Turn:</strong> ${escapeHtml(session?.round?.turn || 'none')}</p>
+      <p><strong>Replay:</strong> ${moveCount} traced moves</p>
+      <p><strong>Watching:</strong> ${watchers.length}</p>
+      <p><strong>Waiting list:</strong> ${waiting.length}${waiting.length ? ` — ${escapeHtml(waiting.map((p) => p.displayName || 'Anonymous').join(', '))}` : ''}</p>
+      ${peopleList('Watchers', watchers)}
+      ${peopleList('Waiting list', waiting)}
+      <p class="elm-shell-note">Last activity ${escapeHtml(board.updatedAt || 'unknown')} · Expires ${escapeHtml(board.expiresAt || 'unknown')}</p>
+      ${renderSeatingActions(model)}
+      ${renderDisconnectedSeatRecovery(model)}
+      ${renderRoundResult(model)}
+    </section>`;
+}
+
 function renderModel(model) {
   const board = model.board;
   const session = board?.currentSession;
@@ -687,29 +778,7 @@ function renderModel(model) {
   const stateLabel = board ? escapeHtml(board.state) : 'No board open';
   const staleNote = model.ignoredStaleVersion ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>` : '';
   const newRoundControlAttr = isSeated(model) ? 'data-elm-command="new-round"' : 'disabled aria-disabled="true"';
-  const boardBody = model.error
-    ? (renderBoardRecovery(model) || `<p class="elm-error">${escapeHtml(model.error)}</p>`)
-    : board
-      ? `
-        ${staleNote}
-        <div class="elm-board-shell">
-          <header class="elm-board-header">
-            <span class="elm-pill">${stateLabel}</span>
-            <span class="elm-version">v${Number(board.version || model.version || 0)}</span>
-          </header>
-          <div class="elm-seats">
-            <article class="elm-seat elm-seat-blue"><strong>Blue</strong><p>${escapeHtml(seatLabel(board.seats?.blue))}</p></article>
-            <article class="elm-seat elm-seat-red"><strong>Red</strong><p>${escapeHtml(seatLabel(board.seats?.red))}</p></article>
-          </div>
-          ${renderSeatingActions(model)}
-          ${renderDisconnectedSeatRecovery(model)}
-          ${renderRoundResult(model)}
-          ${renderReadOnlyBoard(board, model)}
-          <section class="elm-session"><h3>${escapeHtml(session?.state || 'No active session')}</h3><p>${escapeHtml(score)}</p></section>
-          ${peopleList('Watchers', board.watchers)}
-          ${peopleList('Waiting list', board.waitingList)}
-        </div>`
-      : '<p>Loading board state…</p>';
+  const boardBody = `${staleNote}${renderPlayBoardBody(model, board)}`;
 
   return `
     <main class="shell" data-elm-phase="9" data-elm-shell-actions>
@@ -754,7 +823,7 @@ function renderModel(model) {
           <div id="playStatus" class="play-status">${boardTitle}</div>
           <div id="turnIndicator" class="turn-indicator" aria-live="polite">${stateLabel}</div>
           <div class="play-board-actions">
-            ${renderPhase9SeatButtons(model, 'play')}
+            ${renderPlayLeaveButton(model)}
             <button id="playPauseGame" class="play-pause-button ghost" type="button" data-elm-command="pause"><span aria-hidden="true">⏸</span> Pause</button>
           </div>
           <div class="board-stage">
@@ -807,6 +876,7 @@ function renderModel(model) {
             <div id="seatActions" class="seat-actions">${renderPhase9SeatButtons(model, 'match')}</div>
             <button id="pauseGame" class="ghost" type="button" data-elm-command="pause">Pause game</button>
             <button id="reset" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
+            ${renderMatchDetails(model)}
           </div>
         </aside>
       </section>
@@ -832,8 +902,8 @@ function renderModel(model) {
 
 
 function playerNameFromRoot(root) {
-  const input = document.querySelector('#elmPlayerName');
-  return String(input?.value || 'Elm Player').trim().slice(0, 24) || 'Elm Player';
+  const input = document.querySelector('#playerNameInput') || document.querySelector('#elmPlayerName');
+  return persistPlayerName(input?.value || getStoredPlayerName());
 }
 
 function rewireBridgeView(root, bridge) {
@@ -867,10 +937,31 @@ function setToast(message) {
   if (toast) toast.textContent = message;
 }
 
+function activateHomeMode(mode = 'online') {
+  const online = mode !== 'local';
+  document.querySelector('#onlineMode')?.classList?.toggle?.('active', online);
+  document.querySelector('#onlineMode')?.setAttribute?.('aria-pressed', online ? 'true' : 'false');
+  document.querySelector('#localMode')?.classList?.toggle?.('active', !online);
+  document.querySelector('#localMode')?.setAttribute?.('aria-pressed', online ? 'false' : 'true');
+  document.querySelector('.online-form-stack')?.classList?.toggle?.('hidden', !online);
+  document.querySelector('#localPanel')?.classList?.toggle?.('hidden', online);
+}
+
+function selectedMoveTimer(selector, fallback = 15) {
+  const value = Number(document.querySelector(selector)?.value ?? fallback);
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 function wirePhase9ShellActions(root, bridge) {
   const shell = document.querySelector('[data-elm-shell-actions]');
   shell?.addEventListener?.('click', (event) => {
-    const target = event.target?.closest?.('[data-elm-command], [data-page-target]') || event.target;
+    const target = event.target?.closest?.('[data-elm-command], [data-page-target], [data-home-mode]') || event.target;
+    const homeMode = target?.dataset?.homeMode;
+    if (homeMode) {
+      event.preventDefault?.();
+      activateHomeMode(homeMode);
+      return;
+    }
     const page = target?.dataset?.pageTarget;
     if (page) {
       event.preventDefault?.();
@@ -951,6 +1042,7 @@ function wireOpenBoardForm(root) {
   const form = document.querySelector('#elmOpenBoardForm');
   const input = document.querySelector('#elmBoardCode');
   const createButton = document.querySelector('#elmCreateBoard');
+  const localForm = document.querySelector('#localForm');
   form?.addEventListener?.('submit', (event) => {
     event.preventDefault();
     const code = sanitizeBoardCode(input?.value || '');
@@ -963,10 +1055,17 @@ function wireOpenBoardForm(root) {
   });
   createButton?.addEventListener?.('click', async () => {
     try {
-      await createBoardAsBlue({ root, name: playerNameFromRoot(root), onModelChange: (_model, bridge) => { rewireBridgeView(root, bridge); } });
+      await createBoardAsBlue({ root, name: playerNameFromRoot(root), moveTimeLimitSeconds: selectedMoveTimer('#onlineMoveTimer', 15), onModelChange: (_model, bridge) => { rewireBridgeView(root, bridge); } });
     } catch (error) {
       if (root) root.innerHTML = renderModel({ ...initialModel(), error: error?.message || 'Create board failed.' });
     }
+  });
+  localForm?.addEventListener?.('submit', (event) => {
+    event.preventDefault?.();
+    const p1 = String(document.querySelector('#localP1Name')?.value || 'Blue').trim().slice(0, 24) || 'Blue';
+    const p2 = String(document.querySelector('#localP2Name')?.value || 'Red').trim().slice(0, 24) || 'Red';
+    const timer = selectedMoveTimer('#localMoveTimer', 15);
+    setToast(`Local match setup saved: ${p1} vs ${p2}${timer ? ` · ${timer}s timer` : ' · no timer'}. Local runtime is next.`);
   });
 }
 
@@ -991,18 +1090,9 @@ async function mount() {
   root.innerHTML = renderModel(model);
   wireOpenBoardForm(root);
   wirePhase9ShellActions(root, { model });
-  try {
-    const response = await fetch('/api/rooms', { cache: 'no-store' });
-    if (!response.ok) throw new Error(`Board list request failed: ${response.status}`);
-    const payload = await response.json();
-    root.innerHTML = renderModel(model) + renderBoardList(payload.rooms || []);
-    wireOpenBoardForm(root);
-    wirePhase9ShellActions(root, { model });
-  } catch (error) {
-    root.innerHTML = renderModel(model) + `<section class="elm-board-list" data-elm-board-list><h2>Live boards</h2><p class="elm-error">${escapeHtml(error.message)}</p></section>`;
-    wireOpenBoardForm(root);
-    wirePhase9ShellActions(root, { model });
-  }
+  await loadBoardList(root);
+  wireOpenBoardForm(root);
+  wirePhase9ShellActions(root, { model });
 }
 
 window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wirePhase9ShellActions, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
