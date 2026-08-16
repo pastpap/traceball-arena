@@ -225,6 +225,32 @@ h2 { margin: 0 0 .8rem; }
   text-overflow: ellipsis;
 }
 .turn-indicator.red { background: rgba(255, 59, 48, .18); }
+.elm-board-hud {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  width: min(100%, 720px);
+  margin: 0 auto 8px;
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 16px;
+  background: rgba(255,255,255,.07);
+  color: var(--muted);
+  font-size: .84rem;
+}
+.elm-board-hud span {
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.16);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+}
+.elm-board-hud strong { color: var(--text); }
+.elm-board-hud[data-elm-orientation="blue"] span:nth-child(2) { color: #b9d8ff; }
+.elm-board-hud[data-elm-orientation="red"] span:nth-child(2) { color: #ffd3d0; }
 .play-pause-button.ghost {
   display: none;
   width: fit-content;
@@ -506,6 +532,7 @@ body.menu-open { overflow: hidden; }
     align-items: start;
   }
   .play-status { display: none !important; }
+  .elm-board-hud { grid-template-columns: repeat(2, minmax(0, 1fr)); font-size: .78rem; }
   .play-board-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
