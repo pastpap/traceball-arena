@@ -19,6 +19,7 @@ function initialModel() {
     pendingMoveKey: null,
     pendingNewRound: false,
     pendingFreeSeat: null,
+    replayIndex: null,
     localRuntime: false,
     localPaused: false,
   };
@@ -86,6 +87,7 @@ function applyState(model, message) {
     version: incoming.version,
     error: null,
     ignoredStaleVersion: null,
+    replayIndex: null,
   };
 }
 
@@ -497,6 +499,7 @@ function applyLocalRuntimeMove(model, key) {
     ...model,
     ownSeat: turnAfterMove,
     pendingMoveKey: key,
+    replayIndex: null,
     error: null,
     board: {
       ...model.board,
@@ -535,6 +538,7 @@ function restartLocalRuntimeRound(model) {
     localPaused: false,
     pendingMoveKey: null,
     pendingNewRound: false,
+    replayIndex: null,
     error: null,
   };
 }
@@ -1030,6 +1034,89 @@ function isOwnTurn(model) {
   return context.name === "own-turn";
 }
 
+function replayMoveCount(model) {
+  return Number(model?.board?.currentSession?.round?.moves?.length || 0);
+}
+
+function clampReplayIndex(value, max) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return max;
+  return Math.max(0, Math.min(max, Math.trunc(raw)));
+}
+
+function replayEffectiveIndex(model) {
+  const max = replayMoveCount(model);
+  return model?.replayIndex == null ? max : clampReplayIndex(model.replayIndex, max);
+}
+
+function replayIsActive(model) {
+  const max = replayMoveCount(model);
+  return max > 0 && model?.replayIndex != null && replayEffectiveIndex(model) < max;
+}
+
+function applyReplayCommand(model, command) {
+  const max = replayMoveCount(model);
+  if (max <= 0) return model;
+  const current = replayEffectiveIndex(model);
+  let next = current;
+  if (command === "replay-start") next = 0;
+  if (command === "replay-prev") next = Math.max(0, current - 1);
+  if (command === "replay-next") next = Math.min(max, current + 1);
+  if (command === "replay-end") next = max;
+  return { ...model, replayIndex: next >= max ? null : next, pendingMoveKey: null };
+}
+
+function projectRoundForReplay(round, replayIndex) {
+  const allMoves = Array.isArray(round?.moves) ? round.moves : [];
+  const max = allMoves.length;
+  const step = replayIndex == null ? max : clampReplayIndex(replayIndex, max);
+  if (step >= max) {
+    return {
+      round,
+      replayActive: false,
+      replayStep: max,
+      replayTotal: max,
+    };
+  }
+
+  const start = { x: 4, y: 6 };
+  const moves = allMoves.slice(0, step);
+  const visited = ["4,6"];
+  const segments = [];
+  for (const move of moves) {
+    if (!move) continue;
+    const toKey = elmPointKey(move.to || start);
+    if (!visited.includes(toKey)) visited.push(toKey);
+    if (move.segment) segments.push(move.segment);
+    else if (move.from && move.to) segments.push(`${elmPointKey(move.from)}|${elmPointKey(move.to)}`);
+  }
+
+  const last = moves.at(-1);
+  const turn = step === 0
+    ? (allMoves[0]?.playerId || round?.turn || "p1")
+    : (last?.bounce
+      ? last?.playerId
+      : (last?.playerId === "p1" ? "p2" : last?.playerId === "p2" ? "p1" : round?.turn));
+
+  return {
+    round: {
+      ...round,
+      state: "Replay",
+      turn,
+      ball: last?.to || start,
+      visited,
+      segments,
+      moves,
+      legalMoves: [],
+      winner: null,
+      endReason: null,
+    },
+    replayActive: true,
+    replayStep: step,
+    replayTotal: max,
+  };
+}
+
 function isBetweenRounds(model) {
   return (
     model?.board?.state === "BetweenRounds" ||
@@ -1102,7 +1189,7 @@ function submitFreeDisconnectedSeat(bridge, seatId) {
 }
 
 function submitMoveFromLegalTarget(bridge, key) {
-  if (!bridge || !isOwnTurn(bridge.model) || !isLegalMoveKey(bridge.model, key))
+  if (!bridge || replayIsActive(bridge.model) || !isOwnTurn(bridge.model) || !isLegalMoveKey(bridge.model, key))
     return false;
   if (bridge.model?.localRuntime) {
     const next = applyLocalRuntimeMove(bridge.model, key);
@@ -1126,14 +1213,24 @@ function renderReadOnlyBoard(board, model = initialModel()) {
   if (!round) {
     return '<section class="elm-board-preview"><p>No round to render yet.</p></section>';
   }
-  const moves = Array.isArray(round.moves) ? round.moves : [];
+  const replay = projectRoundForReplay(round, model?.replayIndex);
+  const renderedRound = replay.round;
+  const moves = Array.isArray(renderedRound.moves) ? renderedRound.moves : [];
   const visited = new Set(
-    Array.isArray(round.visited) ? round.visited.map(String) : ["4,6"],
+    Array.isArray(renderedRound.visited) ? renderedRound.visited.map(String) : ["4,6"],
   );
   for (const move of moves) if (move?.to) visited.add(elmPointKey(move.to));
-  const legalMoves = Array.isArray(round.legalMoves) ? round.legalMoves : [];
-  const ball = round.ball || moves.at(-1)?.to || { x: 4, y: 6 };
-  const legalContext = legalMoveContext(model, round);
+  const legalMoves = Array.isArray(renderedRound.legalMoves) ? renderedRound.legalMoves : [];
+  const ball = renderedRound.ball || moves.at(-1)?.to || { x: 4, y: 6 };
+  const legalContext = replay.replayActive
+    ? {
+      name: "watcher",
+      state: "preview",
+      color: normalizeSeatId(renderedRound?.turn) || "blue",
+      playable: false,
+      note: `Replay ${replay.replayStep}/${replay.replayTotal}: board controls are read-only.`,
+    }
+    : legalMoveContext(model, renderedRound);
   const turn = legalContext.color;
   const pitchOutline = [
     renderSvgLine({ x: 0, y: 1 }, { x: 3, y: 1 }, 'class="elm-pitch-line"'),
@@ -1599,6 +1696,18 @@ function renderModel(model) {
   const pauseTurn = model.localRuntime
     ? `Turn: ${escapeHtml(colorLabel(board?.currentSession?.round?.turn || ""))}`
     : "Turn resumes here.";
+  const moveCount = Number(session?.round?.moves?.length || 0);
+  const replayIndex = replayEffectiveIndex(model);
+  const replayActive = replayIsActive(model);
+  const replayStartDisabled = moveCount <= 0 || replayIndex <= 0;
+  const replayPrevDisabled = moveCount <= 0 || replayIndex <= 0;
+  const replayNextDisabled = moveCount <= 0 || replayIndex >= moveCount;
+  const replayEndDisabled = moveCount <= 0 || replayIndex >= moveCount;
+  const replayText = moveCount <= 0
+    ? "Replay appears once moves are made."
+    : replayActive
+      ? `Replay ${replayIndex} / ${moveCount}`
+      : `Live view at move ${moveCount} / ${moveCount}`;
   const boardBody = `${staleNote}${renderPlayBoardBody(model, board)}`;
 
   return `
@@ -1680,13 +1789,13 @@ function renderModel(model) {
           <div class="board-replay replay">
             <h2>Replay</h2>
             <div class="replay-controls">
-              <button id="replayStart" type="button" data-elm-command="replay-start">Start</button>
-              <button id="replayPrev" type="button" data-elm-command="replay-prev">‹</button>
-              <button id="replayNext" type="button" data-elm-command="replay-next">›</button>
-              <button id="replayEnd" type="button" data-elm-command="replay-end">End</button>
+              <button id="replayStart" type="button" data-elm-command="replay-start"${replayStartDisabled ? " disabled" : ""}>Start</button>
+              <button id="replayPrev" type="button" data-elm-command="replay-prev"${replayPrevDisabled ? " disabled" : ""}>‹</button>
+              <button id="replayNext" type="button" data-elm-command="replay-next"${replayNextDisabled ? " disabled" : ""}>›</button>
+              <button id="replayEnd" type="button" data-elm-command="replay-end"${replayEndDisabled ? " disabled" : ""}>End</button>
             </div>
-            <input id="replayRange" type="range" min="0" max="0" value="0" />
-            <p id="replayText">Replay appears once moves are made.</p>
+            <input id="replayRange" type="range" min="0" max="${moveCount}" value="${replayIndex}" />
+            <p id="replayText">${replayText}</p>
           </div>
         </div>
         <aside class="side mobile-page" data-mobile-page="match">
@@ -1740,6 +1849,7 @@ function rewireBridgeView(root, bridge) {
   wireSeatingActions(root, bridge);
   wirePhase9ShellActions(root, bridge);
   wireBoardMoveTargets(root, bridge);
+  wireReplayRange(root, bridge);
   wireRoundActions(root, bridge);
   wireDisconnectActions(root, bridge);
 }
@@ -1854,6 +1964,10 @@ function wirePhase9ShellActions(root, bridge) {
     if (command === "refresh-boards") {
       loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
     }
+    if (command.startsWith("replay-")) {
+      bridge.model = applyReplayCommand(bridge.model, command);
+      changed = true;
+    }
     if (command === "pause" && bridge.model?.localRuntime) {
       bridge.model = { ...bridge.model, localPaused: true, error: null };
       saveLocalRuntimeModel(bridge.model);
@@ -1865,7 +1979,6 @@ function wirePhase9ShellActions(root, bridge) {
       changed = true;
     }
     if (
-      command.startsWith("replay-") ||
       command === "close-winner" ||
       ((command === "pause" || command === "resume") &&
         !bridge.model?.localRuntime)
@@ -1875,6 +1988,16 @@ function wirePhase9ShellActions(root, bridge) {
       );
     }
     if (changed) refreshBridgeRender(root, bridge);
+  });
+}
+
+function wireReplayRange(root, bridge) {
+  const range = document.querySelector("#replayRange");
+  range?.addEventListener?.("input", (event) => {
+    const max = replayMoveCount(bridge.model);
+    const next = clampReplayIndex(event?.target?.value, max);
+    bridge.model = { ...bridge.model, replayIndex: next >= max ? null : next, pendingMoveKey: null };
+    refreshBridgeRender(root, bridge);
   });
 }
 

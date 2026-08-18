@@ -985,6 +985,96 @@ describe("Phase 3 Elm shell runtime contract", () => {
     ]);
   });
 
+  it("renders replay step state and projects board segments for the selected move index", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.currentSession.round.moves = [
+      {
+        playerId: "p1",
+        from: { x: 4, y: 6 },
+        to: { x: 5, y: 6 },
+        segment: "4,6|5,6",
+        bounce: false,
+        at: 1,
+      },
+      {
+        playerId: "p2",
+        from: { x: 5, y: 6 },
+        to: { x: 5, y: 7 },
+        segment: "5,6|5,7",
+        bounce: false,
+        at: 2,
+      },
+    ];
+    message.board.currentSession.round.segments = ["4,6|5,6", "5,6|5,7"];
+    message.board.currentSession.round.visited = ["4,6", "5,6", "5,7"];
+    message.board.currentSession.round.ball = { x: 5, y: 7 };
+    message.board.currentSession.round.legalMoves = [{ x: 4, y: 7 }];
+
+    const model = {
+      ...shell.applyState(shell.initialModel(), message),
+      ownSeat: "p1",
+      replayIndex: 1,
+    };
+
+    const html = shell.renderModel(model);
+
+    expect(html).toContain("Replay 1 / 2");
+    expect(html).toContain('data-elm-segment="4,6|5,6"');
+    expect(html).not.toContain('data-elm-segment="5,6|5,7"');
+    expect(html).toContain('id="replayRange" type="range" min="0" max="2" value="1"');
+  });
+
+  it("wires replay commands to change replay index and return to live view", () => {
+    const shellActions = {
+      handler: null,
+      addEventListener(type, handler) {
+        if (type === "click") this.handler = handler;
+      },
+    };
+    const { shell, root } = loadShell({
+      document: {
+        querySelector: (selector) =>
+          selector === "[data-elm-shell-actions]" ? shellActions : null,
+        querySelectorAll: () => [],
+      },
+    });
+    const message = fixture("board-active-session");
+    message.board.currentSession.round.moves = [
+      {
+        playerId: "p1",
+        from: { x: 4, y: 6 },
+        to: { x: 5, y: 6 },
+        segment: "4,6|5,6",
+        bounce: false,
+        at: 1,
+      },
+      {
+        playerId: "p2",
+        from: { x: 5, y: 6 },
+        to: { x: 5, y: 7 },
+        segment: "5,6|5,7",
+        bounce: false,
+        at: 2,
+      },
+    ];
+    message.board.currentSession.round.segments = ["4,6|5,6", "5,6|5,7"];
+    message.board.currentSession.round.visited = ["4,6", "5,6", "5,7"];
+    message.board.currentSession.round.ball = { x: 5, y: 7 };
+    message.board.currentSession.round.legalMoves = [{ x: 4, y: 7 }];
+    const base = shell.applyState(shell.initialModel(), message);
+    const bridge = { model: { ...base, ownSeat: "p1" } };
+
+    shell.wirePhase9ShellActions(root, bridge);
+    shellActions.handler({ target: { dataset: { elmCommand: "replay-start" } }, preventDefault() {} });
+    expect(bridge.model.replayIndex).toBe(0);
+    expect(root.innerHTML).toContain("Replay 0 / 2");
+
+    shellActions.handler({ target: { dataset: { elmCommand: "replay-end" } }, preventDefault() {} });
+    expect(bridge.model.replayIndex).toBe(null);
+    expect(root.innerHTML).toContain("Live view at move 2 / 2");
+  });
+
   it("starts a local same-screen runtime bridge and renders a local board shell", () => {
     const { shell, root } = loadShell();
 
