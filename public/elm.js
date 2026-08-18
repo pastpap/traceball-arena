@@ -920,7 +920,10 @@ function restoreViewState(viewState) {
   if (viewState.mobilePage) activateMobilePage(viewState.mobilePage);
   const shell = document.querySelector("[data-elm-shell-actions]");
   const lobbyBtn = document.querySelector(".hero-lobby-btn");
-  if (viewState.lobbyOpen) {
+  const isLocalRuntimeView = !!document.querySelector(
+    'main[data-elm-runtime="local"]',
+  );
+  if (!isLocalRuntimeView && viewState.lobbyOpen) {
     shell?.setAttribute?.("data-elm-lobby-open", "true");
     if (lobbyBtn) lobbyBtn.textContent = "Game";
   } else {
@@ -1958,9 +1961,13 @@ function replaceBoardsPanelContent(root, html) {
     if (root) root.innerHTML = html;
     return;
   }
+  const boardsPanelClass =
+    currentMobilePage() === "boards"
+      ? "card boards-panel mobile-page active"
+      : "card boards-panel mobile-page";
   root.innerHTML = root.innerHTML.replace(
     /<section id="boardsPanel"[\s\S]*?<\/section>\s*<\/div>\s*<section class="game-layout">/,
-    `<section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">${html}</section>\n\n      </div>\n\n      <section class="game-layout">`,
+    `<section id="boardsPanel" class="${boardsPanelClass}" data-mobile-page="boards">${html}</section>\n\n      </div>\n\n      <section class="game-layout">`,
   );
 }
 

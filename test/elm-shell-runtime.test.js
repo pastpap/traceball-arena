@@ -854,6 +854,28 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(root.innerHTML).toContain('class="board-card mobile-page active"');
   });
 
+  it("keeps Boards panel active on mobile when refreshing board list", async () => {
+    const { shell, root } = loadShell({
+      document: {
+        body: { dataset: { mobilePage: "boards" } },
+        querySelector: () => null,
+      },
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({ rooms: [] }),
+      }),
+    });
+
+    root.innerHTML = shell.renderModel(shell.initialModel());
+
+    await shell.loadBoardList(root);
+
+    expect(root.innerHTML).toContain(
+      'id="boardsPanel" class="card boards-panel mobile-page active"',
+    );
+    expect(root.innerHTML).toContain("No public boards right now");
+  });
+
   it("preserves an Elm client id through localStorage for WebSocket handoff", () => {
     const { shell, storage } = loadShell();
 
@@ -1480,5 +1502,41 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(shell.renderModel(restored)).toContain(
       'id="pauseOverlay" class="pause-overlay"',
     );
+  });
+
+  it("forces desktop game view for local runtime even if lobby was previously open", () => {
+    const shellNode = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+    };
+    const lobbyBtn = { textContent: "Game" };
+    const localMain = {};
+    const documentStub = {
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === "[data-elm-lobby-open='true']") return shellNode;
+        if (selector === "[data-elm-shell-actions]") return shellNode;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === 'main[data-elm-runtime="local"]') return localMain;
+        return null;
+      },
+      querySelectorAll() {
+        return [];
+      },
+    };
+
+    const { shell, root } = loadShell({ document: documentStub });
+
+    shell.createLocalBridge({
+      root,
+      blueName: "Stefan",
+      redName: "Alex",
+      moveTimeLimitSeconds: 10,
+    });
+
+    expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("false");
+    expect(lobbyBtn.textContent).toBe("Lobby");
   });
 });
