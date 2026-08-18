@@ -22,6 +22,7 @@ function initialModel() {
     replayIndex: null,
     localRuntime: false,
     localPaused: false,
+    winnerDismissed: false,
   };
 }
 
@@ -80,6 +81,15 @@ function applyState(model, message) {
   if (incoming.version <= current.version) {
     return { ...current, ignoredStaleVersion: incoming.version, error: null };
   }
+  const incomingWinner =
+    incoming.board?.currentSession?.round?.winner ??
+    incoming.board?.currentSession?.winner ??
+    null;
+  const currentWinner =
+    current.board?.currentSession?.round?.winner ??
+    current.board?.currentSession?.winner ??
+    null;
+
   return {
     ...current,
     board: incoming.board,
@@ -88,6 +98,10 @@ function applyState(model, message) {
     error: null,
     ignoredStaleVersion: null,
     replayIndex: null,
+    winnerDismissed:
+      currentWinner && incomingWinner === currentWinner
+        ? Boolean(current.winnerDismissed)
+        : false,
   };
 }
 
@@ -1711,6 +1725,12 @@ function renderModel(model) {
   const newRoundControlAttr = isSeated(model)
     ? 'data-elm-command="new-round"'
     : 'disabled aria-disabled="true"';
+  const roundWinner = board?.currentSession?.round?.winner || null;
+  const winnerName = roundWinner ? winnerLabel(roundWinner) : "Player";
+  const winnerOverlayClass =
+    roundWinner && !model?.winnerDismissed
+      ? "winner-overlay"
+      : "winner-overlay hidden";
   const pauseOverlayClass = `pause-overlay${model.localPaused ? "" : " hidden"}`;
   const boardStageClass = `board-stage${model.localPaused ? " paused" : ""}`;
   const pauseMessage = model.localRuntime
@@ -1801,11 +1821,11 @@ function renderModel(model) {
                 </div>
               </div>
             </div>
-            <div id="winnerOverlay" class="winner-overlay hidden" aria-live="polite">
+            <div id="winnerOverlay" class="${winnerOverlayClass}" aria-live="polite">
               <div class="winner-card">
                 <button id="winnerClose" class="winner-close" type="button" aria-label="Close winner banner" data-elm-command="close-winner">×</button>
                 <div class="winner-kicker">Winner</div>
-                <div id="winnerName" class="winner-name">Player</div>
+                <div id="winnerName" class="winner-name">${escapeHtml(winnerName)}</div>
                 <button id="winnerNewRound" class="winner-new-round" type="button" ${newRoundControlAttr}>New Round</button>
               </div>
             </div>
@@ -2002,10 +2022,12 @@ function wirePhase9ShellActions(root, bridge) {
       saveLocalRuntimeModel(bridge.model);
       changed = true;
     }
-    if (
-      command === "close-winner" ||
-      ((command === "pause" || command === "resume") &&
-        !bridge.model?.localRuntime)
+    if (command === "close-winner") {
+      bridge.model = { ...bridge.model, winnerDismissed: true, error: null };
+      changed = true;
+    } else if (
+      (command === "pause" || command === "resume") &&
+      !bridge.model?.localRuntime
     ) {
       setToast(
         "This control is wired; full visual parity for this action is coming in the next Phase 9 slice.",

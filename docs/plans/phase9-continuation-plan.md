@@ -24,6 +24,17 @@ Completed in PR branch `phase9-home-boards-match`:
 - Task 2 one-shot move feedback is implemented with `data-elm-move-feedback="pending"` and a non-infinite CSS animation.
 - Task 3 online timer display/settings is implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
 
+## Visual asset parity slice to add explicitly
+
+This is the missing product-level checklist for the richer JavaScript board look in the screenshots:
+
+- Reuse the JS board art, not a simplified Elm placeholder: pitch background, stripe/gradient treatment, board border, gate frames, corner posts, and field detail.
+- Restore the JS ball graphic and player-side ball chip treatment, including the moving ball-on-arc effect when the turn changes sides.
+- Recreate the gate/winner state action layer: round-end overlay, winner banner/modal, close button, and Start New Round action.
+- Add confetti at the winner gate with the same short burst timing and fade behavior as the JS version.
+- Keep the board surfacing self-contained: score, names, timer, and winner state visually belong on or near the board rather than only in side cards.
+- Treat these as parity requirements, not optional polish, before Elm is considered visually complete.
+
 ## Play tab parity reminders
 
 When reaching full Play tab parity with the legacy JS version, do not forget:
@@ -51,6 +62,7 @@ When reaching full Play tab parity with the legacy JS version, do not forget:
 **Objective:** Make turn, role, player side, and board context obvious without moving match details back into Play.
 
 **Files:**
+
 - Modify: `test/elm-shell-runtime.test.js`
 - Modify: `public/elm.js`
 - Modify if needed: `public/styles.css`
@@ -61,12 +73,18 @@ When reaching full Play tab parity with the legacy JS version, do not forget:
 Add a Vitest case that renders:
 
 ```js
-const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1' };
+const model = {
+  ...shell.applyState(shell.initialModel(), fixture("board-active-session")),
+  ownSeat: "p1",
+};
 const html = shell.renderModel(model);
-const playSection = html.slice(html.indexOf('class="board-card mobile-page active"'), html.indexOf('<aside class="side mobile-page"'));
-expect(playSection).toContain('data-elm-board-hud');
-expect(playSection).toContain('You are Blue');
-expect(playSection).toContain('Turn:');
+const playSection = html.slice(
+  html.indexOf('class="board-card mobile-page active"'),
+  html.indexOf('<aside class="side mobile-page"'),
+);
+expect(playSection).toContain("data-elm-board-hud");
+expect(playSection).toContain("You are Blue");
+expect(playSection).toContain("Turn:");
 expect(playSection).toContain('data-elm-orientation="blue"');
 ```
 
@@ -113,6 +131,7 @@ git commit -m "feat: add Phase 9 board HUD orientation"
 **Objective:** Add non-distracting feedback when a move is pending/confirmed or the turn changes.
 
 **Files:**
+
 - Modify: `test/elm-shell-runtime.test.js`
 - Modify: `public/elm.js`
 - Modify: `public/styles.css`
@@ -122,11 +141,15 @@ git commit -m "feat: add Phase 9 board HUD orientation"
 Test that pending legal moves render a one-shot feedback marker without continuous pulse classes:
 
 ```js
-const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1', pendingMoveKey: '4,5' };
+const model = {
+  ...shell.applyState(shell.initialModel(), fixture("board-active-session")),
+  ownSeat: "p1",
+  pendingMoveKey: "4,5",
+};
 const html = shell.renderModel(model);
 expect(html).toContain('data-elm-pending-move="4,5"');
-expect(html).toContain('elm-legal-pending');
-expect(html).not.toContain('infinite');
+expect(html).toContain("elm-legal-pending");
+expect(html).not.toContain("infinite");
 ```
 
 **Step 2: Verify RED**
@@ -155,6 +178,7 @@ git commit -m "feat: add one-shot move feedback"
 **Objective:** Surface configured move timers in UI and ensure create-room uses the selected online timer.
 
 **Files:**
+
 - Modify: `test/elm-shell-runtime.test.js`
 - Modify: `test/phase1-protocol.test.js`
 - Modify: `public/elm.js`
@@ -194,6 +218,7 @@ git commit -m "feat: surface online move timer settings"
 **Objective:** Make the Local Home setup start an actual same-device game with basic state, pause/resume placeholder backed by localStorage, and board rendering reuse.
 
 **Files:**
+
 - Modify: `test/elm-shell-runtime.test.js`
 - Modify: `public/elm.js`
 - Modify: `public/styles.css`
@@ -238,6 +263,7 @@ git commit -m "feat: start local same-screen Traceball runtime"
 **Objective:** Make sure mobile layout remains usable and deployment clients receive updated assets.
 
 **Files:**
+
 - Modify: `scripts/check-static.js`
 - Modify if needed: `public/styles.css`
 - Modify if needed: `public/sw.js`

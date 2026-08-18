@@ -333,6 +333,22 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(root.innerHTML).toContain("Board ROOM123");
   });
 
+  it("shows a winner overlay and winner name when a round has ended", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.currentSession.round.winner = "p2";
+    message.board.currentSession.round.endReason =
+      "Red scored in the local match.";
+
+    const html = shell.renderBoardMessage(message);
+
+    expect(html).toContain('id="winnerOverlay"');
+    expect(html).toContain('class="winner-overlay"');
+    expect(html).not.toContain('class="winner-overlay hidden"');
+    expect(html).toContain("Red");
+    expect(html).toContain("Winner");
+  });
+
   it("renders a read-only SVG board with grid, gates, ball, and live legal-move overlay", () => {
     const { shell } = loadShell();
 
