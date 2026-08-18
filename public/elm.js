@@ -1046,12 +1046,16 @@ function clampReplayIndex(value, max) {
 
 function replayEffectiveIndex(model) {
   const max = replayMoveCount(model);
-  return model?.replayIndex == null ? max : clampReplayIndex(model.replayIndex, max);
+  return model?.replayIndex == null
+    ? max
+    : clampReplayIndex(model.replayIndex, max);
 }
 
 function replayIsActive(model) {
   const max = replayMoveCount(model);
-  return max > 0 && model?.replayIndex != null && replayEffectiveIndex(model) < max;
+  return (
+    max > 0 && model?.replayIndex != null && replayEffectiveIndex(model) < max
+  );
 }
 
 function applyReplayCommand(model, command) {
@@ -1063,7 +1067,11 @@ function applyReplayCommand(model, command) {
   if (command === "replay-prev") next = Math.max(0, current - 1);
   if (command === "replay-next") next = Math.min(max, current + 1);
   if (command === "replay-end") next = max;
-  return { ...model, replayIndex: next >= max ? null : next, pendingMoveKey: null };
+  return {
+    ...model,
+    replayIndex: next >= max ? null : next,
+    pendingMoveKey: null,
+  };
 }
 
 function projectRoundForReplay(round, replayIndex) {
@@ -1088,15 +1096,21 @@ function projectRoundForReplay(round, replayIndex) {
     const toKey = elmPointKey(move.to || start);
     if (!visited.includes(toKey)) visited.push(toKey);
     if (move.segment) segments.push(move.segment);
-    else if (move.from && move.to) segments.push(`${elmPointKey(move.from)}|${elmPointKey(move.to)}`);
+    else if (move.from && move.to)
+      segments.push(`${elmPointKey(move.from)}|${elmPointKey(move.to)}`);
   }
 
   const last = moves.at(-1);
-  const turn = step === 0
-    ? (allMoves[0]?.playerId || round?.turn || "p1")
-    : (last?.bounce
-      ? last?.playerId
-      : (last?.playerId === "p1" ? "p2" : last?.playerId === "p2" ? "p1" : round?.turn));
+  const turn =
+    step === 0
+      ? allMoves[0]?.playerId || round?.turn || "p1"
+      : last?.bounce
+        ? last?.playerId
+        : last?.playerId === "p1"
+          ? "p2"
+          : last?.playerId === "p2"
+            ? "p1"
+            : round?.turn;
 
   return {
     round: {
@@ -1189,7 +1203,12 @@ function submitFreeDisconnectedSeat(bridge, seatId) {
 }
 
 function submitMoveFromLegalTarget(bridge, key) {
-  if (!bridge || replayIsActive(bridge.model) || !isOwnTurn(bridge.model) || !isLegalMoveKey(bridge.model, key))
+  if (
+    !bridge ||
+    replayIsActive(bridge.model) ||
+    !isOwnTurn(bridge.model) ||
+    !isLegalMoveKey(bridge.model, key)
+  )
     return false;
   if (bridge.model?.localRuntime) {
     const next = applyLocalRuntimeMove(bridge.model, key);
@@ -1217,19 +1236,23 @@ function renderReadOnlyBoard(board, model = initialModel()) {
   const renderedRound = replay.round;
   const moves = Array.isArray(renderedRound.moves) ? renderedRound.moves : [];
   const visited = new Set(
-    Array.isArray(renderedRound.visited) ? renderedRound.visited.map(String) : ["4,6"],
+    Array.isArray(renderedRound.visited)
+      ? renderedRound.visited.map(String)
+      : ["4,6"],
   );
   for (const move of moves) if (move?.to) visited.add(elmPointKey(move.to));
-  const legalMoves = Array.isArray(renderedRound.legalMoves) ? renderedRound.legalMoves : [];
+  const legalMoves = Array.isArray(renderedRound.legalMoves)
+    ? renderedRound.legalMoves
+    : [];
   const ball = renderedRound.ball || moves.at(-1)?.to || { x: 4, y: 6 };
   const legalContext = replay.replayActive
     ? {
-      name: "watcher",
-      state: "preview",
-      color: normalizeSeatId(renderedRound?.turn) || "blue",
-      playable: false,
-      note: `Replay ${replay.replayStep}/${replay.replayTotal}: board controls are read-only.`,
-    }
+        name: "watcher",
+        state: "preview",
+        color: normalizeSeatId(renderedRound?.turn) || "blue",
+        playable: false,
+        note: `Replay ${replay.replayStep}/${replay.replayTotal}: board controls are read-only.`,
+      }
     : legalMoveContext(model, renderedRound);
   const turn = legalContext.color;
   const pitchOutline = [
@@ -1703,11 +1726,12 @@ function renderModel(model) {
   const replayPrevDisabled = moveCount <= 0 || replayIndex <= 0;
   const replayNextDisabled = moveCount <= 0 || replayIndex >= moveCount;
   const replayEndDisabled = moveCount <= 0 || replayIndex >= moveCount;
-  const replayText = moveCount <= 0
-    ? "Replay appears once moves are made."
-    : replayActive
-      ? `Replay ${replayIndex} / ${moveCount}`
-      : `Live view at move ${moveCount} / ${moveCount}`;
+  const replayText =
+    moveCount <= 0
+      ? "Replay appears once moves are made."
+      : replayActive
+        ? `Replay ${replayIndex} / ${moveCount}`
+        : `Live view at move ${moveCount} / ${moveCount}`;
   const boardBody = `${staleNote}${renderPlayBoardBody(model, board)}`;
 
   return `
@@ -1996,7 +2020,11 @@ function wireReplayRange(root, bridge) {
   range?.addEventListener?.("input", (event) => {
     const max = replayMoveCount(bridge.model);
     const next = clampReplayIndex(event?.target?.value, max);
-    bridge.model = { ...bridge.model, replayIndex: next >= max ? null : next, pendingMoveKey: null };
+    bridge.model = {
+      ...bridge.model,
+      replayIndex: next >= max ? null : next,
+      pendingMoveKey: null,
+    };
     refreshBridgeRender(root, bridge);
   });
 }

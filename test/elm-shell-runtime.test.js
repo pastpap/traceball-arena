@@ -1022,7 +1022,9 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).toContain("Replay 1 / 2");
     expect(html).toContain('data-elm-segment="4,6|5,6"');
     expect(html).not.toContain('data-elm-segment="5,6|5,7"');
-    expect(html).toContain('id="replayRange" type="range" min="0" max="2" value="1"');
+    expect(html).toContain(
+      'id="replayRange" type="range" min="0" max="2" value="1"',
+    );
   });
 
   it("wires replay commands to change replay index and return to live view", () => {
@@ -1066,11 +1068,17 @@ describe("Phase 3 Elm shell runtime contract", () => {
     const bridge = { model: { ...base, ownSeat: "p1" } };
 
     shell.wirePhase9ShellActions(root, bridge);
-    shellActions.handler({ target: { dataset: { elmCommand: "replay-start" } }, preventDefault() {} });
+    shellActions.handler({
+      target: { dataset: { elmCommand: "replay-start" } },
+      preventDefault() {},
+    });
     expect(bridge.model.replayIndex).toBe(0);
     expect(root.innerHTML).toContain("Replay 0 / 2");
 
-    shellActions.handler({ target: { dataset: { elmCommand: "replay-end" } }, preventDefault() {} });
+    shellActions.handler({
+      target: { dataset: { elmCommand: "replay-end" } },
+      preventDefault() {},
+    });
     expect(bridge.model.replayIndex).toBe(null);
     expect(root.innerHTML).toContain("Live view at move 2 / 2");
   });
