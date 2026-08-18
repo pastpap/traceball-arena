@@ -309,12 +309,14 @@ if (
     "Tablet-sized screens must use the same mobile tab/page topology as phones.",
   );
 }
-if (!css.includes(".mobile-page { display: none !important; }"))
+if (
+  !/\.mobile-page\s*\{[\s\S]*?display:\s*none\s*!important;[\s\S]*?\}/.test(css)
+)
   throw new Error("Mobile pages must be split into tabbed panels.");
 if (
-  !css.includes("grid-template-columns: repeat(4, minmax(0, 1fr))") ||
-  !css.includes(".mobile-tab { min-width: 0;") ||
-  !css.includes("white-space: nowrap;")
+  !/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/.test(css) ||
+  !/\.mobile-tab\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?\}/.test(css) ||
+  !/\.mobile-tab[\s\S]*?white-space:\s*nowrap;/.test(css)
 ) {
   throw new Error(
     "Mobile page tabs must fit Home/Boards/Play/Match on one row inside the nav card without wrapping or overflowing.",
@@ -329,9 +331,11 @@ if (
   );
 }
 if (
-  !css.includes(".inline-form input { flex: 1 1 320px; min-width: 260px; }") ||
-  !css.includes(
-    ".inline-form .primary { flex: 0 0 auto; width: auto; min-width: 170px; }",
+  !/\.inline-form\s+input\s*\{[\s\S]*?flex:\s*1\s+1\s+320px;[\s\S]*?min-width:\s*260px;[\s\S]*?\}/.test(
+    css,
+  ) ||
+  !/\.inline-form\s+\.primary\s*\{[\s\S]*?flex:\s*0\s+0\s+auto;[\s\S]*?width:\s*auto;[\s\S]*?min-width:\s*170px;[\s\S]*?\}/.test(
+    css,
   )
 ) {
   throw new Error(
@@ -340,22 +344,26 @@ if (
 }
 if (
   !css.includes("@media (max-width: 640px)") ||
-  !css.includes(".inline-form input { min-width: 0; }")
+  !/\.inline-form\s+input\s*\{[\s\S]*?min-width:\s*0;[\s\S]*?\}/.test(css)
 ) {
   throw new Error(
     "Mobile invite-link input must reset min-width so the form can stack cleanly.",
   );
 }
 if (
-  !css.includes(
-    ".inline-form input { flex: 0 1 auto; min-width: 0; min-height: 0; }",
+  !/\.inline-form\s+input\s*\{[\s\S]*?flex:\s*0\s+1\s+auto;[\s\S]*?min-width:\s*0;[\s\S]*?min-height:\s*0;[\s\S]*?\}/.test(
+    css,
   )
 ) {
   throw new Error(
     "Mobile invite-link input must reset desktop flex-basis so it does not become a tall text box.",
   );
 }
-if (!css.includes(".mobile-page.hidden { display: none !important; }")) {
+if (
+  !/\.mobile-page\.hidden\s*\{[\s\S]*?display:\s*none\s*!important;[\s\S]*?\}/.test(
+    css,
+  )
+) {
   throw new Error(
     "Hidden Home cards must stay hidden on mobile even when they also have mobile-page active.",
   );
@@ -783,10 +791,15 @@ if (
   );
 }
 if (
-  !css.includes("grid-template-columns: repeat(2, minmax(0, 1fr));") ||
-  !css.includes(".play-pause-button.ghost { grid-column: 1 / -1;") ||
-  !css.includes("max-width: 180px;") ||
-  !css.includes("overflow: hidden;")
+  !/\.play-board-actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\}/.test(
+    css,
+  ) ||
+  !/\.play-pause-button\.ghost\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1;[\s\S]*?max-width:\s*180px;[\s\S]*?\}/.test(
+    css,
+  ) ||
+  !/\.play-board-actions\s+\.ghost\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\}/.test(
+    css,
+  )
 ) {
   throw new Error(
     "Mobile Play Join Blue/Join Red/Pause controls must use a two-column grid with a centered compact Pause button that cannot overflow.",
@@ -1107,9 +1120,17 @@ for (const marker of [
       `Home form spacing must let name/action/invite sections breathe: missing ${marker}`,
     );
 }
+if (!/\.blue-score\s*\{[\s\S]*?text-align:\s*right;[\s\S]*?\}/.test(css)) {
+  throw new Error(
+    "Match score numbers must justify inward around the center dash: missing .blue-score text alignment.",
+  );
+}
+if (!/\.red-score\s*\{[\s\S]*?text-align:\s*left;[\s\S]*?\}/.test(css)) {
+  throw new Error(
+    "Match score numbers must justify inward around the center dash: missing .red-score text alignment.",
+  );
+}
 for (const marker of [
-  ".blue-score { text-align: right; }",
-  ".red-score { text-align: left; }",
   "font-variant-numeric: tabular-nums",
   "justify-self: stretch",
 ]) {
