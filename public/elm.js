@@ -752,6 +752,7 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       pendingNewRound: false,
       pendingFreeSeat: null,
     };
+    saveGameToHistory(bridge.model);
     renderBridge(root, bridge, onModelChange);
   };
   bridge.socket.onerror = () => {
@@ -1254,6 +1255,7 @@ function submitMoveFromLegalTarget(bridge, key) {
     if (!next) return false;
     bridge.model = { ...next, error: null };
     saveLocalRuntimeModel(bridge.model);
+    saveGameToHistory(bridge.model);
     return true;
   }
   const point = parseElmPointKey(key);
@@ -2258,6 +2260,29 @@ function renderModel(model) {
           </div>
           <button id="appContentClose" class="app-menu-close" type="button" aria-label="Close window">×</button>
         </div>
+        <section id="appMenuHistory" class="app-menu-section hidden">
+          <div class="history-header">
+            <div><h3>Play History</h3><p>Saved on this device for local and online games.</p></div>
+            <button id="clearMenuHistory" class="ghost" type="button">Clear</button>
+          </div>
+          <div id="menuHistoryList" class="history-list"><p class="history-empty">Finished games will appear here.</p></div>
+        </section>
+        <section id="appMenuRules" class="app-menu-section hidden">
+          <h3>Rules</h3>
+          <ul class="app-menu-rules">
+            <li>Move one point in any of 8 directions.</li>
+            <li>No line segment can be reused.</li>
+            <li>Margin lines are already traced; only margin points may be used.</li>
+            <li>Landing on a visited point, wall, or black gate-mouth dot gives another move.</li>
+            <li>The black dot in the middle of each gate line is already a bounce point.</li>
+            <li>Score in the opponent gate. Own gate = own goal.</li>
+            <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
+            <li>If time expires, no line is drawn; the ball stays and the turn passes.</li>
+            <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+            <li>Either joined player can pause or resume during a round.</li>
+            <li>If you are stuck, you lose.</li>
+          </ul>
+        </section>
       </div>
     </div>
     <div id="toast" role="status"></div>`;
@@ -2270,6 +2295,180 @@ function playerNameFromRoot(root) {
   return persistPlayerName(input?.value || getStoredPlayerName());
 }
 
+let appMenuWired = false;
+
+function saveGameToHistory(model) {
+  const board = model?.board;
+  if (!board || board.state !== "BetweenRounds") return;
+  const session = board.currentSession;
+  const round = session?.round;
+  if (!round?.winner) return;
+  const winnerSeat = round.winner === "blue" ? "p1" : "p2";
+  const isLocal = Boolean(model.localRuntime);
+  const blueName = board.seats?.blue?.player?.displayName || "Blue";
+  const redName = board.seats?.red?.player?.displayName || "Red";
+  const blueScore = Number(session?.score?.blue || 0);
+  const redScore = Number(session?.score?.red || 0);
+  const moves = Array.isArray(round.moves) ? round.moves : [];
+  const sig = `${board.code}:${session?.sessionId || ""}:${winnerSeat}:${blueScore}:${redScore}`;
+  try {
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    const raw = storage?.getItem?.("traceballGameHistory");
+    const existing = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(existing)) return;
+    const alreadySaved = existing.some(
+      (e) =>
+        `${e.roomId}:${e.sessionId || ""}:${e.winner}:${e.score?.p1}:${e.score?.p2}` ===
+        sig,
+    );
+    if (alreadySaved) return;
+    const entry = {
+      roomId: board.code || "local",
+      sessionId: session?.sessionId || null,
+      mode: isLocal ? "local" : "online",
+      savedAt: Date.now(),
+      playedAt: Date.now(),
+      winner: winnerSeat,
+      endReason: round.endReason || "",
+      players: {
+        p1: { name: blueName, status: "active" },
+        p2: { name: redName, status: "active" },
+      },
+      score: { p1: blueScore, p2: redScore },
+      moveCount: moves.length,
+    };
+    storage?.setItem?.(
+      "traceballGameHistory",
+      JSON.stringify([entry, ...existing].slice(0, 50)),
+    );
+  } catch {}
+}
+
+function renderMenuHistory(container) {
+  if (!container) return;
+  let entries = [];
+  try {
+    const raw =
+      typeof window !== "undefined" &&
+      window.localStorage?.getItem?.("traceballGameHistory");
+    if (raw) entries = JSON.parse(raw);
+  } catch {}
+  if (!Array.isArray(entries) || entries.length === 0) {
+    container.innerHTML =
+      '<p class="history-empty">Finished games will appear here. Online games are saved on every device that sees the result.</p>';
+    return;
+  }
+  const clearBtn = document.querySelector("#clearMenuHistory");
+  if (clearBtn) clearBtn.disabled = false;
+  container.innerHTML = entries
+    .slice(0, 8)
+    .map((entry) => {
+      const winnerName =
+        entry.players?.[entry.winner]?.name || entry.winner || "Unknown";
+      const p1 = entry.players?.p1?.name || "Blue";
+      const p2 = entry.players?.p2?.name || "Red";
+      const score = `${entry.score?.p1 || 0}-${entry.score?.p2 || 0}`;
+      const date = entry.playedAt
+        ? new Date(entry.playedAt).toLocaleDateString()
+        : "";
+      return `<article class="history-item"><div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div><div class="history-meta">${escapeHtml(entry.mode || "online")} \u00b7 ${escapeHtml(p1)} vs ${escapeHtml(p2)} \u00b7 ${entry.moveCount || 0} moves${date ? ` \u00b7 ${escapeHtml(date)}` : ""}</div></article>`;
+    })
+    .join("");
+}
+
+function openAppMenuContent(view) {
+  const showHistory = view === "history";
+  const overlay = document.querySelector("#appContentOverlay");
+  const title = document.querySelector("#appContentTitle");
+  const histSection = document.querySelector("#appMenuHistory");
+  const rulesSection = document.querySelector("#appMenuRules");
+  const closeBtn = document.querySelector("#appContentClose");
+  document.querySelector("#appMenuDropdown")?.classList?.add("hidden");
+  document
+    .querySelector("#appMenuButton")
+    ?.setAttribute("aria-expanded", "false");
+  if (title) title.textContent = showHistory ? "Play History" : "Rules";
+  histSection?.classList?.toggle("hidden", !showHistory);
+  rulesSection?.classList?.toggle("hidden", showHistory);
+  if (showHistory)
+    renderMenuHistory(document.querySelector("#menuHistoryList"));
+  overlay?.classList?.remove("hidden");
+  document.body?.classList?.add("menu-open");
+  if (typeof requestAnimationFrame !== "undefined")
+    requestAnimationFrame(() => closeBtn?.focus?.());
+}
+
+function closeAppMenuContent() {
+  document.querySelector("#appContentOverlay")?.classList?.add("hidden");
+  document.body?.classList?.remove("menu-open");
+  document.querySelector("#appMenuButton")?.focus?.();
+}
+
+function wireAppMenu() {
+  const button = document.querySelector("#appMenuButton");
+  const dropdown = document.querySelector("#appMenuDropdown");
+  const overlay = document.querySelector("#appContentOverlay");
+  const closeBtn = document.querySelector("#appContentClose");
+  const clearBtn = document.querySelector("#clearMenuHistory");
+  if (!button) return;
+  button.addEventListener("click", () => {
+    if (dropdown?.classList?.contains("hidden")) {
+      dropdown?.classList?.remove("hidden");
+      button.setAttribute("aria-expanded", "true");
+    } else {
+      dropdown?.classList?.add("hidden");
+      button.setAttribute("aria-expanded", "false");
+    }
+  });
+  dropdown?.addEventListener("click", (event) => {
+    const choice = event.target?.closest?.("[data-menu-view]");
+    if (choice) openAppMenuContent(choice.dataset.menuView);
+  });
+  closeBtn?.addEventListener("click", closeAppMenuContent);
+  overlay?.addEventListener("click", (event) => {
+    if (event.target === overlay) closeAppMenuContent();
+  });
+  clearBtn?.addEventListener("click", () => {
+    try {
+      window.localStorage?.removeItem?.("traceballGameHistory");
+    } catch {}
+    const list = document.querySelector("#menuHistoryList");
+    if (list)
+      list.innerHTML =
+        '<p class="history-empty">Finished games will appear here.</p>';
+    setToast("Game history cleared on this device.");
+  });
+  if (!appMenuWired) {
+    appMenuWired = true;
+    document.addEventListener("click", (event) => {
+      const dd = document.querySelector("#appMenuDropdown");
+      if (
+        dd &&
+        !dd.classList.contains("hidden") &&
+        !event.target?.closest?.("#appMenuDropdown") &&
+        !event.target?.closest?.("#appMenuButton")
+      ) {
+        dd.classList.add("hidden");
+        document
+          .querySelector("#appMenuButton")
+          ?.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      const ov = document.querySelector("#appContentOverlay");
+      const dd = document.querySelector("#appMenuDropdown");
+      if (ov && !ov.classList.contains("hidden")) closeAppMenuContent();
+      else if (dd && !dd.classList.contains("hidden")) {
+        dd.classList.add("hidden");
+        document
+          .querySelector("#appMenuButton")
+          ?.setAttribute("aria-expanded", "false");
+      }
+    });
+  }
+}
+
 function rewireBridgeView(root, bridge) {
   wireOpenBoardForm(root);
   wireSeatingActions(root, bridge);
@@ -2278,6 +2477,7 @@ function rewireBridgeView(root, bridge) {
   wireReplayRange(root, bridge);
   wireRoundActions(root, bridge);
   wireDisconnectActions(root, bridge);
+  wireAppMenu();
 }
 
 function refreshBridgeRender(root, bridge) {
