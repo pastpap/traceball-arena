@@ -2,6 +2,7 @@ const FIXTURE_URL = '/fixtures/phase1/board-active-session.json';
 const CLIENT_ID_KEY = 'traceballElmClientId';
 const PLAYER_NAME_KEY = 'traceballPlayerName';
 const ONLINE_TIMER_KEY = 'traceballOnlineMoveTimer';
+const LOCAL_RUNTIME_KEY = 'traceballLocalRuntime';
 
 function initialModel() {
   return {
@@ -18,6 +19,8 @@ function initialModel() {
     pendingMoveKey: null,
     pendingNewRound: false,
     pendingFreeSeat: null,
+    localRuntime: false,
+    localPaused: false,
   };
 }
 
@@ -119,6 +122,250 @@ function persistOnlineMoveTimer(seconds) {
 function timerOptions(selectedSeconds = 15) {
   const options = [0, 5, 10, 15, 30, 60];
   return options.map((seconds) => `<option value="${seconds}"${Number(selectedSeconds) === seconds ? ' selected' : ''}>${seconds === 0 ? 'Off' : `${seconds} seconds`}</option>`).join('');
+}
+
+function normalizeLocalName(value, fallback) {
+  return String(value || '').trim().slice(0, 24) || fallback;
+}
+
+function isLocalGoalPoint(point) {
+  if (!point) return false;
+  if (Number(point.x) < 3 || Number(point.x) > 5) return false;
+  return Number(point.y) === 0 || Number(point.y) === 12;
+}
+
+function isLocalBoardPoint(point) {
+  if (!point) return false;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return false;
+  if (x < 0 || x > 8 || y < 0 || y > 12) return false;
+  if (y >= 1 && y <= 11) return true;
+  return x >= 3 && x <= 5;
+}
+
+function localNeighbors(point) {
+  const vectors = [
+    { x: -1, y: -1 }, { x: 0, y: -1 }, { x: 1, y: -1 },
+    { x: -1, y: 0 }, { x: 1, y: 0 },
+    { x: -1, y: 1 }, { x: 0, y: 1 }, { x: 1, y: 1 },
+  ];
+  return vectors
+    .map((vector) => ({ x: Number(point.x) + vector.x, y: Number(point.y) + vector.y }))
+    .filter((candidate) => isLocalBoardPoint(candidate));
+}
+
+function computeLocalLegalMoves(ball, visitedKeys) {
+  const neighbors = localNeighbors(ball);
+  const fresh = neighbors.filter((point) => !visitedKeys.has(elmPointKey(point)));
+  return fresh.length ? fresh : neighbors;
+}
+
+function createLocalRuntimeBoard({ blueName = 'Blue', redName = 'Red', moveTimeLimitSeconds = 15, score = { blue: 0, red: 0 }, turn = 'p1' } = {}) {
+  const ball = { x: 4, y: 6 };
+  const visited = ['4,6'];
+  const visitedKeys = new Set(visited);
+  const legalMoves = computeLocalLegalMoves(ball, visitedKeys);
+  return {
+    code: 'LOCAL',
+    state: 'SessionActive',
+    seats: {
+      blue: { state: 'Occupied', player: { id: 'local-blue', displayName: normalizeLocalName(blueName, 'Blue') } },
+      red: { state: 'Occupied', player: { id: 'local-red', displayName: normalizeLocalName(redName, 'Red') } },
+    },
+    watchers: [],
+    waitingList: [],
+    updatedAt: 'local-runtime',
+    expiresAt: 'local-runtime',
+    currentSession: {
+      state: 'SessionActive',
+      score: {
+        blue: Number.isFinite(Number(score?.blue)) ? Number(score.blue) : 0,
+        red: Number.isFinite(Number(score?.red)) ? Number(score.red) : 0,
+      },
+      moveTimeLimitSeconds: normalizeMoveTimerSeconds(moveTimeLimitSeconds, 15),
+      round: {
+        state: 'InProgress',
+        turn,
+        ball,
+        visited,
+        moves: [],
+        segments: [],
+        legalMoves,
+      },
+    },
+  };
+}
+
+function createLocalRuntimeModel({ blueName = 'Blue', redName = 'Red', moveTimeLimitSeconds = 15 } = {}) {
+  const board = createLocalRuntimeBoard({ blueName, redName, moveTimeLimitSeconds });
+  return {
+    ...initialModel(),
+    board,
+    boardCode: board.code,
+    version: 1,
+    ownSeat: 'p1',
+    localRuntime: true,
+    localPaused: false,
+    connectionStatus: 'local',
+    clientId: getOrCreateClientId(),
+  };
+}
+
+function isValidLocalRuntimeModel(model) {
+  if (!model || model.localRuntime !== true) return false;
+  const board = model.board;
+  const round = board?.currentSession?.round;
+  if (!board || board.code !== 'LOCAL' || !round) return false;
+  if (!Array.isArray(round.visited) || !Array.isArray(round.moves) || !Array.isArray(round.legalMoves)) return false;
+  if (!board?.seats?.blue?.player?.displayName || !board?.seats?.red?.player?.displayName) return false;
+  return true;
+}
+
+function serializeLocalRuntimeModel(model) {
+  if (!isValidLocalRuntimeModel(model)) return '';
+  return JSON.stringify({
+    v: 1,
+    savedAt: Date.now(),
+    model,
+  });
+}
+
+function restoreLocalRuntimeModel(rawValue) {
+  if (!rawValue) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(rawValue);
+  } catch {
+    return null;
+  }
+  const candidate = parsed?.model ?? parsed;
+  if (!isValidLocalRuntimeModel(candidate)) return null;
+  return {
+    ...initialModel(),
+    ...candidate,
+    localRuntime: true,
+    localPaused: Boolean(candidate.localPaused),
+    connectionStatus: 'local',
+    boardCode: candidate.board?.code || 'LOCAL',
+    clientId: candidate.clientId || getOrCreateClientId(),
+  };
+}
+
+function loadSavedLocalRuntimeModel() {
+  const raw = getStorage()?.getItem?.(LOCAL_RUNTIME_KEY);
+  const restored = restoreLocalRuntimeModel(raw);
+  if (!restored && raw) getStorage()?.removeItem?.(LOCAL_RUNTIME_KEY);
+  return restored;
+}
+
+function saveLocalRuntimeModel(model) {
+  const serialized = serializeLocalRuntimeModel(model);
+  if (serialized) getStorage()?.setItem?.(LOCAL_RUNTIME_KEY, serialized);
+  return serialized;
+}
+
+function clearSavedLocalRuntimeModel() {
+  getStorage()?.removeItem?.(LOCAL_RUNTIME_KEY);
+}
+
+function applyLocalRuntimeMove(model, key) {
+  if (!isValidLocalRuntimeModel(model)) return null;
+  const point = parseElmPointKey(key);
+  if (!point) return null;
+  const round = model.board.currentSession.round;
+  const legalKeys = new Set((round.legalMoves || []).map((move) => elmPointKey(move)));
+  if (!legalKeys.has(key)) return null;
+
+  const from = round.ball || { x: 4, y: 6 };
+  const turn = round.turn === 'p2' ? 'p2' : 'p1';
+  const move = {
+    playerId: turn,
+    from,
+    to: point,
+    segment: `${elmPointKey(from)}|${key}`,
+    bounce: false,
+    at: Date.now(),
+  };
+  const visited = Array.isArray(round.visited) ? [...round.visited] : ['4,6'];
+  if (!visited.includes(key)) visited.push(key);
+  const visitedKeys = new Set(visited);
+  const segments = Array.isArray(round.segments) ? [...round.segments, move.segment] : [move.segment];
+  const moves = Array.isArray(round.moves) ? [...round.moves, move] : [move];
+
+  const winner = Number(point.y) === 0 ? 'p1' : Number(point.y) === 12 ? 'p2' : null;
+  const score = { ...model.board.currentSession.score };
+  if (winner === 'p1') score.blue = Number(score.blue || 0) + 1;
+  if (winner === 'p2') score.red = Number(score.red || 0) + 1;
+
+  const nextTurn = turn === 'p1' ? 'p2' : 'p1';
+  const nextRound = winner
+    ? {
+      ...round,
+      state: 'BetweenRounds',
+      turn: nextTurn,
+      ball: point,
+      winner,
+      endReason: `${winner === 'p1' ? 'Blue' : 'Red'} scored in the local match.`,
+      visited,
+      moves,
+      segments,
+      legalMoves: [],
+    }
+    : {
+      ...round,
+      state: 'InProgress',
+      turn: nextTurn,
+      ball: point,
+      visited,
+      moves,
+      segments,
+      legalMoves: computeLocalLegalMoves(point, visitedKeys),
+    };
+
+  return {
+    ...model,
+    ownSeat: nextTurn,
+    pendingMoveKey: key,
+    error: null,
+    board: {
+      ...model.board,
+      state: winner ? 'BetweenRounds' : 'SessionActive',
+      updatedAt: Date.now(),
+      currentSession: {
+        ...model.board.currentSession,
+        state: winner ? 'BetweenRounds' : 'SessionActive',
+        score,
+        round: nextRound,
+      },
+    },
+  };
+}
+
+function restartLocalRuntimeRound(model) {
+  if (!isValidLocalRuntimeModel(model)) return model;
+  const blueName = model.board.seats.blue.player.displayName;
+  const redName = model.board.seats.red.player.displayName;
+  const moveTimeLimitSeconds = normalizeMoveTimerSeconds(model.board.currentSession.moveTimeLimitSeconds, 15);
+  const score = model.board.currentSession.score || { blue: 0, red: 0 };
+  const board = createLocalRuntimeBoard({ blueName, redName, moveTimeLimitSeconds, score, turn: 'p1' });
+  return {
+    ...model,
+    board,
+    ownSeat: 'p1',
+    localPaused: false,
+    pendingMoveKey: null,
+    pendingNewRound: false,
+    error: null,
+  };
+}
+
+function localRuntimeSummary(model) {
+  if (!isValidLocalRuntimeModel(model)) return 'Resume the saved same-device game.';
+  const blue = model.board.seats.blue.player.displayName;
+  const red = model.board.seats.red.player.displayName;
+  const timer = normalizeMoveTimerSeconds(model.board.currentSession.moveTimeLimitSeconds, 15);
+  return `${blue} vs ${red}${timer ? ` · ${timer}s timer` : ' · no timer'}`;
 }
 
 function websocketUrl() {
@@ -305,6 +552,28 @@ async function createBoardAsBlue({ root, name = 'Elm Player', moveTimeLimitSecon
   return bridge;
 }
 
+function createLocalBridge({ root, blueName = 'Blue', redName = 'Red', moveTimeLimitSeconds = 15, restoredModel = null, onModelChange } = {}) {
+  const model = restoredModel || createLocalRuntimeModel({ blueName, redName, moveTimeLimitSeconds });
+  const bridge = {
+    localRuntime: true,
+    model,
+    close() {},
+    leaveSeat() {
+      clearSavedLocalRuntimeModel();
+      bridge.model = { ...initialModel(), clientId: getOrCreateClientId(), connectionStatus: 'idle', localRuntime: false, localPaused: false };
+      return true;
+    },
+    newRound() {
+      bridge.model = restartLocalRuntimeRound(bridge.model);
+      saveLocalRuntimeModel(bridge.model);
+      return true;
+    },
+  };
+  saveLocalRuntimeModel(bridge.model);
+  renderBridge(root, bridge, onModelChange);
+  return bridge;
+}
+
 function renderBridge(root, bridge, onModelChange) {
   if (root) root.innerHTML = renderModel(bridge.model);
   if (typeof onModelChange === 'function') onModelChange(bridge.model, bridge);
@@ -328,6 +597,11 @@ function renderOpenBoardForm(model = initialModel()) {
   const code = model.boardCode || '';
   const playerName = getStoredPlayerName();
   const onlineTimer = getStoredOnlineMoveTimer();
+  const savedLocal = loadSavedLocalRuntimeModel();
+  const localBlue = savedLocal?.board?.seats?.blue?.player?.displayName || 'Blue';
+  const localRed = savedLocal?.board?.seats?.red?.player?.displayName || 'Red';
+  const localTimer = normalizeMoveTimerSeconds(savedLocal?.board?.currentSession?.moveTimeLimitSeconds, 15);
+  const resumeHiddenClass = savedLocal ? '' : ' hidden';
   return `
     <div id="homeModeToggle" class="home-mode-toggle mobile-page active" data-mobile-page="invite" role="group" aria-label="Home game type">
       <button id="onlineMode" class="active" type="button" data-home-mode="online" aria-pressed="true">Online</button>
@@ -351,11 +625,11 @@ function renderOpenBoardForm(model = initialModel()) {
     </div>
     <section id="localPanel" class="card join-panel local-panel mobile-page hidden" data-mobile-page="invite">
       <div><h2>Local same-screen PvP</h2><p>Players face each other and play on this device. The pitch stays fixed for local play.</p></div>
-      <section id="resumeLocalCard" class="resume-local-card hidden" aria-live="polite"><div><strong>Paused local game</strong><p id="resumeLocalText">Resume the saved same-device game.</p></div><div class="resume-local-actions"><button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button><button id="discardLocalSaved" class="ghost" type="button">Discard</button></div></section>
+      <section id="resumeLocalCard" class="resume-local-card${resumeHiddenClass}" aria-live="polite"><div><strong>Paused local game</strong><p id="resumeLocalText">${escapeHtml(localRuntimeSummary(savedLocal))}</p></div><div class="resume-local-actions"><button id="resumeLocalSaved" class="primary" type="button">Resume saved game</button><button id="discardLocalSaved" class="ghost" type="button">Discard</button></div></section>
       <form id="localForm">
-        <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="Blue" required />
-        <input id="localP2Name" maxlength="24" placeholder="Red player name" value="Red" required />
-        <label class="timer-setting" for="localMoveTimer"><span>Move timer</span><select id="localMoveTimer">${timerOptions(15)}</select></label>
+        <input id="localP1Name" maxlength="24" placeholder="Blue player name" value="${escapeHtml(localBlue)}" required />
+        <input id="localP2Name" maxlength="24" placeholder="Red player name" value="${escapeHtml(localRed)}" required />
+        <label class="timer-setting" for="localMoveTimer"><span>Move timer</span><select id="localMoveTimer">${timerOptions(localTimer)}</select></label>
         <button id="startLocal" class="primary" type="submit">Start local match</button>
       </form>
     </section>`;
@@ -463,6 +737,11 @@ function isSeated(model) {
 
 function submitNewRound(bridge) {
   if (!bridge || !isSeated(bridge.model) || !isBetweenRounds(bridge.model)) return false;
+  if (bridge.model?.localRuntime) {
+    bridge.model = restartLocalRuntimeRound(bridge.model);
+    saveLocalRuntimeModel(bridge.model);
+    return true;
+  }
   const submitted = typeof bridge.newRound === 'function'
     ? bridge.newRound()
     : bridge.sendCommand?.({ type: 'reset' });
@@ -509,6 +788,13 @@ function submitFreeDisconnectedSeat(bridge, seatId) {
 
 function submitMoveFromLegalTarget(bridge, key) {
   if (!bridge || !isOwnTurn(bridge.model) || !isLegalMoveKey(bridge.model, key)) return false;
+  if (bridge.model?.localRuntime) {
+    const next = applyLocalRuntimeMove(bridge.model, key);
+    if (!next) return false;
+    bridge.model = { ...next, error: null };
+    saveLocalRuntimeModel(bridge.model);
+    return true;
+  }
   const point = parseElmPointKey(key);
   const submitted = typeof bridge.submitMove === 'function'
     ? bridge.submitMove(point)
@@ -895,15 +1181,22 @@ function renderMatchDetails(model) {
 function renderModel(model) {
   const board = model.board;
   const session = board?.currentSession;
+  const runtimeMode = model.localRuntime ? 'local' : 'online';
   const score = session?.score ? `Blue ${session.score.blue} — Red ${session.score.red}` : 'No session score yet';
   const boardTitle = board ? `Board ${escapeHtml(board.code)}` : 'Traceball Arena';
   const stateLabel = board ? escapeHtml(board.state) : 'No board open';
   const staleNote = model.ignoredStaleVersion ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>` : '';
   const newRoundControlAttr = isSeated(model) ? 'data-elm-command="new-round"' : 'disabled aria-disabled="true"';
+  const pauseOverlayClass = `pause-overlay${model.localPaused ? '' : ' hidden'}`;
+  const boardStageClass = `board-stage${model.localPaused ? ' paused' : ''}`;
+  const pauseMessage = model.localRuntime ? 'Game paused on this device. Resume when both players are ready.' : 'Board hidden while paused.';
+  const pauseTurn = model.localRuntime
+    ? `Turn: ${escapeHtml(colorLabel(board?.currentSession?.round?.turn || ''))}`
+    : 'Turn resumes here.';
   const boardBody = `${staleNote}${renderPlayBoardBody(model, board)}`;
 
   return `
-    <main class="shell" data-elm-phase="9" data-elm-shell-actions>
+    <main class="shell" data-elm-phase="9" data-elm-runtime="${runtimeMode}" data-elm-shell-actions>
       <section class="hero">
         <div class="hero-copy">
           <p class="eyebrow">Realtime paper-soccer</p>
@@ -951,14 +1244,14 @@ function renderModel(model) {
             ${renderPlayLeaveButton(model)}
             <button id="playPauseGame" class="play-pause-button ghost" type="button" data-elm-command="pause"><span aria-hidden="true">⏸</span> Pause</button>
           </div>
-          <div class="board-stage">
+          <div class="${boardStageClass}">
             ${boardBody}
-            <div id="pauseOverlay" class="pause-overlay hidden" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+            <div id="pauseOverlay" class="${pauseOverlayClass}" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
               <div class="pause-card">
                 <div class="pause-kicker">Paused</div>
                 <h2 id="pauseTitle">Game paused</h2>
-                <p id="pauseMessage">Board hidden while paused.</p>
-                <p id="pauseTurn">Turn resumes here.</p>
+                <p id="pauseMessage">${pauseMessage}</p>
+                <p id="pauseTurn">${pauseTurn}</p>
                 <div class="pause-actions">
                   <button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>
                   <button id="pauseNewRound" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
@@ -1123,7 +1416,17 @@ function wirePhase9ShellActions(root, bridge) {
     if (command === 'refresh-boards') {
       loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
     }
-    if (command === 'pause' || command === 'resume' || command.startsWith('replay-') || command === 'close-winner') {
+    if (command === 'pause' && bridge.model?.localRuntime) {
+      bridge.model = { ...bridge.model, localPaused: true, error: null };
+      saveLocalRuntimeModel(bridge.model);
+      changed = true;
+    }
+    if (command === 'resume' && bridge.model?.localRuntime) {
+      bridge.model = { ...bridge.model, localPaused: false, error: null };
+      saveLocalRuntimeModel(bridge.model);
+      changed = true;
+    }
+    if (command.startsWith('replay-') || command === 'close-winner' || ((command === 'pause' || command === 'resume') && !bridge.model?.localRuntime)) {
       setToast('This control is wired; full visual parity for this action is coming in the next Phase 9 slice.');
     }
     if (changed) refreshBridgeRender(root, bridge);
@@ -1184,6 +1487,8 @@ function wireOpenBoardForm(root) {
   const input = document.querySelector('#elmBoardCode');
   const createButton = document.querySelector('#elmCreateBoard');
   const localForm = document.querySelector('#localForm');
+  const resumeLocalButton = document.querySelector('#resumeLocalSaved');
+  const discardLocalButton = document.querySelector('#discardLocalSaved');
   form?.addEventListener?.('submit', (event) => {
     event.preventDefault();
     const code = sanitizeBoardCode(input?.value || '');
@@ -1203,10 +1508,31 @@ function wireOpenBoardForm(root) {
   });
   localForm?.addEventListener?.('submit', (event) => {
     event.preventDefault?.();
-    const p1 = String(document.querySelector('#localP1Name')?.value || 'Blue').trim().slice(0, 24) || 'Blue';
-    const p2 = String(document.querySelector('#localP2Name')?.value || 'Red').trim().slice(0, 24) || 'Red';
+    const p1 = normalizeLocalName(document.querySelector('#localP1Name')?.value, 'Blue');
+    const p2 = normalizeLocalName(document.querySelector('#localP2Name')?.value, 'Red');
     const timer = selectedMoveTimer('#localMoveTimer', 15);
-    setToast(`Local match setup saved: ${p1} vs ${p2}${timer ? ` · ${timer}s timer` : ' · no timer'}. Local runtime is next.`);
+    const bridge = createLocalBridge({ root, blueName: p1, redName: p2, moveTimeLimitSeconds: timer, onModelChange: (_model, activeBridge) => { rewireBridgeView(root, activeBridge); } });
+    rewireBridgeView(root, bridge);
+    activateMobilePage('play');
+  });
+
+  resumeLocalButton?.addEventListener?.('click', () => {
+    const restored = loadSavedLocalRuntimeModel();
+    if (!restored) {
+      setToast('No saved local game found.');
+      return;
+    }
+    const bridge = createLocalBridge({ root, restoredModel: restored, onModelChange: (_model, activeBridge) => { rewireBridgeView(root, activeBridge); } });
+    rewireBridgeView(root, bridge);
+    activateMobilePage('play');
+  });
+
+  discardLocalButton?.addEventListener?.('click', () => {
+    clearSavedLocalRuntimeModel();
+    const model = { ...initialModel(), clientId: getOrCreateClientId() };
+    if (root) root.innerHTML = renderModel(model);
+    wireOpenBoardForm(root);
+    wirePhase9ShellActions(root, { model });
   });
 }
 
@@ -1236,7 +1562,7 @@ async function mount() {
   wirePhase9ShellActions(root, { model });
 }
 
-window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wirePhase9ShellActions, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
+window.TraceballElmShell = { initialModel, decodeStateMessage, applyState, getOrCreateClientId, websocketUrl, parseBoardCodeFromLocation, createSocketBridge, createBoardAsBlue, createLocalBridge, createLocalRuntimeModel, serializeLocalRuntimeModel, restoreLocalRuntimeModel, applyLocalRuntimeMove, loadSavedLocalRuntimeModel, saveLocalRuntimeModel, clearSavedLocalRuntimeModel, renderReadOnlyBoard, renderRoundResult, renderDisconnectedSeatRecovery, renderBoardList, loadBoardList, renderModel, renderBoardMessage, submitMoveFromLegalTarget, submitNewRound, submitFreeDisconnectedSeat, wirePhase9ShellActions, wireBoardMoveTargets, wireRoundActions, wireDisconnectActions, mount };
 mount();
 
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {

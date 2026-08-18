@@ -701,4 +701,38 @@ describe('Phase 3 Elm shell runtime contract', () => {
       { type: 'claimSeat', roomId: 'NEW12345', seatId: 'p1', name: 'Creator', clientId: bridge.clientId },
     ]);
   });
+
+  it('starts a local same-screen runtime bridge and renders a local board shell', () => {
+    const { shell, root } = loadShell();
+
+    const bridge = shell.createLocalBridge({ root, blueName: 'Stefan', redName: 'Alex', moveTimeLimitSeconds: 10 });
+
+    expect(bridge.model.localRuntime).toBe(true);
+    expect(bridge.model.board.code).toBe('LOCAL');
+    expect(root.innerHTML).toContain('data-elm-runtime="local"');
+    expect(root.innerHTML).toContain('Stefan');
+    expect(root.innerHTML).toContain('Alex');
+    expect(root.innerHTML).toContain('Timer: 10s');
+  });
+
+  it('persists paused local runtime state and restores it from storage', () => {
+    const storage = {
+      values: new Map(),
+      getItem(key) { return this.values.get(key) ?? null; },
+      setItem(key, value) { this.values.set(key, String(value)); },
+      removeItem(key) { this.values.delete(key); },
+    };
+    const { shell } = loadShell({ localStorage: storage });
+
+    const local = shell.createLocalRuntimeModel({ blueName: 'Blue', redName: 'Red', moveTimeLimitSeconds: 30 });
+    local.localPaused = true;
+    shell.saveLocalRuntimeModel(local);
+    const restored = shell.loadSavedLocalRuntimeModel();
+
+    expect(restored).not.toBeNull();
+    expect(restored.localRuntime).toBe(true);
+    expect(restored.localPaused).toBe(true);
+    expect(restored.board.currentSession.moveTimeLimitSeconds).toBe(30);
+    expect(shell.renderModel(restored)).toContain('id="pauseOverlay" class="pause-overlay"');
+  });
 });
