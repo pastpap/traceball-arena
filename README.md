@@ -18,9 +18,10 @@ Live app: https://traceball-arena-production.up.railway.app
 - 8-direction movement with no repeated segments.
 - Bounce/continue turns from already visited points, boundary points, and black gate-mouth center dots.
 - Goals, own goals, stuck-loss detection, cumulative room/local score, and new-round reset.
-- Configurable per-move clock: off, 5, 10, 15, 20, or 30 seconds; timeout passes the turn without drawing a line.
+- Configurable per-move clock: off, 5, 10, 15, 30, or 60 seconds; timeout passes the turn without drawing a line.
 - Client-side replay controls live with the board. No accounts and no persistent database.
-- Responsive layout: desktop uses a board + match side panel; phones/tablets use Home / Play / Match tabs.
+- Responsive layout: desktop uses a board + match side panel with a lobby/game toggle; phones/tablets use Home / Boards / Play / Match tabs.
+- In-view notifications: when you are away from gameplay, opponent updates surface with a badge (desktop Game button or mobile Play tab) and a short toast, without forced navigation.
 
 ## Gameplay
 
@@ -66,6 +67,7 @@ The project grew through small playable slices:
 4. **Robust room lifecycle** — watcher sockets for invite pages, stable client IDs, reconnect/rejoin handling for mobile/PWA lifecycle events, and guarded mutating actions.
 5. **Local same-screen mode** — client-side local PvP with the same state shape as online rooms, cumulative score preservation, static face-to-face board, and no WebSocket slot consumption.
 6. **Game polish** — gate labels, score strip, winner modal, gate confetti, player-colored move hints, slower result animation, and a jumping turn marker.
+7. **Phase 9 shell parity (ongoing)** — desktop lobby/game toggle, desktop lobby tabs (Game/Boards), board-focused Play surface, player name badges on board, and non-disruptive move notifications (badges + toasts, no auto-navigation).
 
 The implementation intentionally stays no-DB for now: rooms, scores, and replays are in memory and disappear when the Railway service restarts.
 
@@ -77,6 +79,7 @@ Current default frontend:
 
 - `/` currently renders the functional Phase 8/10-testing Elm shell on `elm-rewrite` staging so lifecycle flows can be tested end-to-end, but it is **not production-ready visual parity** yet.
 - Phase 9 is now explicit: the Elm UI must match the JavaScript UI layout, graphics, board artifacts, overlays, replay, and mobile behavior before the default-route cutover is considered complete.
+- Recent Phase 9 progress includes desktop-first de-cluttering (lobby/game toggle, two-tab lobby), top-bar simplification, board-embedded player labels, and live update notifications that preserve current view context.
 - `/room/:roomId` redirects to `/?board=<roomId>` so older invite links continue into the primary board-centric frontend.
 - `/elm` remains as a direct compatibility alias for the Elm shell.
 - `/legacy` and `/legacy/room/:roomId` keep the old JavaScript frontend available as a temporary fallback; setting `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.

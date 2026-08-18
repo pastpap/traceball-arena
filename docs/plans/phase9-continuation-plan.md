@@ -12,7 +12,7 @@
 
 ## Current Phase 9 status
 
-Completed in PR branch `phase9-home-boards-match`:
+Completed baseline work from `phase9-home-boards-match` and follow-up staging fixes:
 
 - Home has a generic persisted `playerNameInput` using `traceballPlayerName`.
 - Home has explicit Online/Local setup controls.
@@ -23,6 +23,35 @@ Completed in PR branch `phase9-home-boards-match`:
 - Task 1 Board HUD/orientation is implemented: Play shows board code, viewer role, turn, connection state, and a `data-elm-orientation` marker.
 - Task 2 one-shot move feedback is implemented with `data-elm-move-feedback="pending"` and a non-infinite CSS animation.
 - Task 3 online timer display/settings is implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
+
+### Progress log (yesterday and today)
+
+#### 2026-08-18
+
+- Reworked desktop structure to reduce scrolling: introduced explicit lobby/game mode switching instead of drawer behavior.
+- Added desktop lobby tabs (Game and Boards) and kept mobile tabs separated to avoid cross-layout leakage.
+- Simplified top bar ordering and game-info placement, including tooltip behavior on the Game/Lobby control.
+- De-cluttered Play by moving non-essential lifecycle details out of the immediate board focus.
+- Added board-embedded player name badges.
+- Restored base-route wiring through full bridge rewiring so controls and menu actions work on first load.
+
+#### 2026-08-19
+
+- Replaced auto-navigation on state updates with non-disruptive notifications.
+- Added badge targets for desktop Game button and mobile Play tab.
+- Added toast notifications for live updates while user is away from gameplay.
+- Fixed view-state preservation across re-renders so socket updates no longer force users back to board.
+- Fixed notification trigger to include move-count increase (covers same-turn bounce chains where turn value does not change).
+- Fixed badge/toast persistence across render cycles by re-applying UI notification state after DOM replacement.
+- Added and updated runtime tests for all notification and view-preservation regressions.
+
+Current test status after these fixes: full Vitest suite green.
+
+### Remaining near-term Phase 9 items
+
+- Continue visual parity pass for board art details and any remaining JS-vs-shell differences.
+- Run focused mobile/tablet staging smoke for notification readability and spacing.
+- Keep Match metadata complete while preserving board-first Play focus.
 
 ## Visual asset parity slice to add explicitly
 

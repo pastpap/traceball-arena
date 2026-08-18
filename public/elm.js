@@ -741,6 +741,10 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       }
       return;
     }
+    const prevRound = bridge.model?.board?.currentSession?.round;
+    const prevTurn = prevRound?.turn;
+    const prevMoveCount = Number(prevRound?.moves?.length || 0);
+    const prevBoardState = bridge.model?.board?.state;
     bridge.model = {
       ...applyState(bridge.model, message),
       connectionStatus: bridge.model.connectionStatus,
@@ -753,7 +757,26 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       pendingFreeSeat: null,
     };
     saveGameToHistory(bridge.model);
+    const newRound = bridge.model?.board?.currentSession?.round;
+    const newTurn = newRound?.turn;
+    const newMoveCount = Number(newRound?.moves?.length || 0);
+    const newBoardState = bridge.model?.board?.state;
+    let notif = "";
+    if (newMoveCount > prevMoveCount) {
+      const lastPlayer = newRound?.moves?.at?.(-1)?.playerId;
+      notif = lastPlayer
+        ? `Move: ${colorLabel(lastPlayer)}`
+        : "New move played";
+    } else if (newTurn && newTurn !== prevTurn) {
+      notif = `Turn: ${colorLabel(newTurn)}`;
+    } else if (newBoardState && newBoardState !== prevBoardState) {
+      notif = titleCase(newBoardState);
+    }
     renderBridge(root, bridge, onModelChange);
+    if (notif && !isGameViewVisible()) {
+      setToast(notif);
+      setGameUpdateBadge(true);
+    }
   };
   bridge.socket.onerror = () => {
     bridge.model = {
@@ -885,10 +908,42 @@ function createLocalBridge({
   return bridge;
 }
 
+function captureViewState() {
+  return {
+    mobilePage: currentMobilePage(),
+    lobbyOpen: isLobbyOpenView(),
+  };
+}
+
+function restoreViewState(viewState) {
+  if (!viewState) return;
+  if (viewState.mobilePage) activateMobilePage(viewState.mobilePage);
+  const shell = document.querySelector("[data-elm-shell-actions]");
+  const lobbyBtn = document.querySelector(".hero-lobby-btn");
+  if (viewState.lobbyOpen) {
+    shell?.setAttribute?.("data-elm-lobby-open", "true");
+    if (lobbyBtn) lobbyBtn.textContent = "Game";
+  } else {
+    shell?.setAttribute?.("data-elm-lobby-open", "false");
+    if (lobbyBtn) lobbyBtn.textContent = "Lobby";
+  }
+  // Re-apply badge and toast to the fresh DOM after innerHTML replacement
+  if (gameUpdateBadgeActive) setGameUpdateBadge(true);
+  if (activeToastText) {
+    const toast = document.querySelector("#toast");
+    if (toast) {
+      toast.textContent = activeToastText;
+      toast.classList?.add?.("show");
+    }
+  }
+}
+
 function renderBridge(root, bridge, onModelChange) {
+  const viewState = captureViewState();
   if (root) root.innerHTML = renderModel(bridge.model);
   wireElmBoardCanvas(bridge.model);
   if (typeof onModelChange === "function") onModelChange(bridge.model, bridge);
+  restoreViewState(viewState);
 }
 
 function seatLabel(seat) {
@@ -1681,6 +1736,19 @@ function renderReadOnlyBoard(board, model = initialModel()) {
   const ballKey = elmPointKey(ball);
   const shouldInvert = !isLocal && normalizeSeatId(model?.ownSeat) === "red";
   const ballSvg = `<g class="elm-ball" data-elm-ball="${ballKey}" transform="translate(${elmScreenX(ball.x)} ${elmScreenY(ball.y)})"><circle r="26" fill="rgba(0,0,0,0.18)"/><text data-elm-ball-crest="true" class="elm-ball-emoji" x="0" y="${shouldInvert ? "-1" : "1"}" text-anchor="middle" dominant-baseline="middle" font-size="26" font-family="system-ui"${shouldInvert ? ' transform="scale(1,-1)"' : ""}>\u26bd</text></g>`;
+  // Player score badges — swap top/bottom for red player's inverted view
+  const _blueName = playerDisplayName(board, "blue");
+  const _redName = playerDisplayName(board, "red");
+  const _blueScore = Number(board?.currentSession?.score?.blue ?? 0);
+  const _redScore = Number(board?.currentSession?.score?.red ?? 0);
+  const _topColor = shouldInvert ? "blue" : "red";
+  const _topName = shouldInvert ? _blueName : _redName;
+  const _topPts = shouldInvert ? _blueScore : _redScore;
+  const _botColor = shouldInvert ? "red" : "blue";
+  const _botName = shouldInvert ? _redName : _blueName;
+  const _botPts = shouldInvert ? _redScore : _blueScore;
+  const topBadge = `<div class="elm-board-badge elm-board-badge-top"><span class="dot ${_topColor}"></span><span>${escapeHtml(_topName)}</span><span class="elm-board-badge-score">${_topPts}</span></div>`;
+  const bottomBadge = `<div class="elm-board-badge elm-board-badge-bottom"><span class="dot ${_botColor}"></span><span>${escapeHtml(_botName)}</span><span class="elm-board-badge-score">${_botPts}</span></div>`;
   // Goal mesh geometry (inset from posts and boundary)
   const meshX = elmScreenX(3) + 11;
   const meshW = elmScreenX(5) - 11 - meshX;
@@ -1691,6 +1759,7 @@ function renderReadOnlyBoard(board, model = initialModel()) {
   return `
     <section class="elm-board-preview">
       <div class="elm-board-stage${shouldInvert ? " elm-board-inverted" : ""}" data-elm-board-stage>
+        ${topBadge}
         <svg data-elm-board-svg role="img" aria-label="Read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="elmPitchGradient" x1="0" x2="1" y1="0" y2="1">
@@ -1718,9 +1787,9 @@ function renderReadOnlyBoard(board, model = initialModel()) {
           </g>
         </svg>
         <canvas class="elm-board-canvas" data-elm-board-canvas width="900" height="1300"></canvas>
+        ${bottomBadge}
       </div>
       <div class="elm-board-legend" data-elm-legal-context="${legalContext.name}"><span class="elm-legend-dot elm-legal-${legalContext.color}"></span>${escapeHtml(legalContext.note)}</div>
-      <p class="elm-shell-note">Phase 6C board: own-turn legal targets submit move intent; the server confirms with the next live state.</p>
     </section>`;
 }
 
@@ -1868,7 +1937,7 @@ function renderBoardList(rooms = []) {
         <p>${escapeHtml(roomSummaryOccupancy(room))}</p>
         <p>Score ${escapeHtml(roomSummaryScore(room))}</p>
         <p>${moves} traced moves · ${watchers} watching · ${waiting} waiting</p>
-        <p class="elm-shell-note">Last activity ${escapeHtml(room?.lastActivityAt ?? "unknown")} · Expires ${escapeHtml(room?.expiresAt ?? "unknown")}</p>
+        <p class="elm-shell-note">Last activity ${escapeHtml(formatTimestamp(room?.lastActivityAt))} · Expires ${escapeHtml(formatTimestamp(room?.expiresAt))}</p>
         <a class="elm-primary-link" href="${escapeHtml(elmUrl)}">Open board</a>
       </article>`;
     })
@@ -1890,8 +1959,8 @@ function replaceBoardsPanelContent(root, html) {
     return;
   }
   root.innerHTML = root.innerHTML.replace(
-    /<section id="boardsPanel"[\s\S]*?<\/section>\s*<section class="game-layout">/,
-    `<section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">${html}</section>\n\n      <section class="game-layout">`,
+    /<section id="boardsPanel"[\s\S]*?<\/section>\s*<\/div>\s*<section class="game-layout">/,
+    `<section id="boardsPanel" class="card boards-panel mobile-page" data-mobile-page="boards">${html}</section>\n\n      </div>\n\n      <section class="game-layout">`,
   );
 }
 
@@ -1948,13 +2017,15 @@ function renderPhase9SeatButtons(model, scope = "match") {
   const visibility = phase9CommandVisibility(model);
   const play = scope === "play";
   const buttonClass = play ? "play-join-button ghost" : "ghost";
-  const leaveClass = play ? "play-leave-button ghost danger" : "ghost danger";
+  const leaveClass = play
+    ? "play-leave-button ghost danger"
+    : "match-icon-btn danger";
   return `
     <button id="${play ? "playClaimP1" : "claimP1"}" class="${buttonClass}${hiddenClass(visibility.showBlue)}" type="button" data-elm-command="claim-blue">Join Blue</button>
     <button id="${play ? "playClaimP2" : "claimP2"}" class="${buttonClass}${hiddenClass(visibility.showRed)}" type="button" data-elm-command="claim-red">Join Red</button>
     <button id="${play ? "playJoinWaitingList" : "joinWaitingList"}" class="${buttonClass}${hiddenClass(visibility.showWaitingJoin)}" type="button" data-elm-command="join-waiting-list">Join waiting list</button>
     <button id="${play ? "playLeaveWaitingList" : "leaveWaitingList"}" class="${buttonClass}${hiddenClass(visibility.showWaitingLeave)}" type="button" data-elm-command="leave-waiting-list">Leave waiting list</button>
-    <button id="${play ? "playLeaveSeat" : "leaveSeat"}" class="${leaveClass}${hiddenClass(visibility.showLeave)}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
+    <button id="${play ? "playLeaveSeat" : "leaveSeat"}" class="${leaveClass}${hiddenClass(visibility.showLeave)}" type="button" data-elm-command="leave-seat" title="Leave / forfeit">${play ? "Leave / forfeit" : "\u2715"}</button>`;
 }
 
 function renderPlayLeaveButton(model) {
@@ -1998,15 +2069,25 @@ function onlineTimerText(board) {
     : `${limit} · deadline ${timer.deadlineAt}`;
 }
 
+function formatTimestamp(ts) {
+  const n = Number(ts);
+  if (!n) return "unknown";
+  const d = new Date(n);
+  if (isNaN(d.getTime())) return String(ts);
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function renderBoardTimerDisplay(board) {
   const timer = onlineTimerMeta(board);
   if (!timer) return "";
   const limit = timer.seconds ? `${timer.seconds}s` : "server timer";
-  const deadline =
-    timer.deadlineAt == null
-      ? ""
-      : `<span>Deadline ${escapeHtml(timer.deadlineAt)}</span>`;
-  return `<section class="elm-timer-display" data-elm-timer-display aria-label="Move timer"><span>Timer: ${escapeHtml(limit)}</span>${deadline}</section>`;
+  return `<section class="elm-timer-display" data-elm-timer-display aria-label="Move timer"><span>Timer: ${escapeHtml(limit)}</span></section>`;
 }
 
 function titleCase(value) {
@@ -2067,24 +2148,28 @@ function renderMatchDetails(model) {
   const timerText = onlineTimerText(board);
   return `
     <section class="match-details" data-elm-match-details>
-      <p><strong>Board:</strong> ${escapeHtml(board.code)}</p>
-      <p><strong>Connection:</strong> ${escapeHtml(model.connectionStatus || "idle")}</p>
-      <p><strong>Your role:</strong> ${escapeHtml(role)}</p>
-      <p><strong>Blue:</strong> ${escapeHtml(seatLabel(board.seats?.blue))}</p>
-      <p><strong>Red:</strong> ${escapeHtml(seatLabel(board.seats?.red))}</p>
-      <p><strong>Session:</strong> ${escapeHtml(session?.state || board.state)}</p>
-      <p><strong>Score:</strong> ${escapeHtml(score)}</p>
-      <p><strong>Turn:</strong> ${escapeHtml(session?.round?.turn || "none")}</p>
-      <p><strong>Replay:</strong> ${moveCount} traced moves</p>
-      ${timerText ? `<p><strong>Timer:</strong> ${escapeHtml(timerText)}</p>` : ""}
-      <p><strong>Watching:</strong> ${watchers.length}</p>
-      <p><strong>Waiting list:</strong> ${waiting.length}${waiting.length ? ` — ${escapeHtml(waiting.map((p) => p.displayName || "Anonymous").join(", "))}` : ""}</p>
-      ${peopleList("Watchers", watchers)}
-      ${peopleList("Waiting list", waiting)}
-      <p class="elm-shell-note">Last activity ${escapeHtml(board.updatedAt || "unknown")} · Expires ${escapeHtml(board.expiresAt || "unknown")}</p>
-      ${renderSeatingActions(model)}
       ${renderDisconnectedSeatRecovery(model)}
       ${renderRoundResult(model)}
+      <details class="match-info-details">
+        <summary class="match-info-toggle" aria-label="Board info">ℹ</summary>
+        <div class="match-info-content">
+          <p><strong>Board:</strong> ${escapeHtml(board.code)}</p>
+          <p><strong>Connection:</strong> ${escapeHtml(model.connectionStatus || "idle")}</p>
+          <p><strong>Your role:</strong> ${escapeHtml(role)}</p>
+          <p><strong>Blue:</strong> ${escapeHtml(seatLabel(board.seats?.blue))}</p>
+          <p><strong>Red:</strong> ${escapeHtml(seatLabel(board.seats?.red))}</p>
+          <p><strong>Session:</strong> ${escapeHtml(session?.state || board.state)}</p>
+          <p><strong>Score:</strong> ${escapeHtml(score)}</p>
+          <p><strong>Turn:</strong> ${escapeHtml(session?.round?.turn || "none")}</p>
+          <p><strong>Replay:</strong> ${moveCount} traced moves</p>
+          ${timerText ? `<p><strong>Timer:</strong> ${escapeHtml(timerText)}</p>` : ""}
+          <p><strong>Watching:</strong> ${watchers.length}</p>
+          <p><strong>Waiting list:</strong> ${waiting.length}${waiting.length ? ` — ${escapeHtml(waiting.map((p) => p.displayName || "Anonymous").join(", "))}` : ""}</p>
+          ${peopleList("Watchers", watchers)}
+          ${peopleList("Waiting list", waiting)}
+          <p class="elm-shell-note">Last activity ${escapeHtml(formatTimestamp(board.updatedAt))} · Expires ${escapeHtml(formatTimestamp(board.expiresAt))}</p>
+        </div>
+      </details>
     </section>`;
 }
 
@@ -2137,18 +2222,50 @@ function renderModel(model) {
         ? `Replay ${replayIndex} / ${moveCount}`
         : `Live view at move ${moveCount} / ${moveCount}`;
   const boardBody = `${staleNote}${renderPlayBoardBody(model, board)}`;
+  const heroOrientation = normalizeSeatId(model?.ownSeat) || "";
+  const heroRoleLabel = board ? viewerRoleLabel(model) : "";
+  const heroRoleClass =
+    heroOrientation === "blue"
+      ? " blue"
+      : heroOrientation === "red"
+        ? " red"
+        : "";
+  const heroDot = heroOrientation
+    ? `<span class="dot ${heroOrientation}"></span>`
+    : "";
+  const heroTurnText = board?.currentSession?.round?.turn
+    ? `Turn: ${colorLabel(board.currentSession.round.turn)}`
+    : board?.state === "SessionPaused"
+      ? "Paused"
+      : board?.state === "BetweenRounds"
+        ? "Between Rounds"
+        : "";
+  const heroGameStatus = board
+    ? `<span class="hero-board-code">${escapeHtml(board.code)}</span><span class="hero-board-role${heroRoleClass}">${heroDot}${escapeHtml(heroRoleLabel)}</span>${heroTurnText ? `<span class="hero-turn-state">${escapeHtml(heroTurnText)}</span>` : ""}`
+    : "";
+  const heroTooltip = board
+    ? [board.code, heroRoleLabel, heroTurnText].filter(Boolean).join(" \u00b7 ")
+    : "";
 
   return `
-    <main class="shell" data-elm-phase="9" data-elm-runtime="${runtimeMode}" data-elm-shell-actions>
+    <main class="shell" data-elm-phase="9" data-elm-runtime="${runtimeMode}" data-elm-mode="${board ? "playing" : "lobby"}" data-elm-shell-actions>
       <section class="hero">
+        <div class="hero-brand">
+          <img src="/icon.svg" class="hero-icon" alt="" aria-hidden="true" width="28" height="28">
+          <span class="hero-title">Traceball Arena</span>
+        </div>
         <div class="hero-copy">
           <p class="eyebrow">Realtime paper-soccer</p>
           <h1>Traceball Arena</h1>
           <p class="lede">Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate.</p>
         </div>
-        <button id="appMenuButton" class="app-menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenuOverlay">
-          <span aria-hidden="true">☰</span>
-        </button>
+        <div class="hero-game-status" aria-live="polite">${heroGameStatus}</div>
+        <div class="hero-actions">
+          <button class="hero-lobby-btn" type="button" data-elm-command="toggle-lobby" aria-label="Open lobby"${heroTooltip ? ` data-tooltip="${escapeHtml(heroTooltip)}"` : ""}>Lobby</button>
+          <button id="appMenuButton" class="app-menu-button" type="button" aria-label="Open app menu" aria-expanded="false" aria-controls="appMenuOverlay">
+            <span aria-hidden="true">☰</span>
+          </button>
+        </div>
       </section>
 
       <nav class="mobile-nav" aria-label="Mobile game pages">
@@ -2156,6 +2273,13 @@ function renderModel(model) {
         <button type="button" class="mobile-tab" data-page-target="boards">Boards</button>
         <button type="button" class="mobile-tab active" data-page-target="play">Play</button>
         <button type="button" class="mobile-tab" data-page-target="match">Match</button>
+      </nav>
+
+      <div class="lobby-layout" data-lobby-active-tab="game">
+
+      <nav class="lobby-tabs" aria-label="Lobby sections">
+        <button type="button" class="lobby-tab active" data-lobby-tab="game">Game</button>
+        <button type="button" class="lobby-tab" data-lobby-tab="boards">Boards</button>
       </nav>
 
       <section id="joinPanel" class="card join-panel mobile-page" data-mobile-page="invite">
@@ -2182,15 +2306,11 @@ function renderModel(model) {
         }
       </section>
 
+      </div>
+
       <section class="game-layout">
         <div class="board-card mobile-page active" data-mobile-page="play">
           <div id="playStatus" class="play-status">${boardTitle}</div>
-          <div id="turnIndicator" class="turn-indicator" aria-live="polite">${stateLabel}</div>
-          ${renderBoardHud(model)}
-          <div class="play-board-actions">
-            ${renderPlayLeaveButton(model)}
-            <button id="playPauseGame" class="play-pause-button ghost" type="button" data-elm-command="pause"><span aria-hidden="true">⏸</span> Pause</button>
-          </div>
           <div class="${boardStageClass}">
             ${boardBody}
             <div id="pauseOverlay" class="${pauseOverlayClass}" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
@@ -2238,9 +2358,13 @@ function renderModel(model) {
               <div class="score-dash">-</div>
               <div id="p2Score" class="score-number red-score">${Number(session?.score?.red || 0)}</div>
             </div>
-            <div id="seatActions" class="seat-actions">${renderPhase9SeatButtons(model, "match")}</div>
-            <button id="pauseGame" class="ghost" type="button" data-elm-command="pause">Pause game</button>
-            <button id="reset" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
+            <div class="match-action-row">
+              <div id="seatActions" class="seat-actions">${renderPhase9SeatButtons(model, "match")}</div>
+              <div class="match-game-controls">
+                <button id="pauseGame" class="match-icon-btn" title="Pause game" type="button" data-elm-command="pause">⏸</button>
+                <button id="reset" class="match-icon-btn" title="New round" type="button" ${newRoundControlAttr}>↺</button>
+              </div>
+            </div>
             ${renderMatchDetails(model)}
           </div>
         </aside>
@@ -2296,6 +2420,11 @@ function playerNameFromRoot(root) {
 }
 
 let appMenuWired = false;
+let lobbyDrawerWired = false;
+let lobbyTabsWired = false;
+let toastHideTimer = null;
+let gameUpdateBadgeActive = false;
+let activeToastText = "";
 
 function saveGameToHistory(model) {
   const board = model?.board;
@@ -2411,24 +2540,24 @@ function wireAppMenu() {
   const closeBtn = document.querySelector("#appContentClose");
   const clearBtn = document.querySelector("#clearMenuHistory");
   if (!button) return;
-  button.addEventListener("click", () => {
+  button?.addEventListener?.("click", () => {
     if (dropdown?.classList?.contains("hidden")) {
       dropdown?.classList?.remove("hidden");
-      button.setAttribute("aria-expanded", "true");
+      button.setAttribute?.("aria-expanded", "true");
     } else {
       dropdown?.classList?.add("hidden");
-      button.setAttribute("aria-expanded", "false");
+      button.setAttribute?.("aria-expanded", "false");
     }
   });
-  dropdown?.addEventListener("click", (event) => {
+  dropdown?.addEventListener?.("click", (event) => {
     const choice = event.target?.closest?.("[data-menu-view]");
     if (choice) openAppMenuContent(choice.dataset.menuView);
   });
-  closeBtn?.addEventListener("click", closeAppMenuContent);
-  overlay?.addEventListener("click", (event) => {
+  closeBtn?.addEventListener?.("click", closeAppMenuContent);
+  overlay?.addEventListener?.("click", (event) => {
     if (event.target === overlay) closeAppMenuContent();
   });
-  clearBtn?.addEventListener("click", () => {
+  clearBtn?.addEventListener?.("click", () => {
     try {
       window.localStorage?.removeItem?.("traceballGameHistory");
     } catch {}
@@ -2440,7 +2569,7 @@ function wireAppMenu() {
   });
   if (!appMenuWired) {
     appMenuWired = true;
-    document.addEventListener("click", (event) => {
+    document?.addEventListener?.("click", (event) => {
       const dd = document.querySelector("#appMenuDropdown");
       if (
         dd &&
@@ -2454,7 +2583,7 @@ function wireAppMenu() {
           ?.setAttribute("aria-expanded", "false");
       }
     });
-    document.addEventListener("keydown", (event) => {
+    document?.addEventListener?.("keydown", (event) => {
       if (event.key !== "Escape") return;
       const ov = document.querySelector("#appContentOverlay");
       const dd = document.querySelector("#appMenuDropdown");
@@ -2469,6 +2598,42 @@ function wireAppMenu() {
   }
 }
 
+function wireLobbyTabs() {
+  if (lobbyTabsWired) return;
+  lobbyTabsWired = true;
+  document?.addEventListener?.("click", (event) => {
+    const tab = event.target?.closest?.("[data-lobby-tab]");
+    if (!tab) return;
+    const tabName = tab.dataset?.lobbyTab;
+    const layout = tab.closest?.(".lobby-layout");
+    if (!layout || !tabName) return;
+    layout.setAttribute("data-lobby-active-tab", tabName);
+    layout.querySelectorAll?.(".lobby-tab")?.forEach?.((btn) => {
+      btn.classList.toggle("active", btn.dataset?.lobbyTab === tabName);
+    });
+  });
+}
+
+function wireLobbyDrawer() {
+  if (lobbyDrawerWired) return;
+  lobbyDrawerWired = true;
+  document?.addEventListener?.("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const shell = document.querySelector("[data-elm-lobby-open='true']");
+    if (shell) shell.setAttribute("data-elm-lobby-open", "false");
+  });
+  document?.addEventListener?.("click", (event) => {
+    const shell = document.querySelector("[data-elm-lobby-open='true']");
+    if (!shell) return;
+    if (
+      !event.target?.closest?.(".lobby-layout") &&
+      !event.target?.closest?.(".hero-lobby-btn")
+    ) {
+      shell.setAttribute("data-elm-lobby-open", "false");
+    }
+  });
+}
+
 function rewireBridgeView(root, bridge) {
   wireOpenBoardForm(root);
   wireSeatingActions(root, bridge);
@@ -2478,12 +2643,54 @@ function rewireBridgeView(root, bridge) {
   wireRoundActions(root, bridge);
   wireDisconnectActions(root, bridge);
   wireAppMenu();
+  wireLobbyTabs();
+  wireLobbyDrawer();
 }
 
 function refreshBridgeRender(root, bridge) {
+  const viewState = captureViewState();
   if (root) root.innerHTML = renderModel(bridge.model);
   rewireBridgeView(root, bridge);
   wireElmBoardCanvas(bridge.model);
+  restoreViewState(viewState);
+}
+
+function currentMobilePage() {
+  return (
+    document.body?.dataset?.mobilePage ||
+    document.querySelector(".mobile-tab.active")?.dataset?.pageTarget ||
+    document.querySelector(".mobile-page.active")?.dataset?.mobilePage ||
+    "play"
+  );
+}
+
+function isLobbyOpenView() {
+  return !!document.querySelector("[data-elm-lobby-open='true']");
+}
+
+function isGameViewVisible() {
+  return currentMobilePage() === "play" && !isLobbyOpenView();
+}
+
+function setGameUpdateBadge(active) {
+  gameUpdateBadgeActive = active;
+  const playTab = document.querySelector('[data-page-target="play"]');
+  const lobbyBtn = document.querySelector(".hero-lobby-btn");
+  if (active) {
+    if (currentMobilePage() !== "play") {
+      playTab?.setAttribute?.("data-badge", "");
+    } else {
+      playTab?.removeAttribute?.("data-badge");
+    }
+    if (isLobbyOpenView()) {
+      lobbyBtn?.setAttribute?.("data-badge", "");
+    } else {
+      lobbyBtn?.removeAttribute?.("data-badge");
+    }
+  } else {
+    playTab?.removeAttribute?.("data-badge");
+    lobbyBtn?.removeAttribute?.("data-badge");
+  }
 }
 
 function activateMobilePage(page) {
@@ -2496,11 +2703,22 @@ function activateMobilePage(page) {
   document.querySelectorAll?.(".mobile-page")?.forEach?.((panel) => {
     panel.classList?.toggle?.("active", panel?.dataset?.mobilePage === page);
   });
+  if (page === "play" && !isLobbyOpenView()) setGameUpdateBadge(false);
 }
 
 function setToast(message) {
+  if (!message) return;
+  activeToastText = message;
   const toast = document.querySelector("#toast");
-  if (toast) toast.textContent = message;
+  if (toast) {
+    toast.textContent = message;
+    toast.classList?.add?.("show");
+  }
+  if (toastHideTimer) clearTimeout(toastHideTimer);
+  toastHideTimer = setTimeout(() => {
+    activeToastText = "";
+    document.querySelector("#toast")?.classList?.remove?.("show");
+  }, 2200);
 }
 
 function activateHomeMode(mode = "online") {
@@ -2554,6 +2772,14 @@ function wirePhase9ShellActions(root, bridge) {
     const command = target?.dataset?.elmCommand;
     if (!command) return;
     event.preventDefault?.();
+    if (command === "toggle-lobby") {
+      const open = shell?.getAttribute("data-elm-lobby-open") === "true";
+      shell?.setAttribute("data-elm-lobby-open", open ? "false" : "true");
+      const btn = event.target?.closest?.(".hero-lobby-btn");
+      if (btn) btn.textContent = open ? "Lobby" : "Game";
+      if (open) setGameUpdateBadge(false); // switching to game view
+      return;
+    }
     const name = playerNameFromRoot(root);
     let changed = false;
     if (command === "claim-blue")
@@ -2802,11 +3028,9 @@ async function mount() {
   }
   let model = { ...initialModel(), clientId: getOrCreateClientId() };
   root.innerHTML = renderModel(model);
-  wireOpenBoardForm(root);
-  wirePhase9ShellActions(root, { model });
+  rewireBridgeView(root, { model });
   await loadBoardList(root);
-  wireOpenBoardForm(root);
-  wirePhase9ShellActions(root, { model });
+  rewireBridgeView(root, { model });
 }
 
 window.TraceballElmShell = {

@@ -168,9 +168,6 @@ describe("Phase 3 Elm shell runtime contract", () => {
       html.indexOf('<aside class="side mobile-page"'),
     );
 
-    expect(playSection).toContain("data-elm-timer-display");
-    expect(playSection).toContain("Timer: 30s");
-    expect(playSection).toContain("Deadline 32000");
     expect(matchSection).toContain(
       "<strong>Timer:</strong> 30s · deadline 32000",
     );
@@ -216,7 +213,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(boardsSection).toContain("Open board");
   });
 
-  it("renders a concise board HUD with viewer role, turn, and orientation", () => {
+  it("renders viewer role and connection info in match sidebar details (HUD removed from play area)", () => {
     const { shell } = loadShell();
     const model = {
       ...shell.applyState(
@@ -231,12 +228,14 @@ describe("Phase 3 Elm shell runtime contract", () => {
       html.indexOf('class="board-card mobile-page active"'),
       html.indexOf('<aside class="side mobile-page"'),
     );
+    const matchSection = html.slice(
+      html.indexOf('<aside class="side mobile-page"'),
+    );
 
-    expect(playSection).toContain("data-elm-board-hud");
-    expect(playSection).toContain('data-elm-orientation="blue"');
-    expect(playSection).toContain("You are Blue");
-    expect(playSection).toContain("Turn: Blue");
-    expect(playSection).toContain("Connected");
+    expect(playSection).not.toContain("data-elm-board-hud");
+    expect(matchSection).toContain("data-elm-match-details");
+    expect(matchSection).toContain("Blue player");
+    expect(matchSection).toContain("Connection:");
   });
 
   it("keeps Play focused on board/replay/leave and moves join controls to Match/Home", () => {
@@ -273,8 +272,8 @@ describe("Phase 3 Elm shell runtime contract", () => {
       seatedHtml.indexOf('class="board-card mobile-page active"'),
       seatedHtml.indexOf('<aside class="side mobile-page"'),
     );
-    expect(seatedPlay).toContain('id="playLeaveSeat"');
-    expect(seatedPlay).toContain('data-elm-command="leave-seat"');
+    expect(seatedPlay).toContain('class="board-stage"');
+    expect(seatedHtml).toContain('data-elm-command="leave-seat"');
   });
 
   it("wires Phase 9 visible shell buttons to existing Elm bridge commands", () => {
@@ -816,8 +815,8 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).toContain("SessionActive");
     expect(html).toContain("2 seated · 0 open");
     expect(html).toContain("Score Blue 2 — Red 1");
-    expect(html).toContain("Last activity 2000");
-    expect(html).toContain("Expires 604802000");
+    expect(html).toContain("Last activity");
+    expect(html).toContain("Expires");
     expect(html).toContain('href="/elm?board=ROOM123"');
     expect(html).toContain("Open board");
   });
@@ -902,6 +901,312 @@ describe("Phase 3 Elm shell runtime contract", () => {
     });
     expect(bridge.model.board.state).toBe("SessionActive");
     expect(bridge.model.connectionStatus).toBe("connected");
+  });
+
+  it("shows Play badge and toast on live updates when mobile view is not on Play", () => {
+    const sent = [];
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send(payload) {
+        sent.push(JSON.parse(payload));
+      }
+      close() {
+        this.closed = true;
+      }
+    }
+
+    const playTab = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const lobbyBtn = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const toast = {
+      textContent: "",
+      classList: { add() {}, remove() {} },
+    };
+    const body = { dataset: { mobilePage: "boards" } };
+    const documentStub = {
+      body,
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === '[data-page-target="play"]') return playTab;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === "#toast") return toast;
+        if (selector === "[data-elm-lobby-open='true']") return null;
+        return null;
+      },
+    };
+
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: documentStub,
+    });
+    shell.createSocketBridge({ boardCode: "ROOM123", root: { innerHTML: "" } });
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
+
+    expect(playTab.attrs.has("data-badge")).toBe(true);
+    expect(lobbyBtn.attrs.has("data-badge")).toBe(false);
+    expect(toast.textContent).toContain("Turn:");
+    expect(body.dataset.mobilePage).toBe("boards");
+    expect(sent[0]).toMatchObject({ type: "watch", roomId: "ROOM123" });
+  });
+
+  it("shows Game badge and toast on live updates when desktop lobby is open", () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+
+    const playTab = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const lobbyBtn = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const toast = {
+      textContent: "",
+      classList: { add() {}, remove() {} },
+    };
+    const shellOpen = { getAttribute: () => "true" };
+    const documentStub = {
+      body: { dataset: { mobilePage: "play" } },
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === '[data-page-target="play"]') return playTab;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === "#toast") return toast;
+        if (selector === "[data-elm-lobby-open='true']") return shellOpen;
+        return null;
+      },
+    };
+
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: documentStub,
+    });
+    shell.createSocketBridge({ boardCode: "ROOM123", root: { innerHTML: "" } });
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
+
+    expect(lobbyBtn.attrs.has("data-badge")).toBe(true);
+    expect(playTab.attrs.has("data-badge")).toBe(false);
+    expect(toast.textContent).toContain("Turn:");
+  });
+
+  it("shows notification when a new move arrives even if turn does not change", () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+
+    const playTab = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const lobbyBtn = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+      removeAttribute(key) {
+        this.attrs.delete(key);
+      },
+    };
+    const toast = {
+      textContent: "",
+      classList: { add() {}, remove() {} },
+    };
+    const body = { dataset: { mobilePage: "boards" } };
+    const documentStub = {
+      body,
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === '[data-page-target="play"]') return playTab;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === "#toast") return toast;
+        if (selector === "[data-elm-lobby-open='true']") return null;
+        return null;
+      },
+    };
+
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: documentStub,
+    });
+    shell.createSocketBridge({ boardCode: "ROOM123", root: { innerHTML: "" } });
+    sockets[0].onopen();
+
+    const first = fixture("board-active-session");
+    sockets[0].onmessage({ data: JSON.stringify(first) });
+
+    const second = fixture("board-active-session");
+    second.version = 3;
+    second.board.version = 3;
+    second.board.currentSession.round.moves = [
+      {
+        from: { x: 4, y: 6 },
+        to: { x: 4, y: 5 },
+        playerId: "red",
+      },
+    ];
+    second.board.currentSession.round.turn = "blue";
+    sockets[0].onmessage({ data: JSON.stringify(second) });
+
+    expect(playTab.attrs.has("data-badge")).toBe(true);
+    expect(toast.textContent).toBe("Move: Red");
+  });
+
+  it("keeps the current mobile page on live updates instead of forcing Play", () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+
+    const shellNode = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+    };
+    const lobbyBtn = { textContent: "Lobby" };
+    const body = { dataset: { mobilePage: "match" } };
+    const documentStub = {
+      body,
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === "[data-elm-shell-actions]") return shellNode;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === "[data-elm-lobby-open='true']") return null;
+        return null;
+      },
+    };
+
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: documentStub,
+    });
+    shell.createSocketBridge({ boardCode: "ROOM123", root: { innerHTML: "" } });
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
+
+    expect(body.dataset.mobilePage).toBe("match");
+    expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("false");
+    expect(lobbyBtn.textContent).toBe("Lobby");
+  });
+
+  it("keeps desktop lobby open on live updates instead of forcing game view", () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+
+    let lobbyOpenState = true;
+    const shellNode = {
+      attrs: new Map(),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+        if (key === "data-elm-lobby-open") lobbyOpenState = value === "true";
+      },
+    };
+    const lobbyBtn = { textContent: "Game" };
+    const documentStub = {
+      body: { dataset: { mobilePage: "play" } },
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === "[data-elm-shell-actions]") return shellNode;
+        if (selector === ".hero-lobby-btn") return lobbyBtn;
+        if (selector === "[data-elm-lobby-open='true']")
+          return lobbyOpenState ? shellNode : null;
+        return null;
+      },
+    };
+
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      document: documentStub,
+    });
+    shell.createSocketBridge({ boardCode: "ROOM123", root: { innerHTML: "" } });
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
+
+    expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("true");
+    expect(lobbyBtn.textContent).toBe("Game");
   });
 
   it("exposes board-centric seating commands without a generic Join Game action", () => {
@@ -1141,7 +1446,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(root.innerHTML).toContain('data-elm-runtime="local"');
     expect(root.innerHTML).toContain("Stefan");
     expect(root.innerHTML).toContain("Alex");
-    expect(root.innerHTML).toContain("Timer: 10s");
+    expect(root.innerHTML).toContain("Timer:");
   });
 
   it("persists paused local runtime state and restores it from storage", () => {

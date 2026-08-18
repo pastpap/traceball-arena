@@ -338,6 +338,18 @@ Exit criteria:
 - iPad/iOS 15 smoke passes for home, local setup, board list, join/watch/rejoin, orientation, turn animation, timer, move input, between-round, replay, and leave/forfeit flows.
 - The PR body explicitly lists any remaining non-parity gaps; if there are non-trivial gaps, Phase 10 cannot proceed.
 
+Recent implementation update (2026-08-18 to 2026-08-19):
+
+- Desktop usability was tightened with explicit lobby/game mode switching and desktop lobby Game/Boards tabs.
+- Play remains board-centric while match/lobby details stay outside the immediate board focus.
+- Board now shows embedded player-name badges to reduce context switching.
+- Live update UX now uses badge + toast notifications when user is away from gameplay:
+  - desktop badge on Game button,
+  - mobile badge on Play tab,
+  - no forced navigation back to board.
+- Re-render preservation now keeps current mobile page and desktop lobby-open state during socket updates.
+- Notification trigger now includes move-count changes (including same-turn bounce chains), not only turn/state changes.
+
 ## Phase 10: Switch default frontend
 
 **Goal:** Make Elm the primary frontend only after functional parity, lifecycle reliability, and visual parity are proven.
