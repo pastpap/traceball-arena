@@ -20,10 +20,10 @@ if (!elmHtml.includes('id="elm-root"') || !elmHtml.includes('/elm.js') || !elmHt
 if (!elmBundle.includes('TraceballElmShell') || !elmBundle.includes('board-active-session.json')) {
   throw new Error('public/elm.js must provide the minimal Elm-shell runtime and load a Phase 1 fixture.');
 }
-if (!elmBundle.includes('createSocketBridge') || !elmBundle.includes("type: 'watch'") || !elmBundle.includes('traceballElmClientId') || !elmBundle.includes('websocketUrl')) {
+if (!elmBundle.includes('createSocketBridge') || !/type:\s*["']watch["']/.test(elmBundle) || !elmBundle.includes('traceballElmClientId') || !elmBundle.includes('websocketUrl')) {
   throw new Error('public/elm.js must bridge the Elm shell to WebSocket watch flow with stable clientId handoff.');
 }
-if (!elmBundle.includes('createBoardAsBlue') || !elmBundle.includes("type: 'claimSeat'") || !elmBundle.includes("type: 'joinWaitingList'") || !elmBundle.includes("type: 'leaveWaitingList'") || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
+if (!elmBundle.includes('createBoardAsBlue') || !/type:\s*["']claimSeat["']/.test(elmBundle) || !/type:\s*["']joinWaitingList["']/.test(elmBundle) || !/type:\s*["']leaveWaitingList["']/.test(elmBundle) || !elmBundle.includes('Leave seat / forfeit') || elmBundle.includes('Join Game')) {
   throw new Error('public/elm.js must expose Phase 5 board-centric seating/waiting-list actions without a generic Join Game flow.');
 }
 if (/autoJoinSingleVacantSeat\(bridge\)/.test(elmBundle)) {
@@ -35,13 +35,13 @@ if (!elmBundle.includes('renderReadOnlyBoard') || !elmBundle.includes('data-elm-
 if (!elmBundle.includes('data-elm-legal-context') || !elmBundle.includes('data-elm-legal-playable') || !elmBundle.includes('own-turn') || !elmBundle.includes('opponent-turn') || !elmBundle.includes('Watching: legal moves are preview only.')) {
   throw new Error('public/elm.js must expose Phase 6B legal-move context markers for own turn, opponent turn, and watcher previews.');
 }
-if (!elmBundle.includes('submitMoveFromLegalTarget') || !elmBundle.includes('wireBoardMoveTargets') || !elmBundle.includes("type: 'move'") || !elmBundle.includes('data-elm-pending-move')) {
+if (!elmBundle.includes('submitMoveFromLegalTarget') || !elmBundle.includes('wireBoardMoveTargets') || !/type:\s*["']move["']/.test(elmBundle) || !elmBundle.includes('data-elm-pending-move')) {
   throw new Error('public/elm.js must support Phase 6C own-turn legal-target move submission with pending-move markers.');
 }
-if (!elmBundle.includes('renderRoundResult') || !elmBundle.includes('data-elm-round-result') || !elmBundle.includes('data-elm-round-actions') || !elmBundle.includes("type: 'reset'") || !elmBundle.includes('Continue / New Round')) {
+if (!elmBundle.includes('renderRoundResult') || !elmBundle.includes('data-elm-round-result') || !elmBundle.includes('data-elm-round-actions') || !/type:\s*["']reset["']/.test(elmBundle) || !elmBundle.includes('Continue / New Round')) {
   throw new Error('public/elm.js must support Phase 6D between-round result UI and new-round reset command.');
 }
-if (!elmBundle.includes('renderDisconnectedSeatRecovery') || !elmBundle.includes('data-elm-disconnected-seat') || !elmBundle.includes('data-elm-disconnect-actions') || !elmBundle.includes("type: 'freeSeat'") || !elmBundle.includes('Make seat available')) {
+if (!elmBundle.includes('renderDisconnectedSeatRecovery') || !elmBundle.includes('data-elm-disconnected-seat') || !elmBundle.includes('data-elm-disconnect-actions') || !/type:\s*["']freeSeat["']/.test(elmBundle) || !elmBundle.includes('Make seat available')) {
   throw new Error('public/elm.js must support Phase 7 disconnected-seat recovery UI and freeSeat command.');
 }
 if (!elmBundle.includes('renderBoardList') || !elmBundle.includes('loadBoardList') || !elmBundle.includes('data-elm-board-list') || !elmBundle.includes('data-elm-board-recovery') || !elmBundle.includes('/api/rooms')) {
