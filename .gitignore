@@ -5,3 +5,4 @@ dist/
 .railway/
 .DS_Store
 coverage/
+elm-stuff/

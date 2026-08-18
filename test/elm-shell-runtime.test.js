@@ -1,18 +1,26 @@
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from "node:fs";
+import vm from "node:vm";
+import { describe, expect, it } from "vitest";
 
-const shellSource = readFileSync('public/elm.js', 'utf8');
-const cssSource = readFileSync('public/styles.css', 'utf8');
+const shellSource = readFileSync("public/elm.js", "utf8");
+const cssSource = readFileSync("public/styles.css", "utf8");
 
 function loadShell(overrides = {}) {
-  const root = { innerHTML: '' };
+  const root = { innerHTML: "" };
   const storage = overrides.localStorage ?? {
     values: new Map(),
-    getItem(key) { return this.values.get(key) ?? null; },
-    setItem(key, value) { this.values.set(key, String(value)); },
+    getItem(key) {
+      return this.values.get(key) ?? null;
+    },
+    setItem(key, value) {
+      this.values.set(key, String(value));
+    },
   };
-  const location = overrides.location ?? { protocol: 'https:', host: 'example.test', search: '' };
+  const location = overrides.location ?? {
+    protocol: "https:",
+    host: "example.test",
+    search: "",
+  };
   const context = {
     console,
     window: { location, localStorage: storage, WebSocket: overrides.WebSocket },
@@ -23,57 +31,63 @@ function loadShell(overrides = {}) {
     URLSearchParams,
     setTimeout,
     clearTimeout,
-    fetch: overrides.fetch ?? (async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    fetch:
+      overrides.fetch ??
+      (async () => ({ ok: false, status: 404, json: async () => ({}) })),
   };
   vm.createContext(context);
-  vm.runInContext(shellSource, context, { filename: 'public/elm.js' });
+  vm.runInContext(shellSource, context, { filename: "public/elm.js" });
   return { shell: context.window.TraceballElmShell, root, storage, context };
 }
 
 function fixture(name) {
-  return JSON.parse(readFileSync(`test/fixtures/phase1/${name}.json`, 'utf8'));
+  return JSON.parse(readFileSync(`test/fixtures/phase1/${name}.json`, "utf8"));
 }
 
-describe('Phase 3 Elm shell runtime contract', () => {
-  it('renders every canonical state fixture without throwing', () => {
+describe("Phase 3 Elm shell runtime contract", () => {
+  it("renders every canonical state fixture without throwing", () => {
     const { shell } = loadShell();
     const fixtureNames = [
-      'board-creator-only',
-      'board-active-session',
-      'board-full-with-watcher',
-      'board-full-with-waiting-list-member',
-      'board-disconnected-player-during-grace',
-      'board-disconnected-player-eligible-to-free',
-      'board-between-rounds',
+      "board-creator-only",
+      "board-active-session",
+      "board-full-with-watcher",
+      "board-full-with-waiting-list-member",
+      "board-disconnected-player-during-grace",
+      "board-disconnected-player-eligible-to-free",
+      "board-between-rounds",
     ];
 
     for (const name of fixtureNames) {
       const html = shell.renderBoardMessage(fixture(name));
-      expect(html).toContain('Traceball Arena');
-      expect(html).toContain('Board ROOM123');
+      expect(html).toContain("Traceball Arena");
+      expect(html).toContain("Board ROOM123");
       expect(html).toContain('class="board-stage"');
     }
   });
 
-  it('renders watcher and waiting-list membership as separate concepts', () => {
+  it("renders watcher and waiting-list membership as separate concepts", () => {
     const { shell } = loadShell();
 
-    const watcherHtml = shell.renderBoardMessage(fixture('board-full-with-watcher'));
-    expect(watcherHtml).toContain('Watchers');
-    expect(watcherHtml).toContain('Watcher One');
-    expect(watcherHtml).toContain('Waiting list');
-    expect(watcherHtml).toContain('None');
+    const watcherHtml = shell.renderBoardMessage(
+      fixture("board-full-with-watcher"),
+    );
+    expect(watcherHtml).toContain("Watchers");
+    expect(watcherHtml).toContain("Watcher One");
+    expect(watcherHtml).toContain("Waiting list");
+    expect(watcherHtml).toContain("None");
 
-    const waitingHtml = shell.renderBoardMessage(fixture('board-full-with-waiting-list-member'));
-    expect(waitingHtml).toContain('Watchers');
-    expect(waitingHtml).toContain('Watcher One');
-    expect(waitingHtml).toContain('Waiting list');
-    expect(waitingHtml).toContain('Next Player');
+    const waitingHtml = shell.renderBoardMessage(
+      fixture("board-full-with-waiting-list-member"),
+    );
+    expect(waitingHtml).toContain("Watchers");
+    expect(waitingHtml).toContain("Watcher One");
+    expect(waitingHtml).toContain("Waiting list");
+    expect(waitingHtml).toContain("Next Player");
   });
 
-  it('renders Phase 9 legacy shell structure around live Elm board state', () => {
+  it("renders Phase 9 legacy shell structure around live Elm board state", () => {
     const { shell } = loadShell();
-    const html = shell.renderBoardMessage(fixture('board-active-session'));
+    const html = shell.renderBoardMessage(fixture("board-active-session"));
 
     for (const marker of [
       'class="shell"',
@@ -101,14 +115,21 @@ describe('Phase 3 Elm shell runtime contract', () => {
     ]) {
       expect(html).toContain(marker);
     }
-    expect(html).not.toContain('Traceball Arena — Elm Shell');
+    expect(html).not.toContain("Traceball Arena — Elm Shell");
   });
 
-  it('renders Home with persisted player name, online setup, and local setup controls', () => {
+  it("renders Home with persisted player name, online setup, and local setup controls", () => {
     const storage = {
-      values: new Map([['traceballPlayerName', 'Stefan'], ['traceballOnlineMoveTimer', '30']]),
-      getItem(key) { return this.values.get(key) ?? null; },
-      setItem(key, value) { this.values.set(key, String(value)); },
+      values: new Map([
+        ["traceballPlayerName", "Stefan"],
+        ["traceballOnlineMoveTimer", "30"],
+      ]),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
     };
     const { shell } = loadShell({ localStorage: storage });
 
@@ -127,117 +148,197 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).not.toContain('id="elmPlayerName"');
   });
 
-  it('renders online timer metadata in Match and Play without enforcing it client-side', () => {
+  it("renders online timer metadata in Match and Play without enforcing it client-side", () => {
     const { shell } = loadShell();
-    const message = fixture('board-active-session');
+    const message = fixture("board-active-session");
     message.board.currentSession.moveTimeLimitSeconds = 30;
     message.board.currentSession.round.deadlineAt = 32000;
-    const model = { ...shell.applyState(shell.initialModel(), message), ownSeat: 'p1', connectionStatus: 'connected' };
+    const model = {
+      ...shell.applyState(shell.initialModel(), message),
+      ownSeat: "p1",
+      connectionStatus: "connected",
+    };
 
     const html = shell.renderModel(model);
-    const playSection = html.slice(html.indexOf('class="board-card mobile-page active"'), html.indexOf('<aside class="side mobile-page"'));
-    const matchSection = html.slice(html.indexOf('<aside class="side mobile-page"'));
+    const playSection = html.slice(
+      html.indexOf('class="board-card mobile-page active"'),
+      html.indexOf('<aside class="side mobile-page"'),
+    );
+    const matchSection = html.slice(
+      html.indexOf('<aside class="side mobile-page"'),
+    );
 
-    expect(playSection).toContain('data-elm-timer-display');
-    expect(playSection).toContain('Timer: 30s');
-    expect(playSection).toContain('Deadline 32000');
-    expect(matchSection).toContain('<strong>Timer:</strong> 30s · deadline 32000');
+    expect(playSection).toContain("data-elm-timer-display");
+    expect(playSection).toContain("Timer: 30s");
+    expect(playSection).toContain("Deadline 32000");
+    expect(matchSection).toContain(
+      "<strong>Timer:</strong> 30s · deadline 32000",
+    );
   });
 
-  it('renders the current created/joined board in Boards tab and restores share link plus QR', () => {
-    const { shell } = loadShell({ location: { protocol: 'https:', host: 'traceball.test', search: '?board=ROOM123' } });
-    const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1' };
+  it("renders the current created/joined board in Boards tab and restores share link plus QR", () => {
+    const { shell } = loadShell({
+      location: {
+        protocol: "https:",
+        host: "traceball.test",
+        search: "?board=ROOM123",
+      },
+    });
+    const model = {
+      ...shell.applyState(
+        shell.initialModel(),
+        fixture("board-active-session"),
+      ),
+      ownSeat: "p1",
+    };
 
     const html = shell.renderModel(model);
-    const homeSection = html.slice(html.indexOf('id="joinPanel"'), html.indexOf('id="boardsPanel"'));
-    const boardsSection = html.slice(html.indexOf('id="boardsPanel"'), html.indexOf('<section class="game-layout"'));
+    const homeSection = html.slice(
+      html.indexOf('id="joinPanel"'),
+      html.indexOf('id="boardsPanel"'),
+    );
+    const boardsSection = html.slice(
+      html.indexOf('id="boardsPanel"'),
+      html.indexOf('<section class="game-layout"'),
+    );
 
     expect(homeSection).toContain('id="inviteBox"');
     expect(homeSection).toContain('id="inviteLink"');
-    expect(homeSection).toContain('value="https://traceball.test/room/ROOM123"');
+    expect(homeSection).toContain(
+      'value="https://traceball.test/room/ROOM123"',
+    );
     expect(homeSection).toContain('id="copyInviteCard"');
     expect(homeSection).toContain('id="qr"');
-    expect(homeSection).toContain('/api/qr?url=');
+    expect(homeSection).toContain("/api/qr?url=");
 
-    expect(boardsSection).toContain('data-elm-board-list');
+    expect(boardsSection).toContain("data-elm-board-list");
     expect(boardsSection).toContain('data-elm-board-card="ROOM123"');
-    expect(boardsSection).toContain('Open board');
+    expect(boardsSection).toContain("Open board");
   });
 
-  it('renders a concise board HUD with viewer role, turn, and orientation', () => {
+  it("renders a concise board HUD with viewer role, turn, and orientation", () => {
     const { shell } = loadShell();
-    const model = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1', connectionStatus: 'connected' };
+    const model = {
+      ...shell.applyState(
+        shell.initialModel(),
+        fixture("board-active-session"),
+      ),
+      ownSeat: "p1",
+      connectionStatus: "connected",
+    };
     const html = shell.renderModel(model);
-    const playSection = html.slice(html.indexOf('class="board-card mobile-page active"'), html.indexOf('<aside class="side mobile-page"'));
+    const playSection = html.slice(
+      html.indexOf('class="board-card mobile-page active"'),
+      html.indexOf('<aside class="side mobile-page"'),
+    );
 
-    expect(playSection).toContain('data-elm-board-hud');
+    expect(playSection).toContain("data-elm-board-hud");
     expect(playSection).toContain('data-elm-orientation="blue"');
-    expect(playSection).toContain('You are Blue');
-    expect(playSection).toContain('Turn: Blue');
-    expect(playSection).toContain('Connected');
+    expect(playSection).toContain("You are Blue");
+    expect(playSection).toContain("Turn: Blue");
+    expect(playSection).toContain("Connected");
   });
 
-  it('keeps Play focused on board/replay/leave and moves join controls to Match/Home', () => {
+  it("keeps Play focused on board/replay/leave and moves join controls to Match/Home", () => {
     const { shell } = loadShell();
-    const oneSeat = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
+    const oneSeat = shell.applyState(
+      shell.initialModel(),
+      fixture("board-creator-only"),
+    );
     const oneSeatHtml = shell.renderModel(oneSeat);
-    const playSection = oneSeatHtml.slice(oneSeatHtml.indexOf('class="board-card mobile-page active"'), oneSeatHtml.indexOf('<aside class="side mobile-page"'));
+    const playSection = oneSeatHtml.slice(
+      oneSeatHtml.indexOf('class="board-card mobile-page active"'),
+      oneSeatHtml.indexOf('<aside class="side mobile-page"'),
+    );
 
     expect(playSection).toContain('class="board-stage"');
     expect(playSection).toContain('class="board-replay replay"');
     expect(playSection).not.toContain('id="playClaimP2"');
-    expect(playSection).not.toContain('data-elm-actions');
+    expect(playSection).not.toContain("data-elm-actions");
     expect(playSection).not.toContain('class="elm-seats"');
-    expect(playSection).not.toContain('data-elm-round-result');
+    expect(playSection).not.toContain("data-elm-round-result");
 
     expect(oneSeatHtml).toContain('id="claimP2" class="ghost"');
     expect(oneSeatHtml).toContain('data-elm-command="claim-red"');
 
-    const seated = { ...shell.applyState(shell.initialModel(), fixture('board-active-session')), ownSeat: 'p1' };
+    const seated = {
+      ...shell.applyState(
+        shell.initialModel(),
+        fixture("board-active-session"),
+      ),
+      ownSeat: "p1",
+    };
     const seatedHtml = shell.renderModel(seated);
-    const seatedPlay = seatedHtml.slice(seatedHtml.indexOf('class="board-card mobile-page active"'), seatedHtml.indexOf('<aside class="side mobile-page"'));
+    const seatedPlay = seatedHtml.slice(
+      seatedHtml.indexOf('class="board-card mobile-page active"'),
+      seatedHtml.indexOf('<aside class="side mobile-page"'),
+    );
     expect(seatedPlay).toContain('id="playLeaveSeat"');
     expect(seatedPlay).toContain('data-elm-command="leave-seat"');
   });
 
-  it('wires Phase 9 visible shell buttons to existing Elm bridge commands', () => {
+  it("wires Phase 9 visible shell buttons to existing Elm bridge commands", () => {
     const sent = [];
     const shellActions = {
       handler: null,
       addEventListener(type, handler) {
-        if (type === 'click') this.handler = handler;
+        if (type === "click") this.handler = handler;
       },
     };
     const { shell, root } = loadShell({
       document: {
         body: { dataset: {}, classList: { toggle() {} } },
-        querySelector: (selector) => (selector === '[data-elm-shell-actions]' ? shellActions : null),
+        querySelector: (selector) =>
+          selector === "[data-elm-shell-actions]" ? shellActions : null,
         querySelectorAll: () => [],
       },
     });
-    const base = shell.applyState(shell.initialModel(), fixture('board-creator-only'));
+    const base = shell.applyState(
+      shell.initialModel(),
+      fixture("board-creator-only"),
+    );
     const bridge = {
       model: { ...base, ownSeat: null },
-      claimSeat(seatId, name) { sent.push({ type: 'claimSeat', seatId, name }); return true; },
-      joinWaitingList(name) { sent.push({ type: 'joinWaitingList', name }); return true; },
-      leaveWaitingList() { sent.push({ type: 'leaveWaitingList' }); return true; },
-      leaveSeat() { sent.push({ type: 'leave' }); return true; },
-      newRound() { sent.push({ type: 'reset' }); return true; },
+      claimSeat(seatId, name) {
+        sent.push({ type: "claimSeat", seatId, name });
+        return true;
+      },
+      joinWaitingList(name) {
+        sent.push({ type: "joinWaitingList", name });
+        return true;
+      },
+      leaveWaitingList() {
+        sent.push({ type: "leaveWaitingList" });
+        return true;
+      },
+      leaveSeat() {
+        sent.push({ type: "leave" });
+        return true;
+      },
+      newRound() {
+        sent.push({ type: "reset" });
+        return true;
+      },
     };
 
     shell.wirePhase9ShellActions(root, bridge);
-    shellActions.handler({ target: { dataset: { elmCommand: 'claim-red' } }, preventDefault() {} });
+    shellActions.handler({
+      target: { dataset: { elmCommand: "claim-red" } },
+      preventDefault() {},
+    });
 
-    expect(sent).toEqual([{ type: 'claimSeat', seatId: 'p2', name: 'Elm Player' }]);
-    expect(root.innerHTML).toContain('Board ROOM123');
+    expect(sent).toEqual([
+      { type: "claimSeat", seatId: "p2", name: "Elm Player" },
+    ]);
+    expect(root.innerHTML).toContain("Board ROOM123");
   });
 
-  it('renders a read-only SVG board with grid, gates, ball, and live legal-move overlay', () => {
+  it("renders a read-only SVG board with grid, gates, ball, and live legal-move overlay", () => {
     const { shell } = loadShell();
 
-    const html = shell.renderBoardMessage(fixture('board-active-session'));
+    const html = shell.renderBoardMessage(fixture("board-active-session"));
 
-    expect(html).toContain('data-elm-board-svg');
+    expect(html).toContain("data-elm-board-svg");
     expect(html).toContain('viewBox="0 0 900 1300"');
     expect(html).toContain('aria-label="Read-only Traceball board"');
     expect(html).toContain('data-elm-ball="4,6"');
@@ -248,15 +349,22 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).toContain('data-elm-gate-bounce="4,11"');
   });
 
-  it('renders read-only traced move segments from the canonical round state', () => {
+  it("renders read-only traced move segments from the canonical round state", () => {
     const { shell } = loadShell();
-    const message = fixture('board-active-session');
+    const message = fixture("board-active-session");
     const round = message.board.currentSession.round;
     round.ball = { x: 5, y: 5 };
-    round.visited = ['4,6', '5,5'];
-    round.segments = ['4,6|5,5'];
+    round.visited = ["4,6", "5,5"];
+    round.segments = ["4,6|5,5"];
     round.moves = [
-      { playerId: 'p1', from: { x: 4, y: 6 }, to: { x: 5, y: 5 }, segment: '4,6|5,5', bounce: false, at: 2100 },
+      {
+        playerId: "p1",
+        from: { x: 4, y: 6 },
+        to: { x: 5, y: 5 },
+        segment: "4,6|5,5",
+        bounce: false,
+        at: 2100,
+      },
     ];
 
     const html = shell.renderBoardMessage(message);
@@ -266,71 +374,78 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(html).toContain('data-elm-ball="5,5"');
   });
 
-  it('renders legal moves as read-only watcher hints when the viewer is not seated', () => {
+  it("renders legal moves as read-only watcher hints when the viewer is not seated", () => {
     const { shell } = loadShell();
 
-    const html = shell.renderBoardMessage(fixture('board-active-session'));
+    const html = shell.renderBoardMessage(fixture("board-active-session"));
 
     expect(html).toContain('data-elm-legal-context="watcher"');
     expect(html).toContain('data-elm-legal-move-state="preview"');
-    expect(html).toContain('Watching: legal moves are preview only.');
+    expect(html).toContain("Watching: legal moves are preview only.");
     expect(html).not.toContain('data-elm-legal-playable="true"');
   });
 
-  it('distinguishes own-turn legal move hints from waiting-for-opponent hints', () => {
+  it("distinguishes own-turn legal move hints from waiting-for-opponent hints", () => {
     const { shell } = loadShell();
-    const message = fixture('board-active-session');
+    const message = fixture("board-active-session");
 
     const ownTurn = shell.renderModel({
       ...shell.applyState(shell.initialModel(), message),
-      ownSeat: 'p1',
+      ownSeat: "p1",
     });
     const waitingTurn = shell.renderModel({
       ...shell.applyState(shell.initialModel(), message),
-      ownSeat: 'p2',
+      ownSeat: "p2",
     });
 
     expect(ownTurn).toContain('data-elm-legal-context="own-turn"');
     expect(ownTurn).toContain('data-elm-legal-playable="true"');
-    expect(ownTurn).toContain('Your legal moves. Tap a highlighted point to move.');
+    expect(ownTurn).toContain(
+      "Your legal moves. Tap a highlighted point to move.",
+    );
 
     expect(waitingTurn).toContain('data-elm-legal-context="opponent-turn"');
     expect(waitingTurn).toContain('data-elm-legal-move-state="waiting"');
-    expect(waitingTurn).toContain('Opponent turn: legal moves shown for orientation.');
+    expect(waitingTurn).toContain(
+      "Opponent turn: legal moves shown for orientation.",
+    );
     expect(waitingTurn).not.toContain('data-elm-legal-playable="true"');
   });
 
-  it('renders pending move feedback as a one-shot animation without continuous pulsing', () => {
+  it("renders pending move feedback as a one-shot animation without continuous pulsing", () => {
     const { shell } = loadShell();
     const model = {
-      ...shell.applyState(shell.initialModel(), fixture('board-active-session')),
-      ownSeat: 'p1',
-      pendingMoveKey: '4,5',
+      ...shell.applyState(
+        shell.initialModel(),
+        fixture("board-active-session"),
+      ),
+      ownSeat: "p1",
+      pendingMoveKey: "4,5",
     };
 
     const html = shell.renderModel(model);
 
     expect(html).toContain('data-elm-pending-move="4,5"');
     expect(html).toContain('data-elm-move-feedback="pending"');
-    expect(html).toContain('elm-legal-pending');
-    expect(cssSource).toContain('.elm-legal-pending');
-    expect(cssSource).toContain('@keyframes elm-move-confirm-once');
+    expect(html).toContain("elm-legal-pending");
+    expect(cssSource).toContain(".elm-legal-pending");
+    expect(cssSource).toContain("@keyframes elm-move-confirm-once");
     expect(cssSource).not.toMatch(/elm-legal-pending[\s\S]{0,260}infinite/);
   });
 
-  it('submits a server-authoritative move from an own-turn Elm legal target', () => {
+  it("submits a server-authoritative move from an own-turn Elm legal target", () => {
     const sent = [];
     const sockets = [];
     const legalLayer = {
       handler: null,
       addEventListener(type, handler) {
-        if (type === 'click') this.handler = handler;
+        if (type === "click") this.handler = handler;
       },
     };
     const target = {
-      dataset: { elmLegalMove: '3,5', elmLegalPlayable: 'true' },
+      dataset: { elmLegalMove: "3,5", elmLegalPlayable: "true" },
       closest(selector) {
-        return selector === '[data-elm-legal-move]' ? this : null;
+        return selector === "[data-elm-legal-move]" ? this : null;
       },
     };
     class FakeWebSocket {
@@ -339,210 +454,304 @@ describe('Phase 3 Elm shell runtime contract', () => {
         this.readyState = FakeWebSocket.OPEN;
         sockets.push(this);
       }
-      send(payload) { sent.push(JSON.parse(payload)); }
-      close() { this.closed = true; }
+      send(payload) {
+        sent.push(JSON.parse(payload));
+      }
+      close() {
+        this.closed = true;
+      }
     }
 
     const { shell, root } = loadShell({
       WebSocket: FakeWebSocket,
-      document: { querySelector: (selector) => (selector === '[data-elm-legal-context="own-turn"]' ? legalLayer : null) },
+      document: {
+        querySelector: (selector) =>
+          selector === '[data-elm-legal-context="own-turn"]'
+            ? legalLayer
+            : null,
+      },
     });
-    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root });
+    const bridge = shell.createSocketBridge({ boardCode: "ROOM123", root });
     sockets[0].onopen();
-    sockets[0].onmessage({ data: JSON.stringify(fixture('board-active-session')) });
-    bridge.model = { ...bridge.model, ownSeat: 'p1' };
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
+    bridge.model = { ...bridge.model, ownSeat: "p1" };
     root.innerHTML = shell.renderModel(bridge.model);
     shell.wireBoardMoveTargets(root, bridge);
 
-    legalLayer.handler({ target, preventDefault() { this.prevented = true; } });
+    legalLayer.handler({
+      target,
+      preventDefault() {
+        this.prevented = true;
+      },
+    });
 
-    expect(sent.at(-1)).toEqual({ type: 'move', to: { x: 3, y: 5 } });
-    expect(bridge.model.pendingMoveKey).toBe('3,5');
+    expect(sent.at(-1)).toEqual({ type: "move", to: { x: 3, y: 5 } });
+    expect(bridge.model.pendingMoveKey).toBe("3,5");
   });
 
-  it('does not submit Elm board moves while watching or waiting for the opponent', () => {
+  it("does not submit Elm board moves while watching or waiting for the opponent", () => {
     const sent = [];
     const { shell } = loadShell();
-    const base = shell.applyState(shell.initialModel(), fixture('board-active-session'));
+    const base = shell.applyState(
+      shell.initialModel(),
+      fixture("board-active-session"),
+    );
     const bridge = {
-      boardCode: 'ROOM123',
-      clientId: 'traceball-elm-test',
+      boardCode: "ROOM123",
+      clientId: "traceball-elm-test",
       model: { ...base, ownSeat: null },
-      sendCommand(command) { sent.push(command); return true; },
+      sendCommand(command) {
+        sent.push(command);
+        return true;
+      },
     };
 
-    expect(shell.submitMoveFromLegalTarget(bridge, '3,5')).toBe(false);
-    bridge.model = { ...base, ownSeat: 'p2' };
-    expect(shell.submitMoveFromLegalTarget(bridge, '3,5')).toBe(false);
-    bridge.model = { ...base, ownSeat: 'p1' };
-    expect(shell.submitMoveFromLegalTarget(bridge, 'not-a-point')).toBe(false);
+    expect(shell.submitMoveFromLegalTarget(bridge, "3,5")).toBe(false);
+    bridge.model = { ...base, ownSeat: "p2" };
+    expect(shell.submitMoveFromLegalTarget(bridge, "3,5")).toBe(false);
+    bridge.model = { ...base, ownSeat: "p1" };
+    expect(shell.submitMoveFromLegalTarget(bridge, "not-a-point")).toBe(false);
 
     expect(sent).toEqual([]);
   });
 
-  it('renders a between-round result panel with score and seated-player new-round control', () => {
+  it("renders a between-round result panel with score and seated-player new-round control", () => {
     const { shell } = loadShell();
-    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+    const base = shell.applyState(
+      shell.initialModel(),
+      fixture("board-between-rounds"),
+    );
 
     const watcherHtml = shell.renderModel({ ...base, ownSeat: null });
-    const seatedHtml = shell.renderModel({ ...base, ownSeat: 'p1' });
+    const seatedHtml = shell.renderModel({ ...base, ownSeat: "p1" });
 
-    expect(seatedHtml).toContain('data-elm-round-result');
-    expect(seatedHtml).toContain('Blue wins this round');
-    expect(seatedHtml).toContain('p1 scored!');
-    expect(seatedHtml).toContain('Blue 1 — Red 0');
+    expect(seatedHtml).toContain("data-elm-round-result");
+    expect(seatedHtml).toContain("Blue wins this round");
+    expect(seatedHtml).toContain("p1 scored!");
+    expect(seatedHtml).toContain("Blue 1 — Red 0");
     expect(seatedHtml).toContain('data-elm-command="new-round"');
-    expect(seatedHtml).toContain('Continue / New Round');
-    expect(watcherHtml).toContain('Waiting for a seated player to continue.');
+    expect(seatedHtml).toContain("Continue / New Round");
+    expect(watcherHtml).toContain("Waiting for a seated player to continue.");
     expect(watcherHtml).not.toContain('data-elm-command="new-round"');
   });
 
-  it('sends reset only from a seated player between rounds', () => {
+  it("sends reset only from a seated player between rounds", () => {
     const sent = [];
     const { shell } = loadShell();
-    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+    const base = shell.applyState(
+      shell.initialModel(),
+      fixture("board-between-rounds"),
+    );
     const bridge = {
       model: { ...base, ownSeat: null },
-      newRound() { sent.push({ type: 'reset' }); return true; },
+      newRound() {
+        sent.push({ type: "reset" });
+        return true;
+      },
     };
 
     expect(shell.submitNewRound(bridge)).toBe(false);
-    bridge.model = { ...base, ownSeat: 'p1' };
+    bridge.model = { ...base, ownSeat: "p1" };
     expect(shell.submitNewRound(bridge)).toBe(true);
 
-    expect(sent).toEqual([{ type: 'reset' }]);
+    expect(sent).toEqual([{ type: "reset" }]);
     expect(bridge.model.pendingNewRound).toBe(true);
   });
 
-  it('wires the between-round Continue/New Round button to the reset command', () => {
+  it("wires the between-round Continue/New Round button to the reset command", () => {
     const sent = [];
     const roundActions = {
       handler: null,
       addEventListener(type, handler) {
-        if (type === 'click') this.handler = handler;
+        if (type === "click") this.handler = handler;
       },
     };
-    const target = { dataset: { elmCommand: 'new-round' } };
+    const target = { dataset: { elmCommand: "new-round" } };
     const { shell, root } = loadShell({
-      document: { querySelector: (selector) => (selector === '[data-elm-round-actions]' ? roundActions : null) },
+      document: {
+        querySelector: (selector) =>
+          selector === "[data-elm-round-actions]" ? roundActions : null,
+      },
     });
-    const base = shell.applyState(shell.initialModel(), fixture('board-between-rounds'));
+    const base = shell.applyState(
+      shell.initialModel(),
+      fixture("board-between-rounds"),
+    );
     const bridge = {
-      model: { ...base, ownSeat: 'p1' },
-      newRound() { sent.push({ type: 'reset' }); return true; },
+      model: { ...base, ownSeat: "p1" },
+      newRound() {
+        sent.push({ type: "reset" });
+        return true;
+      },
     };
 
     shell.wireRoundActions(root, bridge);
-    roundActions.handler({ target, preventDefault() { this.prevented = true; } });
+    roundActions.handler({
+      target,
+      preventDefault() {
+        this.prevented = true;
+      },
+    });
 
-    expect(sent).toEqual([{ type: 'reset' }]);
-    expect(root.innerHTML).toContain('Starting next round…');
+    expect(sent).toEqual([{ type: "reset" }]);
+    expect(root.innerHTML).toContain("Starting next round…");
   });
 
-  it('renders Phase 7 disconnected-seat grace and free-seat recovery controls only for the seated opponent', () => {
+  it("renders Phase 7 disconnected-seat grace and free-seat recovery controls only for the seated opponent", () => {
     const { shell } = loadShell();
-    const during = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-during-grace'));
-    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
+    const during = shell.applyState(
+      shell.initialModel(),
+      fixture("board-disconnected-player-during-grace"),
+    );
+    const eligible = shell.applyState(
+      shell.initialModel(),
+      fixture("board-disconnected-player-eligible-to-free"),
+    );
 
     const watcherDuringGrace = shell.renderModel({ ...during, ownSeat: null });
-    const opponentDuringGrace = shell.renderModel({ ...during, ownSeat: 'p1' });
-    const opponentAfterGrace = shell.renderModel({ ...eligible, ownSeat: 'p1' });
-    const disconnectedOwnView = shell.renderModel({ ...eligible, ownSeat: 'p2' });
+    const opponentDuringGrace = shell.renderModel({ ...during, ownSeat: "p1" });
+    const opponentAfterGrace = shell.renderModel({
+      ...eligible,
+      ownSeat: "p1",
+    });
+    const disconnectedOwnView = shell.renderModel({
+      ...eligible,
+      ownSeat: "p2",
+    });
 
     expect(opponentDuringGrace).toContain('data-elm-disconnected-seat="red"');
-    expect(opponentDuringGrace).toContain('Friend disconnected. Seat reserved during grace.');
-    expect(opponentDuringGrace).toContain('Make seat available in 60s');
+    expect(opponentDuringGrace).toContain(
+      "Friend disconnected. Seat reserved during grace.",
+    );
+    expect(opponentDuringGrace).toContain("Make seat available in 60s");
     expect(opponentDuringGrace).not.toContain('data-elm-command="free-seat"');
 
     expect(opponentAfterGrace).toContain('data-elm-command="free-seat"');
     expect(opponentAfterGrace).toContain('data-elm-seat="p2"');
-    expect(opponentAfterGrace).toContain('Make Red seat available');
+    expect(opponentAfterGrace).toContain("Make Red seat available");
     expect(watcherDuringGrace).not.toContain('data-elm-command="free-seat"');
-    expect(disconnectedOwnView).toContain('Your seat is reserved — reconnect from the same browser to reclaim it.');
+    expect(disconnectedOwnView).toContain(
+      "Your seat is reserved — reconnect from the same browser to reclaim it.",
+    );
   });
 
-  it('sends freeSeat only for a seated opponent whose disconnected grace expired', () => {
+  it("sends freeSeat only for a seated opponent whose disconnected grace expired", () => {
     const sent = [];
     const { shell } = loadShell();
-    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
-    const during = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-during-grace'));
+    const eligible = shell.applyState(
+      shell.initialModel(),
+      fixture("board-disconnected-player-eligible-to-free"),
+    );
+    const during = shell.applyState(
+      shell.initialModel(),
+      fixture("board-disconnected-player-during-grace"),
+    );
     const bridge = {
       model: { ...eligible, ownSeat: null },
-      freeSeat(seatId) { sent.push({ type: 'freeSeat', seatId }); return true; },
+      freeSeat(seatId) {
+        sent.push({ type: "freeSeat", seatId });
+        return true;
+      },
     };
 
-    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
-    bridge.model = { ...during, ownSeat: 'p1' };
-    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
-    bridge.model = { ...eligible, ownSeat: 'p2' };
-    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(false);
-    bridge.model = { ...eligible, ownSeat: 'p1' };
-    expect(shell.submitFreeDisconnectedSeat(bridge, 'p2')).toBe(true);
+    expect(shell.submitFreeDisconnectedSeat(bridge, "p2")).toBe(false);
+    bridge.model = { ...during, ownSeat: "p1" };
+    expect(shell.submitFreeDisconnectedSeat(bridge, "p2")).toBe(false);
+    bridge.model = { ...eligible, ownSeat: "p2" };
+    expect(shell.submitFreeDisconnectedSeat(bridge, "p2")).toBe(false);
+    bridge.model = { ...eligible, ownSeat: "p1" };
+    expect(shell.submitFreeDisconnectedSeat(bridge, "p2")).toBe(true);
 
-    expect(sent).toEqual([{ type: 'freeSeat', seatId: 'p2' }]);
-    expect(bridge.model.pendingFreeSeat).toBe('p2');
+    expect(sent).toEqual([{ type: "freeSeat", seatId: "p2" }]);
+    expect(bridge.model.pendingFreeSeat).toBe("p2");
   });
 
-  it('wires Phase 7 Make seat available clicks to the freeSeat command', () => {
+  it("wires Phase 7 Make seat available clicks to the freeSeat command", () => {
     const sent = [];
     const recoveryActions = {
       handler: null,
       addEventListener(type, handler) {
-        if (type === 'click') this.handler = handler;
+        if (type === "click") this.handler = handler;
       },
     };
-    const target = { dataset: { elmCommand: 'free-seat', elmSeat: 'p2' } };
+    const target = { dataset: { elmCommand: "free-seat", elmSeat: "p2" } };
     const { shell, root } = loadShell({
-      document: { querySelector: (selector) => (selector === '[data-elm-disconnect-actions]' ? recoveryActions : null) },
+      document: {
+        querySelector: (selector) =>
+          selector === "[data-elm-disconnect-actions]" ? recoveryActions : null,
+      },
     });
-    const eligible = shell.applyState(shell.initialModel(), fixture('board-disconnected-player-eligible-to-free'));
+    const eligible = shell.applyState(
+      shell.initialModel(),
+      fixture("board-disconnected-player-eligible-to-free"),
+    );
     const bridge = {
-      model: { ...eligible, ownSeat: 'p1' },
-      freeSeat(seatId) { sent.push({ type: 'freeSeat', seatId }); return true; },
+      model: { ...eligible, ownSeat: "p1" },
+      freeSeat(seatId) {
+        sent.push({ type: "freeSeat", seatId });
+        return true;
+      },
     };
 
     shell.wireDisconnectActions(root, bridge);
-    recoveryActions.handler({ target, preventDefault() { this.prevented = true; } });
+    recoveryActions.handler({
+      target,
+      preventDefault() {
+        this.prevented = true;
+      },
+    });
 
-    expect(sent).toEqual([{ type: 'freeSeat', seatId: 'p2' }]);
-    expect(root.innerHTML).toContain('Making seat available…');
+    expect(sent).toEqual([{ type: "freeSeat", seatId: "p2" }]);
+    expect(root.innerHTML).toContain("Making seat available…");
   });
 
-  it('keeps the newer model when a stale state message arrives', () => {
+  it("keeps the newer model when a stale state message arrives", () => {
     const { shell } = loadShell();
-    const current = shell.applyState(shell.initialModel(), fixture('board-active-session'));
-    const stale = fixture('board-creator-only');
+    const current = shell.applyState(
+      shell.initialModel(),
+      fixture("board-active-session"),
+    );
+    const stale = fixture("board-creator-only");
     stale.version = current.version;
     stale.board.version = current.version;
 
     const next = shell.applyState(current, stale);
 
     expect(next.version).toBe(current.version);
-    expect(next.board.state).toBe('SessionActive');
+    expect(next.board.state).toBe("SessionActive");
     expect(next.ignoredStaleVersion).toBe(stale.version);
   });
 
-  it('returns a controlled error for malformed state and not-found messages', () => {
+  it("returns a controlled error for malformed state and not-found messages", () => {
     const { shell } = loadShell();
 
-    const bad = shell.applyState(shell.initialModel(), { type: 'state', version: 3, boardCode: 'BAD' });
-    expect(bad.error).toContain('missing board');
+    const bad = shell.applyState(shell.initialModel(), {
+      type: "state",
+      version: 3,
+      boardCode: "BAD",
+    });
+    expect(bad.error).toContain("missing board");
 
-    const notFound = shell.applyState(shell.initialModel(), fixture('board-not-found'));
-    expect(notFound.error).toContain('Board not found');
+    const notFound = shell.applyState(
+      shell.initialModel(),
+      fixture("board-not-found"),
+    );
+    expect(notFound.error).toContain("Board not found");
     const notFoundHtml = shell.renderModel(notFound);
-    expect(notFoundHtml).toContain('data-elm-board-recovery');
-    expect(notFoundHtml).toContain('Create a fresh board');
+    expect(notFoundHtml).toContain("data-elm-board-recovery");
+    expect(notFoundHtml).toContain("Create a fresh board");
   });
 
-  it('renders Phase 8 board list cards with status, occupancy, activity, expiry, and Elm links', () => {
+  it("renders Phase 8 board list cards with status, occupancy, activity, expiry, and Elm links", () => {
     const { shell } = loadShell();
     const html = shell.renderBoardList([
       {
-        roomId: 'ROOM123',
-        elmUrl: '/elm?board=ROOM123',
-        state: 'SessionActive',
-        status: 'playing',
+        roomId: "ROOM123",
+        elmUrl: "/elm?board=ROOM123",
+        state: "SessionActive",
+        status: "playing",
         occupancy: { activeCount: 2, vacantCount: 0 },
         score: { p1: 2, p2: 1 },
         moveCount: 7,
@@ -550,31 +759,45 @@ describe('Phase 3 Elm shell runtime contract', () => {
         expiresAt: 604802000,
       },
       {
-        roomId: 'OPEN456',
-        elmUrl: '/elm?board=OPEN456',
-        state: 'WaitingForPlayers',
+        roomId: "OPEN456",
+        elmUrl: "/elm?board=OPEN456",
+        state: "WaitingForPlayers",
         occupancy: { activeCount: 1, vacantCount: 1 },
         lastActivityAt: 1000,
         expiresAt: 604801000,
       },
     ]);
 
-    expect(html).toContain('data-elm-board-list');
+    expect(html).toContain("data-elm-board-list");
     expect(html).toContain('data-elm-board-card="ROOM123"');
-    expect(html).toContain('SessionActive');
-    expect(html).toContain('2 seated · 0 open');
-    expect(html).toContain('Score Blue 2 — Red 1');
-    expect(html).toContain('Last activity 2000');
-    expect(html).toContain('Expires 604802000');
+    expect(html).toContain("SessionActive");
+    expect(html).toContain("2 seated · 0 open");
+    expect(html).toContain("Score Blue 2 — Red 1");
+    expect(html).toContain("Last activity 2000");
+    expect(html).toContain("Expires 604802000");
     expect(html).toContain('href="/elm?board=ROOM123"');
-    expect(html).toContain('Open board');
+    expect(html).toContain("Open board");
   });
 
-  it('loads active online boards into the Boards tab without replacing the whole shell', async () => {
+  it("loads active online boards into the Boards tab without replacing the whole shell", async () => {
     const { shell, root } = loadShell({
       fetch: async (url) => {
-        expect(url).toBe('/api/rooms');
-        return { ok: true, json: async () => ({ rooms: [{ roomId: 'ROOM123', elmUrl: '/elm?board=ROOM123', state: 'WaitingForPlayers', occupancy: { activeCount: 0, vacantCount: 2 }, lastActivityAt: 1000, expiresAt: 604801000 }] }) };
+        expect(url).toBe("/api/rooms");
+        return {
+          ok: true,
+          json: async () => ({
+            rooms: [
+              {
+                roomId: "ROOM123",
+                elmUrl: "/elm?board=ROOM123",
+                state: "WaitingForPlayers",
+                occupancy: { activeCount: 0, vacantCount: 2 },
+                lastActivityAt: 1000,
+                expiresAt: 604801000,
+              },
+            ],
+          }),
+        };
       },
     });
     root.innerHTML = shell.renderModel(shell.initialModel());
@@ -582,14 +805,14 @@ describe('Phase 3 Elm shell runtime contract', () => {
     await shell.loadBoardList(root);
 
     expect(root.innerHTML).toContain('id="boardsPanel"');
-    expect(root.innerHTML).toContain('data-elm-board-list');
+    expect(root.innerHTML).toContain("data-elm-board-list");
     expect(root.innerHTML).toContain('data-elm-board-card="ROOM123"');
     expect(root.innerHTML).toContain('href="/elm?board=ROOM123"');
     expect(root.innerHTML).toContain('id="joinPanel"');
     expect(root.innerHTML).toContain('class="board-card mobile-page active"');
   });
 
-  it('preserves an Elm client id through localStorage for WebSocket handoff', () => {
+  it("preserves an Elm client id through localStorage for WebSocket handoff", () => {
     const { shell, storage } = loadShell();
 
     const first = shell.getOrCreateClientId();
@@ -597,10 +820,10 @@ describe('Phase 3 Elm shell runtime contract', () => {
 
     expect(first).toMatch(/^traceball-elm-/);
     expect(second).toBe(first);
-    expect(storage.getItem('traceballElmClientId')).toBe(first);
+    expect(storage.getItem("traceballElmClientId")).toBe(first);
   });
 
-  it('opens a board as watcher over WebSocket and applies live state', () => {
+  it("opens a board as watcher over WebSocket and applies live state", () => {
     const sent = [];
     const sockets = [];
     class FakeWebSocket {
@@ -610,22 +833,35 @@ describe('Phase 3 Elm shell runtime contract', () => {
         this.readyState = FakeWebSocket.OPEN;
         sockets.push(this);
       }
-      send(payload) { sent.push(JSON.parse(payload)); }
-      close() { this.closed = true; }
+      send(payload) {
+        sent.push(JSON.parse(payload));
+      }
+      close() {
+        this.closed = true;
+      }
     }
 
     const { shell } = loadShell({ WebSocket: FakeWebSocket });
-    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root: { innerHTML: '' } });
+    const bridge = shell.createSocketBridge({
+      boardCode: "ROOM123",
+      root: { innerHTML: "" },
+    });
     sockets[0].onopen();
-    sockets[0].onmessage({ data: JSON.stringify(fixture('board-active-session')) });
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-active-session")),
+    });
 
-    expect(sockets[0].url).toBe('wss://example.test/ws');
-    expect(sent[0]).toMatchObject({ type: 'watch', roomId: 'ROOM123', clientId: bridge.clientId });
-    expect(bridge.model.board.state).toBe('SessionActive');
-    expect(bridge.model.connectionStatus).toBe('connected');
+    expect(sockets[0].url).toBe("wss://example.test/ws");
+    expect(sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: bridge.clientId,
+    });
+    expect(bridge.model.board.state).toBe("SessionActive");
+    expect(bridge.model.connectionStatus).toBe("connected");
   });
 
-  it('exposes board-centric seating commands without a generic Join Game action', () => {
+  it("exposes board-centric seating commands without a generic Join Game action", () => {
     const sent = [];
     const sockets = [];
     class FakeWebSocket {
@@ -634,39 +870,72 @@ describe('Phase 3 Elm shell runtime contract', () => {
         this.readyState = FakeWebSocket.OPEN;
         sockets.push(this);
       }
-      send(payload) { sent.push(JSON.parse(payload)); }
-      close() { this.closed = true; }
+      send(payload) {
+        sent.push(JSON.parse(payload));
+      }
+      close() {
+        this.closed = true;
+      }
     }
 
     const { shell, root } = loadShell({ WebSocket: FakeWebSocket });
-    const bridge = shell.createSocketBridge({ boardCode: 'ROOM123', root });
+    const bridge = shell.createSocketBridge({ boardCode: "ROOM123", root });
     sockets[0].onopen();
-    sockets[0].onmessage({ data: JSON.stringify(fixture('board-creator-only')) });
+    sockets[0].onmessage({
+      data: JSON.stringify(fixture("board-creator-only")),
+    });
 
-    expect(root.innerHTML).toContain('Join Red');
-    expect(root.innerHTML).not.toContain('Join Game');
+    expect(root.innerHTML).toContain("Join Red");
+    expect(root.innerHTML).not.toContain("Join Game");
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ type: 'watch', roomId: 'ROOM123', clientId: bridge.clientId });
+    expect(sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: bridge.clientId,
+    });
     expect(bridge.model.ownSeat).toBe(null);
 
-    bridge.claimSeat('p1', 'Elm Blue');
-    bridge.claimSeat('p2', 'Elm Red');
-    bridge.joinWaitingList('Elm Waiter');
+    bridge.claimSeat("p1", "Elm Blue");
+    bridge.claimSeat("p2", "Elm Red");
+    bridge.joinWaitingList("Elm Waiter");
     bridge.leaveWaitingList();
     bridge.leaveSeat();
 
     expect(sent.slice(1)).toEqual([
-      { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p1', name: 'Elm Blue', clientId: bridge.clientId },
-      { type: 'claimSeat', roomId: 'ROOM123', seatId: 'p2', name: 'Elm Red', clientId: bridge.clientId },
-      { type: 'joinWaitingList', roomId: 'ROOM123', name: 'Elm Waiter', clientId: bridge.clientId },
-      { type: 'leaveWaitingList', roomId: 'ROOM123', clientId: bridge.clientId },
-      { type: 'leave' },
+      {
+        type: "claimSeat",
+        roomId: "ROOM123",
+        seatId: "p1",
+        name: "Elm Blue",
+        clientId: bridge.clientId,
+      },
+      {
+        type: "claimSeat",
+        roomId: "ROOM123",
+        seatId: "p2",
+        name: "Elm Red",
+        clientId: bridge.clientId,
+      },
+      {
+        type: "joinWaitingList",
+        roomId: "ROOM123",
+        name: "Elm Waiter",
+        clientId: bridge.clientId,
+      },
+      {
+        type: "leaveWaitingList",
+        roomId: "ROOM123",
+        clientId: bridge.clientId,
+      },
+      { type: "leave" },
     ]);
   });
 
-  it('creates a board and immediately claims Blue for the creator', async () => {
+  it("creates a board and immediately claims Blue for the creator", async () => {
     const { shell: renderShell } = loadShell();
-    expect(renderShell.renderModel(renderShell.initialModel())).toContain('Create board as Blue');
+    expect(renderShell.renderModel(renderShell.initialModel())).toContain(
+      "Create board as Blue",
+    );
 
     const sent = [];
     const sockets = [];
@@ -676,55 +945,84 @@ describe('Phase 3 Elm shell runtime contract', () => {
         this.readyState = FakeWebSocket.OPEN;
         sockets.push(this);
       }
-      send(payload) { sent.push(JSON.parse(payload)); }
-      close() { this.closed = true; }
+      send(payload) {
+        sent.push(JSON.parse(payload));
+      }
+      close() {
+        this.closed = true;
+      }
     }
 
     let createBody;
     const { shell, root } = loadShell({
       WebSocket: FakeWebSocket,
       fetch: async (url, options) => {
-        expect(url).toBe('/api/rooms');
-        expect(options.method).toBe('POST');
+        expect(url).toBe("/api/rooms");
+        expect(options.method).toBe("POST");
         createBody = JSON.parse(options.body);
-        return { ok: true, json: async () => ({ roomId: 'NEW12345' }) };
+        return { ok: true, json: async () => ({ roomId: "NEW12345" }) };
       },
     });
 
-    const bridge = await shell.createBoardAsBlue({ root, name: 'Creator', moveTimeLimitSeconds: 30 });
+    const bridge = await shell.createBoardAsBlue({
+      root,
+      name: "Creator",
+      moveTimeLimitSeconds: 30,
+    });
     sockets[0].onopen();
 
-    expect(bridge.boardCode).toBe('NEW12345');
+    expect(bridge.boardCode).toBe("NEW12345");
     expect(createBody).toEqual({ moveTimeLimitSeconds: 30 });
     expect(sent).toEqual([
-      { type: 'watch', roomId: 'NEW12345', clientId: bridge.clientId },
-      { type: 'claimSeat', roomId: 'NEW12345', seatId: 'p1', name: 'Creator', clientId: bridge.clientId },
+      { type: "watch", roomId: "NEW12345", clientId: bridge.clientId },
+      {
+        type: "claimSeat",
+        roomId: "NEW12345",
+        seatId: "p1",
+        name: "Creator",
+        clientId: bridge.clientId,
+      },
     ]);
   });
 
-  it('starts a local same-screen runtime bridge and renders a local board shell', () => {
+  it("starts a local same-screen runtime bridge and renders a local board shell", () => {
     const { shell, root } = loadShell();
 
-    const bridge = shell.createLocalBridge({ root, blueName: 'Stefan', redName: 'Alex', moveTimeLimitSeconds: 10 });
+    const bridge = shell.createLocalBridge({
+      root,
+      blueName: "Stefan",
+      redName: "Alex",
+      moveTimeLimitSeconds: 10,
+    });
 
     expect(bridge.model.localRuntime).toBe(true);
-    expect(bridge.model.board.code).toBe('LOCAL');
+    expect(bridge.model.board.code).toBe("LOCAL");
     expect(root.innerHTML).toContain('data-elm-runtime="local"');
-    expect(root.innerHTML).toContain('Stefan');
-    expect(root.innerHTML).toContain('Alex');
-    expect(root.innerHTML).toContain('Timer: 10s');
+    expect(root.innerHTML).toContain("Stefan");
+    expect(root.innerHTML).toContain("Alex");
+    expect(root.innerHTML).toContain("Timer: 10s");
   });
 
-  it('persists paused local runtime state and restores it from storage', () => {
+  it("persists paused local runtime state and restores it from storage", () => {
     const storage = {
       values: new Map(),
-      getItem(key) { return this.values.get(key) ?? null; },
-      setItem(key, value) { this.values.set(key, String(value)); },
-      removeItem(key) { this.values.delete(key); },
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+      removeItem(key) {
+        this.values.delete(key);
+      },
     };
     const { shell } = loadShell({ localStorage: storage });
 
-    const local = shell.createLocalRuntimeModel({ blueName: 'Blue', redName: 'Red', moveTimeLimitSeconds: 30 });
+    const local = shell.createLocalRuntimeModel({
+      blueName: "Blue",
+      redName: "Red",
+      moveTimeLimitSeconds: 30,
+    });
     local.localPaused = true;
     shell.saveLocalRuntimeModel(local);
     const restored = shell.loadSavedLocalRuntimeModel();
@@ -733,6 +1031,8 @@ describe('Phase 3 Elm shell runtime contract', () => {
     expect(restored.localRuntime).toBe(true);
     expect(restored.localPaused).toBe(true);
     expect(restored.board.currentSession.moveTimeLimitSeconds).toBe(30);
-    expect(shell.renderModel(restored)).toContain('id="pauseOverlay" class="pause-overlay"');
+    expect(shell.renderModel(restored)).toContain(
+      'id="pauseOverlay" class="pause-overlay"',
+    );
   });
 });

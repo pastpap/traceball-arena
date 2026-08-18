@@ -175,11 +175,19 @@ function localSegmentKey(a, b) {
 }
 
 function localHasSegment(round, from, to) {
-  return Array.isArray(round?.segments) && round.segments.includes(localSegmentKey(from, to));
+  return (
+    Array.isArray(round?.segments) &&
+    round.segments.includes(localSegmentKey(from, to))
+  );
 }
 
 function localIsBoundaryPoint(point) {
-  return Number(point.x) === 0 || Number(point.x) === 8 || Number(point.y) === 1 || Number(point.y) === 11;
+  return (
+    Number(point.x) === 0 ||
+    Number(point.x) === 8 ||
+    Number(point.y) === 1 ||
+    Number(point.y) === 11
+  );
 }
 
 function localIsTracedMarginSegment(from, to) {
@@ -187,29 +195,49 @@ function localIsTracedMarginSegment(from, to) {
   const dy = Math.abs(Number(from.y) - Number(to.y));
   if (dx + dy !== 1) return false;
 
-  const verticalSide = Number(from.x) === Number(to.x)
-    && (Number(from.x) === 0 || Number(from.x) === 8)
-    && Number(from.y) >= 1 && Number(from.y) <= 11
-    && Number(to.y) >= 1 && Number(to.y) <= 11;
+  const verticalSide =
+    Number(from.x) === Number(to.x) &&
+    (Number(from.x) === 0 || Number(from.x) === 8) &&
+    Number(from.y) >= 1 &&
+    Number(from.y) <= 11 &&
+    Number(to.y) >= 1 &&
+    Number(to.y) <= 11;
   if (verticalSide) return true;
 
-  const horizontalPitchEdge = Number(from.y) === Number(to.y)
-    && (Number(from.y) === 1 || Number(from.y) === 11)
-    && Number(from.x) >= 0 && Number(from.x) < 9
-    && Number(to.x) >= 0 && Number(to.x) < 9;
+  const horizontalPitchEdge =
+    Number(from.y) === Number(to.y) &&
+    (Number(from.y) === 1 || Number(from.y) === 11) &&
+    Number(from.x) >= 0 &&
+    Number(from.x) < 9 &&
+    Number(to.x) >= 0 &&
+    Number(to.x) < 9;
   if (!horizontalPitchEdge) return false;
 
-  const inGateMouth = Math.min(Number(from.x), Number(to.x)) >= 3
-    && Math.max(Number(from.x), Number(to.x)) <= 5;
+  const inGateMouth =
+    Math.min(Number(from.x), Number(to.x)) >= 3 &&
+    Math.max(Number(from.x), Number(to.x)) <= 5;
   return !inGateMouth;
 }
 
 function localIsBlockedCornerCut(from, to) {
-  const diagonal = Math.abs(Number(from.x) - Number(to.x)) === 1 && Math.abs(Number(from.y) - Number(to.y)) === 1;
+  const diagonal =
+    Math.abs(Number(from.x) - Number(to.x)) === 1 &&
+    Math.abs(Number(from.y) - Number(to.y)) === 1;
   if (!diagonal) return false;
-  const touchesTopOutside = (Number(from.y) === 1 && Number(to.y) === 0) || (Number(from.y) === 0 && Number(to.y) === 1);
-  const touchesBottomOutside = (Number(from.y) === 11 && Number(to.y) === 12) || (Number(from.y) === 12 && Number(to.y) === 11);
-  if ((touchesTopOutside || touchesBottomOutside) && (Number(to.x) < 3 || Number(to.x) > 5 || Number(from.x) < 3 || Number(from.x) > 5)) return true;
+  const touchesTopOutside =
+    (Number(from.y) === 1 && Number(to.y) === 0) ||
+    (Number(from.y) === 0 && Number(to.y) === 1);
+  const touchesBottomOutside =
+    (Number(from.y) === 11 && Number(to.y) === 12) ||
+    (Number(from.y) === 12 && Number(to.y) === 11);
+  if (
+    (touchesTopOutside || touchesBottomOutside) &&
+    (Number(to.x) < 3 ||
+      Number(to.x) > 5 ||
+      Number(from.x) < 3 ||
+      Number(from.x) > 5)
+  )
+    return true;
   return false;
 }
 
@@ -385,7 +413,8 @@ function applyLocalRuntimeMove(model, key) {
 
   const from = round.ball || { x: 4, y: 6 };
   const turn = round.turn === "p2" ? "p2" : "p1";
-  const visitedBefore = Array.isArray(round.visited) && round.visited.includes(key);
+  const visitedBefore =
+    Array.isArray(round.visited) && round.visited.includes(key);
   const boundaryBounce = localIsBoundaryPoint(point);
   const move = {
     playerId: turn,
@@ -408,7 +437,13 @@ function applyLocalRuntimeMove(model, key) {
   const opponentGoal =
     (turn === "p1" && Number(point.y) === 0) ||
     (turn === "p2" && Number(point.y) === 12);
-  const winner = opponentGoal ? turn : ownGoal ? (turn === "p1" ? "p2" : "p1") : null;
+  const winner = opponentGoal
+    ? turn
+    : ownGoal
+      ? turn === "p1"
+        ? "p2"
+        : "p1"
+      : null;
   const score = { ...model.board.currentSession.score };
   if (winner === "p1") score.blue = Number(score.blue || 0) + 1;
   if (winner === "p2") score.red = Number(score.red || 0) + 1;
@@ -428,9 +463,12 @@ function applyLocalRuntimeMove(model, key) {
     legalMoves: [],
   };
   const candidateLegalMoves = computeLocalLegalMoves(inProgressRound);
-  const stuckWinner = !winner && candidateLegalMoves.length === 0
-    ? (turnAfterMove === "p1" ? "p2" : "p1")
-    : null;
+  const stuckWinner =
+    !winner && candidateLegalMoves.length === 0
+      ? turnAfterMove === "p1"
+        ? "p2"
+        : "p1"
+      : null;
   if (stuckWinner === "p1") score.blue = Number(score.blue || 0) + 1;
   if (stuckWinner === "p2") score.red = Number(score.red || 0) + 1;
   const effectiveWinner = winner || stuckWinner;
