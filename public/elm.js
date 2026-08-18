@@ -717,6 +717,30 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       renderBridge(root, bridge, onModelChange);
       return;
     }
+    if (message.type === "error") {
+      const errorText = message.error || "Server error.";
+      if (/not found|expired/i.test(errorText)) {
+        bridge.model = { ...bridge.model, error: errorText };
+        renderBridge(root, bridge, onModelChange);
+      } else {
+        // Transient gameplay error (e.g. timer): show as toast, keep board visible
+        setToast(errorText);
+        if (
+          bridge.model.pendingMoveKey != null ||
+          bridge.model.pendingNewRound ||
+          bridge.model.pendingFreeSeat != null
+        ) {
+          bridge.model = {
+            ...bridge.model,
+            pendingMoveKey: null,
+            pendingNewRound: false,
+            pendingFreeSeat: null,
+          };
+          refreshBridgeRender(root, bridge);
+        }
+      }
+      return;
+    }
     bridge.model = {
       ...applyState(bridge.model, message),
       connectionStatus: bridge.model.connectionStatus,
@@ -862,6 +886,7 @@ function createLocalBridge({
 
 function renderBridge(root, bridge, onModelChange) {
   if (root) root.innerHTML = renderModel(bridge.model);
+  wireElmBoardCanvas(bridge.model);
   if (typeof onModelChange === "function") onModelChange(bridge.model, bridge);
 }
 
@@ -1241,6 +1266,315 @@ function submitMoveFromLegalTarget(bridge, key) {
   return true;
 }
 
+// --- Canvas overlay: turn-marker jump + confetti (mirrors app.js rAF approach) ---
+const ELM_ANIM = {
+  currentModel: null,
+  jumpAnim: null,
+  confettiUntil: 0,
+  prevWinnerKey: "",
+  rafId: 0,
+};
+const ELM_CONFETTI_MS = 4800;
+const ELM_JUMP_MS = 1400;
+const ELM_CONFETTI_COLORS = [
+  "#ffe784",
+  "#ffffff",
+  "#11bf46",
+  "#0b7cff",
+  "#ff3b30",
+  "#ff8bd1",
+];
+function elmTurnId(model) {
+  const t =
+    model?.board?.currentSession?.round?.turn ??
+    model?.board?.currentSession?.turn;
+  return normalizeSeatId(t) || "blue";
+}
+function elmTurnColor(id) {
+  return id === "red" ? "#ff3b30" : "#0b7cff";
+}
+function elmTurnSpot(id) {
+  const gy = id === "red" ? 0 : 12;
+  return { x: Math.min(900 - 28, elmScreenX(5) + 38), y: elmScreenY(gy) };
+}
+function elmClockSpot(id) {
+  const gy = id === "red" ? 0 : 12;
+  return { x: Math.max(26, elmScreenX(3) - 54), y: elmScreenY(gy) };
+}
+function elmDrawSevenSeg(ctx2d, char, x, y, w, h, color) {
+  const active =
+    {
+      0: ["a", "b", "c", "d", "e", "f"],
+      1: ["b", "c"],
+      2: ["a", "b", "g", "e", "d"],
+      3: ["a", "b", "g", "c", "d"],
+      4: ["f", "g", "b", "c"],
+      5: ["a", "f", "g", "c", "d"],
+      6: ["a", "f", "g", "e", "c", "d"],
+      7: ["a", "b", "c"],
+      8: ["a", "b", "c", "d", "e", "f", "g"],
+      9: ["a", "b", "c", "d", "f", "g"],
+    }[char] || [];
+  const t = 4;
+  const half = h / 2;
+  const r = {
+    a: [x + t, y, w - t * 2, t],
+    b: [x + w - t, y + t, t, half - t],
+    c: [x + w - t, y + half, t, half - t],
+    d: [x + t, y + h - t, w - t * 2, t],
+    e: [x, y + half, t, half - t],
+    f: [x, y + t, t, half - t],
+    g: [x + t, y + half - t / 2, w - t * 2, t],
+  };
+  ctx2d.fillStyle = "rgba(141,255,174,.11)";
+  for (const s of Object.values(r)) {
+    ctx2d.beginPath();
+    ctx2d.roundRect?.(...s, 2) ?? ctx2d.rect(...s);
+    ctx2d.fill();
+  }
+  ctx2d.fillStyle = color;
+  for (const k of active) {
+    ctx2d.beginPath();
+    ctx2d.roundRect?.(...r[k], 2) ?? ctx2d.rect(...r[k]);
+    ctx2d.fill();
+  }
+}
+function elmDrawSevenSegNum(ctx2d, text, x, y, color) {
+  let cx = x;
+  for (const ch of text) {
+    elmDrawSevenSeg(ctx2d, ch, cx, y, 19, 30, color);
+    cx += 25;
+  }
+}
+function elmLerp(a, b, t) {
+  return a + (b - a) * t;
+}
+function elmEase(t) {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+function elmMixHex(a, b, t) {
+  const ph = (h) => {
+    const v = parseInt(h.slice(1), 16);
+    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+  };
+  const ca = ph(a);
+  const cb = ph(b);
+  const m = (x, y) => Math.round(x + (y - x) * t);
+  return `rgb(${m(ca.r, cb.r)},${m(ca.g, cb.g)},${m(ca.b, cb.b)})`;
+}
+function elmDrawMarker(ctx2d, x, y, color, scale) {
+  const r = 24 * scale;
+  ctx2d.save();
+  ctx2d.shadowColor = color;
+  ctx2d.shadowBlur = 20 * scale;
+  ctx2d.fillStyle = color;
+  ctx2d.beginPath();
+  ctx2d.arc(x, y, r, 0, Math.PI * 2);
+  ctx2d.fill();
+  ctx2d.shadowBlur = 0;
+  ctx2d.strokeStyle = "#fff";
+  ctx2d.lineWidth = 4 * scale;
+  ctx2d.stroke();
+  ctx2d.fillStyle = "#fff";
+  ctx2d.beginPath();
+  ctx2d.arc(x, y, r * 0.58, 0, Math.PI * 2);
+  ctx2d.fill();
+  ctx2d.font = `${Math.round(r * 0.95)}px system-ui`;
+  ctx2d.textAlign = "center";
+  ctx2d.textBaseline = "middle";
+  ctx2d.fillStyle = "#111";
+  ctx2d.fillText("\u26bd", x, y + 1);
+  ctx2d.restore();
+}
+function tickElmCanvas() {
+  ELM_ANIM.rafId = 0;
+  const cv =
+    typeof document !== "undefined"
+      ? document.querySelector("[data-elm-board-canvas]")
+      : null;
+  if (!cv) return;
+  const ctx2d = cv.getContext("2d");
+  ctx2d.clearRect(0, 0, cv.width, cv.height);
+  const model = ELM_ANIM.currentModel;
+  const session = model?.board?.currentSession;
+  const round = session?.round;
+  const isActive =
+    model?.board?.state === "SessionActive" || session?.state === "Active";
+  let more = false;
+  const fy = (y) => (ELM_ANIM.inverted ? 1300 - y : y);
+  if (isActive) {
+    const tid = elmTurnId(model);
+    if (ELM_ANIM.jumpAnim) {
+      const elapsed =
+        (typeof performance !== "undefined" ? performance.now() : 0) -
+        ELM_ANIM.jumpAnim.startedAt;
+      if (elapsed < ELM_JUMP_MS) {
+        const t = elmEase(elapsed / ELM_JUMP_MS);
+        const spot = elmTurnSpot(tid);
+        elmDrawMarker(
+          ctx2d,
+          elmLerp(ELM_ANIM.jumpAnim.from.x, spot.x, t),
+          fy(elmLerp(ELM_ANIM.jumpAnim.from.y, spot.y, t)) -
+            Math.sin(Math.PI * t) * 140,
+          elmMixHex(
+            ELM_ANIM.jumpAnim.fromColor,
+            elmTurnColor(tid),
+            Math.min(1, t * 1.18),
+          ),
+          1 + Math.sin(Math.PI * t) * 0.55,
+        );
+        more = true;
+      } else {
+        ELM_ANIM.jumpAnim = null;
+      }
+    }
+    if (!ELM_ANIM.jumpAnim) {
+      const spot = elmTurnSpot(tid);
+      elmDrawMarker(ctx2d, spot.x, fy(spot.y), elmTurnColor(tid), 1);
+    }
+  }
+  if (ELM_ANIM.confettiUntil > Date.now()) {
+    const winner = round?.winner;
+    const gateY = winner === "p1" || winner === "blue" ? 12 : 0;
+    const gx = elmScreenX(4);
+    const gy = fy(elmScreenY(gateY));
+    const elapsed =
+      ELM_CONFETTI_MS - Math.max(0, ELM_ANIM.confettiUntil - Date.now());
+    ctx2d.save();
+    for (let i = 0; i < 54; i++) {
+      const ang = (((i * 137.5) % 360) * Math.PI) / 180;
+      const burst = 18 + ((i * 23) % 96);
+      const fall = (elapsed / ELM_CONFETTI_MS) * (86 + (i % 7) * 16);
+      const wob = Math.sin(elapsed / 210 + i) * 18;
+      const x = gx + Math.cos(ang) * burst + wob;
+      const fallsDown = (gateY === 0) !== ELM_ANIM.inverted;
+      const y = gy + Math.sin(ang) * burst + (fallsDown ? fall : -fall);
+      ctx2d.translate(x, y);
+      ctx2d.rotate(ang + elapsed / 220);
+      ctx2d.fillStyle = ELM_CONFETTI_COLORS[i % ELM_CONFETTI_COLORS.length];
+      ctx2d.globalAlpha = Math.max(0, 1 - elapsed / (ELM_CONFETTI_MS + 400));
+      ctx2d.fillRect(-4, -7, 8, 14);
+      ctx2d.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    ctx2d.restore();
+    more = true;
+  }
+  if (more && typeof requestAnimationFrame !== "undefined")
+    ELM_ANIM.rafId = requestAnimationFrame(tickElmCanvas);
+  // Move clock (drawn after animation check so the clock itself triggers rAF while counting down)
+  const timerMeta = isActive ? onlineTimerMeta(model?.board) : null;
+  if (timerMeta && timerMeta.deadlineAt != null) {
+    const tid = elmTurnId(model);
+    const spot = elmClockSpot(tid);
+    const clkY = fy(spot.y);
+    const remaining = Math.max(0, Number(timerMeta.deadlineAt) - Date.now());
+    const seconds = Math.max(0, Math.ceil(remaining / 1000));
+    const limitMs = (timerMeta.seconds || 0) * 1000;
+    const warning = limitMs > 0 && remaining <= Math.min(5000, limitMs * 0.34);
+    const danger = remaining <= 3000;
+    const clkColor = danger ? "#ff3b30" : warning ? "#ffe66d" : "#8dffae";
+    ctx2d.save();
+    ctx2d.fillStyle = "rgba(0,8,3,.78)";
+    ctx2d.strokeStyle = clkColor;
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    (ctx2d.roundRect ?? ctx2d.rect).call(
+      ctx2d,
+      spot.x - 39,
+      clkY - 21,
+      78,
+      42,
+      10,
+    );
+    ctx2d.fill();
+    ctx2d.shadowColor = clkColor;
+    ctx2d.shadowBlur = danger ? 16 : 9;
+    ctx2d.stroke();
+    ctx2d.shadowBlur = 0;
+    elmDrawSevenSegNum(
+      ctx2d,
+      String(seconds).padStart(2, "0"),
+      spot.x - 25,
+      clkY - 15,
+      clkColor,
+    );
+    ctx2d.restore();
+    if (
+      remaining > 0 &&
+      !ELM_ANIM.rafId &&
+      typeof requestAnimationFrame !== "undefined"
+    )
+      ELM_ANIM.rafId = requestAnimationFrame(tickElmCanvas);
+  }
+}
+function wireElmBoardCanvas(newModel) {
+  const prev = ELM_ANIM.currentModel;
+  if (prev && newModel) {
+    const pt = elmTurnId(prev);
+    const nt = elmTurnId(newModel);
+    const wasActive =
+      prev?.board?.state === "SessionActive" ||
+      prev?.board?.currentSession?.state === "Active";
+    const isActive =
+      newModel?.board?.state === "SessionActive" ||
+      newModel?.board?.currentSession?.state === "Active";
+    if (wasActive && isActive && pt !== nt) {
+      ELM_ANIM.jumpAnim = {
+        from: elmTurnSpot(pt),
+        fromColor: elmTurnColor(pt),
+        startedAt: typeof performance !== "undefined" ? performance.now() : 0,
+      };
+    }
+    const winner = newModel?.board?.currentSession?.round?.winner;
+    const wk = winner
+      ? `${newModel?.board?.code}:${winner}:${newModel?.board?.currentSession?.round?.moves?.length ?? 0}`
+      : "";
+    if (winner && wk !== ELM_ANIM.prevWinnerKey) {
+      ELM_ANIM.prevWinnerKey = wk;
+      ELM_ANIM.confettiUntil = Date.now() + ELM_CONFETTI_MS;
+    }
+  }
+  ELM_ANIM.inverted =
+    !newModel?.localRuntime && normalizeSeatId(newModel?.ownSeat) === "red";
+  ELM_ANIM.currentModel = newModel;
+  if (!ELM_ANIM.rafId && typeof requestAnimationFrame !== "undefined")
+    ELM_ANIM.rafId = requestAnimationFrame(tickElmCanvas);
+}
+function renderSvgFlags() {
+  const defs = [
+    { gx: 0, gy: 1, color: "#ff3b30" },
+    { gx: 8, gy: 1, color: "#ff3b30" },
+    { gx: 0, gy: 11, color: "#0b7cff" },
+    { gx: 8, gy: 11, color: "#0b7cff" },
+  ];
+  return defs
+    .map(({ gx, gy, color }) => {
+      const cx = elmScreenX(gx);
+      const cy = elmScreenY(gy);
+      const dx = gx > 0 ? 1 : -1;
+      const dy = gy < 6 ? -1 : 1;
+      const hx = cx + dx * 22;
+      const hy = cy + dy * 56;
+      const pl = Math.hypot(hx - cx, hy - cy);
+      const ux = (hx - cx) / pl;
+      const uy = (hy - cy) / pl;
+      let nx = -uy;
+      let ny = ux;
+      if (nx * dx < 0) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const p = (v) => v.toFixed(1);
+      const pts = [
+        p(hx - ux * 15) + "," + p(hy - uy * 15),
+        p(hx + nx * 36) + "," + p(hy + ny * 36),
+        p(hx + ux * 15) + "," + p(hy + uy * 15),
+      ].join(" ");
+      return `<g class="elm-flag" data-elm-flag="${gx},${gy}"><line x1="${p(cx)}" y1="${p(cy)}" x2="${p(hx)}" y2="${p(hy)}" stroke="white" stroke-width="5" stroke-linecap="round"/><circle cx="${p(cx)}" cy="${p(cy)}" r="5" fill="white" opacity="0.5"/><polygon points="${pts}" fill="${color}" opacity="0.9"/></g>`;
+    })
+    .join("");
+}
+
 function renderReadOnlyBoard(board, model = initialModel()) {
   const round = board?.currentSession?.round;
   if (!round) {
@@ -1306,36 +1640,83 @@ function renderReadOnlyBoard(board, model = initialModel()) {
       return `<g data-elm-segment="${segmentKey}" class="elm-traced-segment">${renderSvgLine(move.from, move.to, `class="elm-segment-stroke" stroke="${playerColor(move.playerId)}"`)}${renderSvgLine(move.from, move.to, 'class="elm-segment-highlight"')}</g>`;
     })
     .join("");
+  // Simplified legal moves: single dot, player color for local, yellow for online own-turn
+  const isOwnTurn = legalContext.name === "own-turn";
+  const isLocal = Boolean(model?.localRuntime);
+  const dotColor = isOwnTurn
+    ? isLocal
+      ? turn === "red"
+        ? "#ff3b30"
+        : "#0b7cff"
+      : "#ffe66d"
+    : null;
+  const dotFill =
+    dotColor === "#ffe66d"
+      ? "rgba(255,230,109,0.16)"
+      : dotColor === "#ff3b30"
+        ? "rgba(255,59,48,0.16)"
+        : dotColor
+          ? "rgba(11,124,255,0.16)"
+          : "none";
   const playableAttr = legalContext.playable
     ? ' data-elm-legal-playable="true"'
     : "";
   const legal = legalMoves
     .map((point) => {
       const key = elmPointKey(point);
+      const cx = elmScreenX(point.x);
+      const cy = elmScreenY(point.y);
       const pendingAttr =
         model?.pendingMoveKey === key
           ? ` data-elm-pending-move="${key}" data-elm-move-feedback="pending"`
           : "";
-      return `<g class="elm-legal-target elm-legal-${legalContext.name}${pendingAttr ? " elm-legal-pending" : ""}" data-elm-legal-move="${key}" data-elm-legal-move-state="${legalContext.state}"${playableAttr}${pendingAttr}><circle class="elm-legal-hit-ring" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="34" /><circle class="elm-legal-move elm-legal-${turn}" cx="${elmScreenX(point.x)}" cy="${elmScreenY(point.y)}" r="24" /><text class="elm-legal-label" x="${elmScreenX(point.x)}" y="${elmScreenY(point.y) + 6}">•</text></g>`;
+      const dot = dotColor
+        ? `<circle class="elm-legal-dot${pendingAttr ? " elm-legal-pending-dot" : ""}" cx="${cx}" cy="${cy}" r="21" stroke="${dotColor}" fill="${dotFill}" stroke-width="4"/>`
+        : "";
+      return `<g class="elm-legal-target elm-legal-${legalContext.name}${pendingAttr ? " elm-legal-pending" : ""}" data-elm-legal-move="${key}" data-elm-legal-move-state="${legalContext.state}"${playableAttr}${pendingAttr}><circle class="elm-legal-hit-area" cx="${cx}" cy="${cy}" r="34" fill="transparent" stroke="none"/>${dot}</g>`;
     })
     .join("");
   const ballKey = elmPointKey(ball);
-  const ballSvg = `<g class="elm-ball" data-elm-ball="${ballKey}" transform="translate(${elmScreenX(ball.x)} ${elmScreenY(ball.y)})"><circle r="22" fill="#f8fff8"/><circle r="10" fill="#101820"/><path d="M-18 0 L18 0 M0 -18 L0 18" stroke="#101820" stroke-width="4" stroke-linecap="round" opacity=".72"/></g>`;
-  const turnY = turn === "red" || turn === "p2" ? 0 : 12;
-  const turnMarker = `<circle class="elm-turn-marker elm-turn-${turn === "red" || turn === "p2" ? "red" : "blue"}" cx="${elmScreenX(5.65)}" cy="${elmScreenY(turnY)}" r="18" />`;
+  const shouldInvert = !isLocal && normalizeSeatId(model?.ownSeat) === "red";
+  const ballSvg = `<g class="elm-ball" data-elm-ball="${ballKey}" transform="translate(${elmScreenX(ball.x)} ${elmScreenY(ball.y)})"><circle r="26" fill="rgba(0,0,0,0.18)"/><text data-elm-ball-crest="true" class="elm-ball-emoji" x="0" y="${shouldInvert ? "-1" : "1"}" text-anchor="middle" dominant-baseline="middle" font-size="26" font-family="system-ui"${shouldInvert ? ' transform="scale(1,-1)"' : ""}>\u26bd</text></g>`;
+  // Goal mesh geometry (inset from posts and boundary)
+  const meshX = elmScreenX(3) + 11;
+  const meshW = elmScreenX(5) - 11 - meshX;
+  const redMeshY = elmScreenY(0) + 9;
+  const redMeshH = elmScreenY(1) - 9 - redMeshY;
+  const blueMeshY = elmScreenY(11) + 9;
+  const blueMeshH = elmScreenY(12) - 9 - blueMeshY;
   return `
     <section class="elm-board-preview">
-      <h3>Board preview</h3>
-      <svg data-elm-board-svg role="img" aria-label="Read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
-        <rect class="elm-pitch-bg" x="18" y="18" width="864" height="1264" rx="34" />
-        <g class="elm-pitch-stripes"><path d="M-140 1282 L100 18 H220 L-20 1282 Z"/><path d="M260 1282 L500 18 H620 L380 1282 Z"/><path d="M660 1282 L900 18 H1020 L780 1282 Z"/></g>
-        <g class="elm-pitch-outline">${pitchOutline}${gates}</g>
-        <g class="elm-segments-layer">${segments}</g>
-        <g class="elm-points-layer">${grid}</g>
-        <g class="elm-legal-layer" data-elm-legal-context="${legalContext.name}">${legal}</g>
-        ${ballSvg}
-        ${turnMarker}
-      </svg>
+      <div class="elm-board-stage${shouldInvert ? " elm-board-inverted" : ""}" data-elm-board-stage>
+        <svg data-elm-board-svg role="img" aria-label="Read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <linearGradient id="elmPitchGradient" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#0cb240"/>
+              <stop offset="100%" stop-color="#03651e"/>
+            </linearGradient>
+            <pattern id="elmGoalMesh" x="0" y="0" width="12" height="12" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="12" y2="12" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+              <line x1="12" y1="0" x2="0" y2="12" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+              <line x1="0" y1="6" x2="12" y2="6" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <g${shouldInvert ? ' transform="translate(0,1300) scale(1,-1)"' : ""}>
+          <rect class="elm-pitch-bg" x="18" y="18" width="864" height="1264" rx="34" />
+          <rect class="elm-pitch-frame" x="30" y="30" width="840" height="1240" rx="26" />
+          <g class="elm-pitch-stripes"><path d="M-140 1282 L100 18 H220 L-20 1282 Z"/><path d="M260 1282 L500 18 H620 L380 1282 Z"/><path d="M660 1282 L900 18 H1020 L780 1282 Z"/></g>
+          <g class="elm-pitch-outline">${pitchOutline}${gates}</g>
+          <rect class="elm-goal-mesh" x="${meshX}" y="${redMeshY}" width="${meshW}" height="${redMeshH}" fill="url(#elmGoalMesh)"/>
+          <rect class="elm-goal-mesh" x="${meshX}" y="${blueMeshY}" width="${meshW}" height="${blueMeshH}" fill="url(#elmGoalMesh)"/>
+          ${renderSvgFlags()}
+          <g class="elm-segments-layer">${segments}</g>
+          <g class="elm-points-layer">${grid}</g>
+          <g class="elm-legal-layer" data-elm-legal-context="${legalContext.name}">${legal}</g>
+          ${ballSvg}
+          </g>
+        </svg>
+        <canvas class="elm-board-canvas" data-elm-board-canvas width="900" height="1300"></canvas>
+      </div>
       <div class="elm-board-legend" data-elm-legal-context="${legalContext.name}"><span class="elm-legend-dot elm-legal-${legalContext.color}"></span>${escapeHtml(legalContext.note)}</div>
       <p class="elm-shell-note">Phase 6C board: own-turn legal targets submit move intent; the server confirms with the next live state.</p>
     </section>`;
@@ -1579,11 +1960,8 @@ function renderPlayLeaveButton(model) {
 }
 
 function renderPlayBoardBody(model, board) {
-  if (model.error)
-    return (
-      renderBoardRecovery(model) ||
-      `<p class="elm-error">${escapeHtml(model.error)}</p>`
-    );
+  const recovery = renderBoardRecovery(model);
+  if (recovery) return recovery;
   if (!board) return "<p>Loading board state…</p>";
   return renderReadOnlyBoard(board, model);
 }
@@ -1731,8 +2109,12 @@ function renderModel(model) {
     roundWinner && !model?.winnerDismissed
       ? "winner-overlay"
       : "winner-overlay hidden";
-  const pauseOverlayClass = `pause-overlay${model.localPaused ? "" : " hidden"}`;
-  const boardStageClass = `board-stage${model.localPaused ? " paused" : ""}`;
+  const isServerPaused =
+    board?.state === "SessionPaused" ||
+    board?.currentSession?.state === "Paused";
+  const isPaused = model.localPaused || isServerPaused;
+  const pauseOverlayClass = `pause-overlay${isPaused ? "" : " hidden"}`;
+  const boardStageClass = `board-stage${isPaused ? " paused" : ""}`;
   const pauseMessage = model.localRuntime
     ? "Game paused on this device. Resume when both players are ready."
     : "Board hidden while paused.";
@@ -1901,6 +2283,7 @@ function rewireBridgeView(root, bridge) {
 function refreshBridgeRender(root, bridge) {
   if (root) root.innerHTML = renderModel(bridge.model);
   rewireBridgeView(root, bridge);
+  wireElmBoardCanvas(bridge.model);
 }
 
 function activateMobilePage(page) {
@@ -2025,13 +2408,10 @@ function wirePhase9ShellActions(root, bridge) {
     if (command === "close-winner") {
       bridge.model = { ...bridge.model, winnerDismissed: true, error: null };
       changed = true;
-    } else if (
-      (command === "pause" || command === "resume") &&
-      !bridge.model?.localRuntime
-    ) {
-      setToast(
-        "This control is wired; full visual parity for this action is coming in the next Phase 9 slice.",
-      );
+    } else if (command === "pause" && !bridge.model?.localRuntime) {
+      bridge.sendCommand?.({ type: "pause" });
+    } else if (command === "resume" && !bridge.model?.localRuntime) {
+      bridge.sendCommand?.({ type: "resume" });
     }
     if (changed) refreshBridgeRender(root, bridge);
   });

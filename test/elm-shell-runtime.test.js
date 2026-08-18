@@ -61,7 +61,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
       const html = shell.renderBoardMessage(fixture(name));
       expect(html).toContain("Traceball Arena");
       expect(html).toContain("Board ROOM123");
-      expect(html).toContain('class="board-stage"');
+      expect(html).toContain('class="board-stage');
     }
   });
 
@@ -347,6 +347,33 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).not.toContain('class="winner-overlay hidden"');
     expect(html).toContain("Red");
     expect(html).toContain("Winner");
+  });
+
+  it("renders richer board-art markers and legacy-style field details", () => {
+    const { shell } = loadShell();
+
+    const html = shell.renderBoardMessage(fixture("board-active-session"));
+
+    expect(html).toContain("data-elm-board-svg");
+    expect(html).toContain('data-elm-flag="0,1"');
+    expect(html).toContain('data-elm-flag="8,11"');
+    expect(html).toContain("data-elm-board-canvas");
+    expect(html).toContain('data-elm-ball-crest="true"');
+    expect(html).toContain('data-elm-legal-move="3,5"');
+    expect(html).toContain('data-elm-gate="blue"');
+    expect(html).toContain('data-elm-gate="red"');
+  });
+
+  it("renders a winner gate confetti burst when the round ends", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.currentSession.round.winner = "p2";
+    const html = shell.renderBoardMessage(message);
+
+    // Confetti animates on canvas overlay, not in SVG
+    expect(html).toContain("data-elm-board-canvas");
+    expect(html).toContain('data-elm-gate="red"');
+    expect(html).toContain('id="winnerOverlay"');
   });
 
   it("renders a read-only SVG board with grid, gates, ball, and live legal-move overlay", () => {
