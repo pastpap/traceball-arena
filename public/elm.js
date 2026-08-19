@@ -1763,7 +1763,7 @@ function renderReadOnlyBoard(board, model = initialModel()) {
     <section class="elm-board-preview">
       <div class="elm-board-stage${shouldInvert ? " elm-board-inverted" : ""}" data-elm-board-stage>
         ${topBadge}
-        <svg data-elm-board-svg role="img" aria-label="Read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
+        <svg data-elm-board-svg role="img" aria-label="Phase 6C board: read-only Traceball board" viewBox="0 0 900 1300" preserveAspectRatio="xMidYMid meet">
           <defs>
             <linearGradient id="elmPitchGradient" x1="0" x2="1" y1="0" y2="1">
               <stop offset="0%" stop-color="#0cb240"/>
