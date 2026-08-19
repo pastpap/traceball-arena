@@ -242,13 +242,14 @@ if (railway.deploy.healthcheckPath !== "/api/health")
 
 const css = readFileSync("public/styles.css", "utf8");
 if (
+  !css.includes(".elm-legal-target") ||
   !css.includes(".elm-legal-own-turn") ||
-  !css.includes(".elm-legal-opponent-turn") ||
-  !css.includes(".elm-legal-watcher") ||
+  !css.includes(".elm-legal-hit-area") ||
+  !css.includes(".elm-legal-dot") ||
   !css.includes(".elm-board-legend")
 ) {
   throw new Error(
-    "public/styles.css must style Phase 6B legal-move readability states and legend.",
+    "public/styles.css must style legal-move targets and board legend.",
   );
 }
 if (
