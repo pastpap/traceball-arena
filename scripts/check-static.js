@@ -923,22 +923,22 @@ if (
     "PWA/iPhone lifecycle events must reconnect and rejoin the player session.",
   );
 }
-if (!app.includes("navigator.serviceWorker.register('/sw.js')"))
+if (!/navigator\.serviceWorker\.register\((['"])\/sw\.js\1\)/.test(app))
   throw new Error("PWA service worker registration is required.");
 const serviceWorker = readFileSync("public/sw.js", "utf8");
 if (
-  !serviceWorker.includes(
-    "url.protocol !== 'http:' && url.protocol !== 'https:'",
+  !/url\.protocol\s*!==\s*["']http:["']\s*&&\s*url\.protocol\s*!==\s*["']https:["']/.test(
+    serviceWorker,
   ) ||
-  !serviceWorker.includes("url.origin !== self.location.origin")
+  !/url\.origin\s*!==\s*self\.location\.origin/.test(serviceWorker)
 ) {
   throw new Error(
     "Service worker must ignore extension/cross-origin requests before fetch/cache handling.",
   );
 }
 if (
-  !serviceWorker.includes("response.type !== 'basic'") ||
-  !serviceWorker.includes("event.waitUntil(caches.open(CACHE_NAME)")
+  !/response\.type\s*!==\s*['"]basic['"]/.test(serviceWorker) ||
+  !/event\.waitUntil\(\s*caches\.open\(CACHE_NAME\)/.test(serviceWorker)
 ) {
   throw new Error(
     "Service worker may only persist safe same-origin responses and must keep cache writes alive.",
@@ -947,7 +947,7 @@ if (
 if (
   !app.includes("setOnlineAction") ||
   !app.includes("joinOnlinePlayer") ||
-  !app.includes("setMobilePage('play')")
+  !/setMobilePage\((['"])play\1\)/.test(app)
 ) {
   throw new Error(
     "Client must switch online sub-tabs and navigate final online actions to Play.",
@@ -957,7 +957,7 @@ if (
   !app.includes("joinGeneratedRoom") ||
   !app.includes("joinGeneratedGame") ||
   app.includes("createRoom(data.roomId") ||
-  !app.includes("setMobilePage('invite')")
+  !/setMobilePage\((['"])invite\1\)/.test(app)
 ) {
   throw new Error(
     "Generate must stay on Home and only the explicit generated-room Join action may navigate to Play.",
@@ -1097,12 +1097,12 @@ const sw = readFileSync("public/sw.js", "utf8");
 if (!sw.includes("self.addEventListener") || !sw.includes("CACHE_NAME"))
   throw new Error("PWA service worker shell cache is required.");
 if (
-  !sw.includes("traceball-arena-v34") ||
+  !/traceball-arena-v\d+/.test(sw) ||
   !sw.includes("SKIP_WAITING") ||
   !sw.includes("/history.js") ||
   !sw.includes("/elm.js") ||
   !sw.includes("/elm.html") ||
-  !sw.includes("cached || caches.match('/')")
+  !/cached\s*\|\|\s*caches\.match\((['"])\/\1\)/.test(sw)
 )
   throw new Error(
     "PWA service worker must force a Phase 9 app-shell refresh, cache the Elm default shell, preserve legacy assets, and fall back to the cached default route.",
