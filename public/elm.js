@@ -192,6 +192,19 @@ function resetLocalRoundDeadline(round, seconds, now = Date.now()) {
   };
 }
 
+function localRoundRemainingMs(round, seconds, now = Date.now()) {
+  const timerSeconds = normalizeMoveTimerSeconds(seconds, 15);
+  if (timerSeconds <= 0) return 0;
+  const limitMs = timerSeconds * 1000;
+  if (Number.isFinite(Number(round?.deadlineAt))) {
+    return Math.max(0, Math.min(limitMs, Number(round.deadlineAt) - Number(now)));
+  }
+  if (Number.isFinite(Number(round?.turnStartedAt))) {
+    return Math.max(0, Math.min(limitMs, limitMs - (Number(now) - Number(round.turnStartedAt))));
+  }
+  return limitMs;
+}
+
 function normalizeLocalName(value, fallback) {
   return (
     String(value || "")
@@ -403,7 +416,8 @@ function isValidLocalRuntimeModel(model) {
     board.currentSession?.moveTimeLimitSeconds,
     15,
   );
-  if (timerSeconds > 0 && round.deadlineAt == null) {
+  const isPaused = model.localPaused === true || board.currentSession?.state === "Paused";
+  if (timerSeconds > 0 && round.deadlineAt == null && !isPaused) {
     Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
   }
   return true;
@@ -457,7 +471,7 @@ function clearSavedLocalRuntimeModel() {
 }
 
 function applyLocalRuntimeMove(model, key) {
-  if (!isValidLocalRuntimeModel(model)) return null;
+  if (!isValidLocalRuntimeModel(model) || model.localPaused) return null;
   const point = parseElmPointKey(key);
   if (!point) return null;
   const round = model.board.currentSession.round;
@@ -602,6 +616,85 @@ function restartLocalRuntimeRound(model) {
     pendingNewRound: false,
     replayIndex: null,
     error: null,
+  };
+}
+
+function pauseLocalRuntimeModel(model, now = Date.now()) {
+  if (!isValidLocalRuntimeModel(model) || model.localPaused) return model;
+  const timerSeconds = normalizeMoveTimerSeconds(
+    model.board.currentSession.moveTimeLimitSeconds,
+    15,
+  );
+  const remainingMs = localRoundRemainingMs(
+    model.board.currentSession.round,
+    timerSeconds,
+    now,
+  );
+  const round = {
+    ...model.board.currentSession.round,
+    deadlineAt: null,
+    turnStartedAt: null,
+  };
+  return {
+    ...model,
+    localPaused: true,
+    pendingMoveKey: null,
+    error: null,
+    board: {
+      ...model.board,
+      state: "SessionPaused",
+      updatedAt: now,
+      currentSession: {
+        ...model.board.currentSession,
+        state: "Paused",
+        pause: {
+          reason: "manual",
+          byPlayerId: model.ownSeat || null,
+          pausedAt: now,
+          resumeTurn: round.turn,
+          remainingMs,
+        },
+        round,
+      },
+    },
+  };
+}
+
+function resumeLocalRuntimeModel(model, now = Date.now()) {
+  if (!isValidLocalRuntimeModel(model) || !model.localPaused) return model;
+  const timerSeconds = normalizeMoveTimerSeconds(
+    model.board.currentSession.moveTimeLimitSeconds,
+    15,
+  );
+  const limitMs = timerSeconds * 1000;
+  const rawRemainingMs = Number(model.board.currentSession.pause?.remainingMs);
+  const remainingMs = timerSeconds > 0
+    ? Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
+    : 0;
+  const turnStartedAt = timerSeconds > 0 ? Number(now) - (limitMs - remainingMs) : null;
+  const deadlineAt = timerSeconds > 0 ? Number(now) + remainingMs : null;
+  const round = {
+    ...model.board.currentSession.round,
+    turn: model.board.currentSession.pause?.resumeTurn || model.board.currentSession.round.turn,
+    turnStartedAt,
+    deadlineAt,
+    moveTimeLimitSeconds: timerSeconds,
+  };
+  return {
+    ...model,
+    localPaused: false,
+    error: null,
+    board: {
+      ...model.board,
+      state: "SessionActive",
+      updatedAt: now,
+      currentSession: {
+        ...model.board.currentSession,
+        state: "SessionActive",
+        pause: null,
+        round,
+      },
+    },
   };
 }
 
@@ -2133,11 +2226,16 @@ function onlineTimerMeta(board) {
       ? Math.round(Number(rawMs) / 1000)
       : null;
   const deadlineAt = round?.deadlineAt ?? session?.deadlineAt ?? null;
-  if ((!seconds || seconds <= 0) && deadlineAt == null) return null;
-  return { seconds: seconds && seconds > 0 ? seconds : null, deadlineAt };
+  const pausedRemainingMs = Number(session?.pause?.remainingMs);
+  const remainingSeconds = Number.isFinite(pausedRemainingMs)
+    ? Math.max(0, Math.ceil(pausedRemainingMs / 1000))
+    : null;
+  if ((!seconds || seconds <= 0) && deadlineAt == null && remainingSeconds == null) return null;
+  return { seconds: seconds && seconds > 0 ? seconds : null, deadlineAt, remainingSeconds };
 }
 
 function timerRemainingSeconds(timer, now = Date.now()) {
+  if (timer?.remainingSeconds != null && Number.isFinite(Number(timer.remainingSeconds))) return Math.max(0, Number(timer.remainingSeconds));
   if (!timer || timer.deadlineAt == null) return null;
   return Math.max(0, Math.ceil((Number(timer.deadlineAt) - Number(now)) / 1000));
 }
@@ -3057,12 +3155,12 @@ function wirePhase9ShellActions(root, bridge) {
       changed = true;
     }
     if (command === "pause" && bridge.model?.localRuntime) {
-      bridge.model = { ...bridge.model, localPaused: true, error: null };
+      bridge.model = pauseLocalRuntimeModel(bridge.model);
       saveLocalRuntimeModel(bridge.model);
       changed = true;
     }
     if (command === "resume" && bridge.model?.localRuntime) {
-      bridge.model = { ...bridge.model, localPaused: false, error: null };
+      bridge.model = resumeLocalRuntimeModel(bridge.model);
       saveLocalRuntimeModel(bridge.model);
       changed = true;
     }
@@ -3288,6 +3386,8 @@ window.TraceballElmShell = {
   serializeLocalRuntimeModel,
   restoreLocalRuntimeModel,
   applyLocalRuntimeMove,
+  pauseLocalRuntimeModel,
+  resumeLocalRuntimeModel,
   loadSavedLocalRuntimeModel,
   saveLocalRuntimeModel,
   clearSavedLocalRuntimeModel,

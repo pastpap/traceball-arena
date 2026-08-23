@@ -242,6 +242,63 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(shell.renderModel(moved)).toContain('10s left');
   });
 
+  it("freezes local countdown while paused and resumes with the remaining time", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({
+      blueName: "Stefan",
+      redName: "Alex",
+      moveTimeLimitSeconds: 10,
+    });
+
+    now = 4000;
+    const paused = shell.pauseLocalRuntimeModel(model);
+    expect(paused.localPaused).toBe(true);
+    expect(paused.board.currentSession.pause).toMatchObject({ remainingMs: 7000 });
+    expect(paused.board.currentSession.round.deadlineAt).toBe(null);
+
+    now = 20000;
+    expect(shell.renderModel(paused)).toContain('7s left');
+
+    const resumed = shell.resumeLocalRuntimeModel(paused);
+    expect(resumed.localPaused).toBe(false);
+    expect(resumed.board.currentSession.pause).toBe(null);
+    expect(resumed.board.currentSession.round.turnStartedAt).toBe(17000);
+    expect(resumed.board.currentSession.round.deadlineAt).toBe(27000);
+    expect(shell.renderModel(resumed)).toContain('7s left');
+  });
+
+  it("shows paused online timer remaining without counting down to zero while paused", () => {
+    let now = 20_000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const message = fixture("board-active-session");
+    message.board.state = "SessionPaused";
+    message.board.currentSession.state = "Paused";
+    message.board.currentSession.moveTimeLimitSeconds = 10;
+    message.board.currentSession.pause = { reason: "manual", resumeTurn: "p1", remainingMs: 7000 };
+    delete message.board.currentSession.round.deadlineAt;
+
+    const model = shell.applyState(shell.initialModel(), message);
+
+    expect(shell.renderModel(model)).toContain('7s left');
+  });
+
   it("renders the current created/joined board in Boards tab and restores share link plus QR", () => {
     const { shell } = loadShell({
       location: {
