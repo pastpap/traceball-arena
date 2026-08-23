@@ -22,6 +22,9 @@ function initialModel() {
     replayIndex: null,
     localRuntime: false,
     localPaused: false,
+    historyReplay: false,
+    historyEntryId: null,
+    dismissedWinnerKey: "",
     winnerDismissed: false,
   };
 }
@@ -81,16 +84,7 @@ function applyState(model, message) {
   if (incoming.version <= current.version) {
     return { ...current, ignoredStaleVersion: incoming.version, error: null };
   }
-  const incomingWinner =
-    incoming.board?.currentSession?.round?.winner ??
-    incoming.board?.currentSession?.winner ??
-    null;
-  const currentWinner =
-    current.board?.currentSession?.round?.winner ??
-    current.board?.currentSession?.winner ??
-    null;
-
-  return {
+  const nextBase = {
     ...current,
     board: incoming.board,
     boardCode: incoming.boardCode,
@@ -98,10 +92,21 @@ function applyState(model, message) {
     error: null,
     ignoredStaleVersion: null,
     replayIndex: null,
-    winnerDismissed:
-      currentWinner && incomingWinner === currentWinner
-        ? Boolean(current.winnerDismissed)
-        : false,
+    historyReplay: false,
+    historyEntryId: null,
+  };
+  const incomingWinnerKey = winnerOverlayKey(nextBase);
+  const currentDismissedKey =
+    current.dismissedWinnerKey ||
+    (current.winnerDismissed ? winnerOverlayKey(current) : "");
+
+  return {
+    ...nextBase,
+    dismissedWinnerKey:
+      incomingWinnerKey && currentDismissedKey === incomingWinnerKey
+        ? currentDismissedKey
+        : "",
+    winnerDismissed: false,
   };
 }
 
@@ -1242,7 +1247,12 @@ function isSeated(model) {
 }
 
 function submitNewRound(bridge) {
-  if (!bridge || !isSeated(bridge.model) || !isBetweenRounds(bridge.model))
+  if (
+    !bridge ||
+    bridge.model?.historyReplay ||
+    !isSeated(bridge.model) ||
+    !isBetweenRounds(bridge.model)
+  )
     return false;
   if (bridge.model?.localRuntime) {
     bridge.model = restartLocalRuntimeRound(bridge.model);
@@ -1303,6 +1313,7 @@ function submitFreeDisconnectedSeat(bridge, seatId) {
 function submitMoveFromLegalTarget(bridge, key) {
   if (
     !bridge ||
+    bridge.model?.historyReplay ||
     replayIsActive(bridge.model) ||
     !isOwnTurn(bridge.model) ||
     !isLegalMoveKey(bridge.model, key)
@@ -1809,6 +1820,22 @@ function winnerLabel(winner) {
   return "Round";
 }
 
+function winnerOverlayKey(model) {
+  const board = model?.board;
+  const session = board?.currentSession;
+  const round = session?.round;
+  const winner = round?.winner ?? session?.winner ?? null;
+  if (!winner) return "";
+  const moveCount = Array.isArray(round?.moves) ? round.moves.length : 0;
+  return [
+    board?.code || model?.boardCode || (model?.localRuntime ? "LOCAL" : ""),
+    session?.sessionId || "session",
+    round?.startedAt || round?.roundId || round?.createdAt || "round",
+    winner,
+    moveCount,
+  ].join(":");
+}
+
 function renderRoundResult(model) {
   const board = model?.board;
   const session = board?.currentSession;
@@ -2194,13 +2221,14 @@ function renderModel(model) {
   const staleNote = model.ignoredStaleVersion
     ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>`
     : "";
-  const newRoundControlAttr = isSeated(model)
+  const newRoundControlAttr = isSeated(model) && !model?.historyReplay
     ? 'data-elm-command="new-round"'
     : 'disabled aria-disabled="true"';
   const roundWinner = board?.currentSession?.round?.winner || null;
+  const winnerKey = winnerOverlayKey(model);
   const winnerName = roundWinner ? winnerLabel(roundWinner) : "Player";
   const winnerOverlayClass =
-    roundWinner && !model?.winnerDismissed
+    roundWinner && model?.dismissedWinnerKey !== winnerKey
       ? "winner-overlay"
       : "winner-overlay hidden";
   const isServerPaused =
@@ -2426,6 +2454,147 @@ function playerNameFromRoot(root) {
   return persistPlayerName(input?.value || getStoredPlayerName());
 }
 
+function cloneJson(value, fallback) {
+  try {
+    return JSON.parse(JSON.stringify(value ?? fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function historyWinnerSeat(winner) {
+  return normalizeSeatId(winner) === "red" ? "p2" : "p1";
+}
+
+function historyPlayerName(players, seat, fallback) {
+  return String(players?.[seat]?.name || fallback).slice(0, 24) || fallback;
+}
+
+function legacyGameSnapshotFromModel(model) {
+  const board = model?.board;
+  const session = board?.currentSession;
+  const round = session?.round;
+  if (!board || !round?.winner) return null;
+  const moves = cloneJson(round.moves, []);
+  const segments = Array.isArray(round.segments)
+    ? [...round.segments]
+    : moves.map((move) => move?.segment).filter(Boolean);
+  return {
+    roomId: board.code || (model?.localRuntime ? "local" : "online"),
+    status: "finished",
+    players: {
+      p1: { id: "p1", name: playerDisplayName(board, "blue"), color: "#0b7cff" },
+      p2: { id: "p2", name: playerDisplayName(board, "red"), color: "#ff3b30" },
+    },
+    turn: seatColorToId(round.turn) || round.turn || "p1",
+    ball: cloneJson(round.ball || moves.at(-1)?.to || { x: 4, y: 6 }, { x: 4, y: 6 }),
+    visited: Array.isArray(round.visited) ? [...round.visited] : ["4,6"],
+    segments,
+    moves,
+    score: {
+      p1: Number(session?.score?.blue || 0),
+      p2: Number(session?.score?.red || 0),
+    },
+    winner: historyWinnerSeat(round.winner),
+    endReason: round.endReason || null,
+    moveTimeLimitMs: Number(session?.moveTimeLimitSeconds || 0) * 1000,
+    legalMoves: [],
+  };
+}
+
+function historySignature(game, mode, roomId) {
+  const moves = Array.isArray(game?.moves) ? game.moves : [];
+  const lastMove = moves.at(-1);
+  return [
+    mode,
+    roomId,
+    game?.winner || "none",
+    moves.length,
+    game?.endReason || "",
+    lastMove?.segment || "",
+  ].join(":");
+}
+
+function boardFromHistoryEntry(entry) {
+  const game = entry?.game;
+  if (!game || !Array.isArray(game.moves)) return null;
+  const players = game.players || entry.players || {};
+  const p1 = historyPlayerName(players, "p1", "Blue");
+  const p2 = historyPlayerName(players, "p2", "Red");
+  const winner = historyWinnerSeat(game.winner || entry.winner) === "p2" ? "p2" : "p1";
+  const moves = cloneJson(game.moves, []);
+  const segments = Array.isArray(game.segments)
+    ? [...game.segments]
+    : moves.map((move) => move?.segment).filter(Boolean);
+  const score = game.score || entry.score || {};
+  const moveTimeLimitSeconds = Math.round(Number(game.moveTimeLimitMs || entry.moveTimeLimitMs || 0) / 1000);
+  return {
+    code: entry.roomId || game.roomId || "HISTORY",
+    state: "BetweenRounds",
+    version: Number(entry.playedAt || entry.savedAt || 1),
+    seats: {
+      blue: { state: "Occupied", player: { id: "history-blue", displayName: p1 } },
+      red: { state: "Occupied", player: { id: "history-red", displayName: p2 } },
+    },
+    watchers: [],
+    waitingList: [],
+    updatedAt: entry.playedAt || entry.savedAt || "history",
+    expiresAt: "history",
+    currentSession: {
+      sessionId: entry.sessionId || entry.id || entry.signature || "history",
+      state: "BetweenRounds",
+      score: {
+        blue: Number(score.p1 || score.blue || 0),
+        red: Number(score.p2 || score.red || 0),
+      },
+      moveTimeLimitSeconds,
+      round: {
+        state: "BetweenRounds",
+        turn: game.turn || "p1",
+        ball: cloneJson(game.ball || moves.at(-1)?.to || { x: 4, y: 6 }, { x: 4, y: 6 }),
+        visited: Array.isArray(game.visited) ? [...game.visited] : ["4,6"],
+        moves,
+        segments,
+        legalMoves: [],
+        winner,
+        endReason: game.endReason || entry.endReason || "Loaded saved replay.",
+      },
+    },
+  };
+}
+
+function historyEntryToModel(entry) {
+  const board = boardFromHistoryEntry(entry);
+  if (!board) return null;
+  return {
+    ...initialModel(),
+    board,
+    boardCode: board.code,
+    version: Number(board.version || Date.now()),
+    replayIndex: 0,
+    historyReplay: true,
+    historyEntryId: entry?.id || entry?.signature || String(entry?.playedAt || "history"),
+    connectionStatus: "history",
+    ownSeat: null,
+    dismissedWinnerKey: "",
+    winnerDismissed: false,
+  };
+}
+
+function loadHistoryReplay(root, bridge, entry) {
+  const model = historyEntryToModel(entry);
+  if (!model) {
+    setToast("That saved game could not be loaded.");
+    return false;
+  }
+  bridge.model = model;
+  refreshBridgeRender(root, bridge);
+  activateMobilePage("play");
+  closeAppMenuContent();
+  setToast("Loaded saved replay.");
+  return true;
+}
+
 let appMenuWired = false;
 let lobbyDrawerWired = false;
 let lobbyTabsWired = false;
@@ -2435,47 +2604,40 @@ let activeToastText = "";
 
 function saveGameToHistory(model) {
   const board = model?.board;
-  if (!board || board.state !== "BetweenRounds") return;
+  if (!board || board.state !== "BetweenRounds" || model?.historyReplay) return;
+  const game = legacyGameSnapshotFromModel(model);
+  if (!game) return;
   const session = board.currentSession;
-  const round = session?.round;
-  if (!round?.winner) return;
-  const winnerSeat = round.winner === "blue" ? "p1" : "p2";
-  const isLocal = Boolean(model.localRuntime);
-  const blueName = board.seats?.blue?.player?.displayName || "Blue";
-  const redName = board.seats?.red?.player?.displayName || "Red";
-  const blueScore = Number(session?.score?.blue || 0);
-  const redScore = Number(session?.score?.red || 0);
-  const moves = Array.isArray(round.moves) ? round.moves : [];
-  const sig = `${board.code}:${session?.sessionId || ""}:${winnerSeat}:${blueScore}:${redScore}`;
+  const mode = model.localRuntime ? "local" : "online";
+  const roomId = board.code || (mode === "local" ? "local" : "online");
+  const signature = historySignature(game, mode, roomId);
   try {
     const storage = typeof window !== "undefined" ? window.localStorage : null;
     const raw = storage?.getItem?.("traceballGameHistory");
     const existing = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(existing)) return;
-    const alreadySaved = existing.some(
-      (e) =>
-        `${e.roomId}:${e.sessionId || ""}:${e.winner}:${e.score?.p1}:${e.score?.p2}` ===
-        sig,
-    );
-    if (alreadySaved) return;
     const entry = {
-      roomId: board.code || "local",
+      id: signature,
+      signature,
+      roomId,
       sessionId: session?.sessionId || null,
-      mode: isLocal ? "local" : "online",
+      mode,
       savedAt: Date.now(),
       playedAt: Date.now(),
-      winner: winnerSeat,
-      endReason: round.endReason || "",
-      players: {
-        p1: { name: blueName, status: "active" },
-        p2: { name: redName, status: "active" },
-      },
-      score: { p1: blueScore, p2: redScore },
-      moveCount: moves.length,
+      winner: game.winner,
+      endReason: game.endReason || "",
+      players: game.players,
+      score: game.score,
+      moveCount: game.moves.length,
+      moveTimeLimitMs: game.moveTimeLimitMs,
+      game,
     };
+    const withoutDuplicate = existing.filter(
+      (item) => item?.signature !== signature && item?.id !== signature,
+    );
     storage?.setItem?.(
       "traceballGameHistory",
-      JSON.stringify([entry, ...existing].slice(0, 50)),
+      JSON.stringify([entry, ...withoutDuplicate].slice(0, 50)),
     );
   } catch {}
 }
@@ -2498,7 +2660,7 @@ function renderMenuHistory(container) {
   if (clearBtn) clearBtn.disabled = false;
   container.innerHTML = entries
     .slice(0, 8)
-    .map((entry) => {
+    .map((entry, index) => {
       const winnerName =
         entry.players?.[entry.winner]?.name || entry.winner || "Unknown";
       const p1 = entry.players?.p1?.name || "Blue";
@@ -2507,7 +2669,8 @@ function renderMenuHistory(container) {
       const date = entry.playedAt
         ? new Date(entry.playedAt).toLocaleDateString()
         : "";
-      return `<article class="history-item"><div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div><div class="history-meta">${escapeHtml(entry.mode || "online")} \u00b7 ${escapeHtml(p1)} vs ${escapeHtml(p2)} \u00b7 ${entry.moveCount || 0} moves${date ? ` \u00b7 ${escapeHtml(date)}` : ""}</div></article>`;
+      const replayDisabled = entry.game ? "" : " disabled aria-disabled=\"true\"";
+      return `<article class="history-item"><div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div><div class="history-meta">${escapeHtml(entry.mode || "online")} \u00b7 ${escapeHtml(p1)} vs ${escapeHtml(p2)} \u00b7 ${entry.moveCount || 0} moves${date ? ` \u00b7 ${escapeHtml(date)}` : ""}</div><button type="button" data-history-index="${index}"${replayDisabled}>Replay</button></article>`;
     })
     .join("");
 }
@@ -2540,12 +2703,13 @@ function closeAppMenuContent() {
   document.querySelector("#appMenuButton")?.focus?.();
 }
 
-function wireAppMenu() {
+function wireAppMenu(root, bridge) {
   const button = document.querySelector("#appMenuButton");
   const dropdown = document.querySelector("#appMenuDropdown");
   const overlay = document.querySelector("#appContentOverlay");
   const closeBtn = document.querySelector("#appContentClose");
   const clearBtn = document.querySelector("#clearMenuHistory");
+  const historyList = document.querySelector("#menuHistoryList");
   if (!button) return;
   button?.addEventListener?.("click", () => {
     if (dropdown?.classList?.contains("hidden")) {
@@ -2573,6 +2737,22 @@ function wireAppMenu() {
       list.innerHTML =
         '<p class="history-empty">Finished games will appear here.</p>';
     setToast("Game history cleared on this device.");
+  });
+  historyList?.addEventListener?.("click", (event) => {
+    const button = event.target?.closest?.("[data-history-index]");
+    if (!button || button.disabled) return;
+    const index = Number(button.dataset.historyIndex);
+    let entries = [];
+    try {
+      const raw = window.localStorage?.getItem?.("traceballGameHistory");
+      if (raw) entries = JSON.parse(raw);
+    } catch {}
+    const entry = Array.isArray(entries) ? entries[index] : null;
+    if (!entry?.game) {
+      setToast("That saved game could not be loaded.");
+      return;
+    }
+    loadHistoryReplay(root, bridge, entry);
   });
   if (!appMenuWired) {
     appMenuWired = true;
@@ -2649,7 +2829,7 @@ function rewireBridgeView(root, bridge) {
   wireReplayRange(root, bridge);
   wireRoundActions(root, bridge);
   wireDisconnectActions(root, bridge);
-  wireAppMenu();
+  wireAppMenu(root, bridge);
   wireLobbyTabs();
   wireLobbyDrawer();
 }
@@ -2839,7 +3019,13 @@ function wirePhase9ShellActions(root, bridge) {
       changed = true;
     }
     if (command === "close-winner") {
-      bridge.model = { ...bridge.model, winnerDismissed: true, error: null };
+      if (!event.target?.closest?.("#winnerClose")) return;
+      bridge.model = {
+        ...bridge.model,
+        dismissedWinnerKey: winnerOverlayKey(bridge.model),
+        winnerDismissed: false,
+        error: null,
+      };
       changed = true;
     } else if (command === "pause" && !bridge.model?.localRuntime) {
       bridge.sendCommand?.({ type: "pause" });
@@ -3064,6 +3250,12 @@ window.TraceballElmShell = {
   loadBoardList,
   renderModel,
   renderBoardMessage,
+  winnerOverlayKey,
+  legacyGameSnapshotFromModel,
+  historyEntryToModel,
+  loadHistoryReplay,
+  saveGameToHistory,
+  renderMenuHistory,
   submitMoveFromLegalTarget,
   submitNewRound,
   submitFreeDisconnectedSeat,

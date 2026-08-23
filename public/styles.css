@@ -1526,6 +1526,13 @@ body.menu-open {
   gap: 8px;
   margin-top: 1rem;
 }
+.match-action-row + .match-details {
+  margin-top: 1rem;
+}
+.match-details {
+  display: grid;
+  gap: 0.9rem;
+}
 .match-game-controls {
   display: flex;
   gap: 6px;
@@ -1562,7 +1569,7 @@ body.menu-open {
   cursor: not-allowed;
 }
 .match-info-details {
-  margin-top: 12px;
+  margin-top: 0;
 }
 .match-info-toggle {
   display: inline-flex;
@@ -2244,9 +2251,9 @@ details.match-info-details[open] .match-info-toggle {
 
 /* Player score badges on board */
 .elm-board-badge {
+  --elm-board-badge-gate-corridor-y: calc(56 / 1300 * 100%);
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2261,10 +2268,12 @@ details.match-info-details[open] .match-info-toggle {
   pointer-events: none;
 }
 .elm-board-badge-top {
-  top: 4px;
+  top: var(--elm-board-badge-gate-corridor-y);
+  transform: translate(-50%, -50%);
 }
 .elm-board-badge-bottom {
-  bottom: 4px;
+  bottom: var(--elm-board-badge-gate-corridor-y);
+  transform: translate(-50%, 50%);
 }
 .elm-board-badge-score {
   font-variant-numeric: tabular-nums;

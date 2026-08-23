@@ -308,6 +308,16 @@ if (
     "public/styles.css must style Phase 6D between-round result panel and pending new-round button.",
   );
 }
+if (!css.includes("--elm-board-badge-gate-corridor-y")) {
+  throw new Error(
+    "Board player badges must be positioned in the gate corridor, not pinned to the board edge.",
+  );
+}
+if (!/\.match-action-row\s*\+\s*\.match-details\s*{[\s\S]*margin-top:/.test(css)) {
+  throw new Error(
+    "Match details must have spacing below action buttons so Round Complete does not touch controls.",
+  );
+}
 if (
   !css.includes(".elm-disconnect-recovery") ||
   !css.includes(".elm-disconnected-seat")

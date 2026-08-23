@@ -1539,4 +1539,112 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("false");
     expect(lobbyBtn.textContent).toBe("Lobby");
   });
+
+  it("positions board player badges in gate corridors and spaces match result details", () => {
+    const { shell } = loadShell();
+    const html = shell.renderBoardMessage(fixture("board-active-session"));
+
+    expect(html).toContain('class="elm-board-badge elm-board-badge-top"');
+    expect(html).toContain('class="elm-board-badge elm-board-badge-bottom"');
+    expect(cssSource).toContain("--elm-board-badge-gate-corridor-y");
+    expect(cssSource).toMatch(
+      /\.elm-board-badge-top\s*{[\s\S]*top:\s*var\(--elm-board-badge-gate-corridor-y\);[\s\S]*transform:\s*translate\(-50%,\s*-50%\);/,
+    );
+    expect(cssSource).toMatch(
+      /\.elm-board-badge-bottom\s*{[\s\S]*bottom:\s*var\(--elm-board-badge-gate-corridor-y\);[\s\S]*transform:\s*translate\(-50%,\s*50%\);/,
+    );
+    expect(cssSource).not.toMatch(/\.elm-board-badge-top\s*{[\s\S]*top:\s*4px/);
+    expect(cssSource).not.toMatch(/\.elm-board-badge-bottom\s*{[\s\S]*bottom:\s*4px/);
+    expect(cssSource).toMatch(
+      /\.match-action-row\s*\+\s*\.match-details\s*{[\s\S]*margin-top:\s*1rem;/,
+    );
+    expect(cssSource).toMatch(
+      /\.match-details\s*{[\s\S]*display:\s*grid;[\s\S]*gap:\s*0\.9rem;/,
+    );
+  });
+
+  it("scopes winner dismissal to a specific board winner event", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-between-rounds");
+    let model = shell.applyState(shell.initialModel(), message);
+    const dismissedKey = shell.winnerOverlayKey(model);
+
+    model = { ...model, dismissedWinnerKey: dismissedKey };
+    expect(shell.renderModel(model)).toContain('class="winner-overlay hidden"');
+
+    const sameWinnerRefresh = structuredClone(message);
+    sameWinnerRefresh.version = model.version + 1;
+    sameWinnerRefresh.board.version = sameWinnerRefresh.version;
+    model = shell.applyState(model, sameWinnerRefresh);
+    expect(model.dismissedWinnerKey).toBe(dismissedKey);
+    expect(shell.renderModel(model)).toContain('class="winner-overlay hidden"');
+
+    const nextWinnerEvent = structuredClone(sameWinnerRefresh);
+    nextWinnerEvent.version = model.version + 1;
+    nextWinnerEvent.board.version = nextWinnerEvent.version;
+    nextWinnerEvent.board.currentSession.round.moves.push({
+      playerId: "p1",
+      from: { x: 4, y: 1 },
+      to: { x: 4, y: 0 },
+      segment: "4,1|4,0",
+      bounce: false,
+      at: 3000,
+    });
+    model = shell.applyState(model, nextWinnerEvent);
+
+    expect(model.dismissedWinnerKey).toBe("");
+    expect(shell.renderModel(model)).toContain('class="winner-overlay"');
+    expect(shell.renderModel(model)).not.toContain('class="winner-overlay hidden"');
+  });
+
+  it("saves replayable history entries and converts them back into read-only replay models", () => {
+    const storage = {
+      values: new Map(),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+      removeItem(key) {
+        this.values.delete(key);
+      },
+    };
+    const { shell } = loadShell({ localStorage: storage });
+    const model = shell.applyState(shell.initialModel(), fixture("board-between-rounds"));
+
+    shell.saveGameToHistory(model);
+    const entries = JSON.parse(storage.getItem("traceballGameHistory"));
+    expect(entries[0].game).toBeTruthy();
+    expect(entries[0].game.moves.length).toBe(model.board.currentSession.round.moves.length);
+
+    const historyModel = shell.historyEntryToModel(entries[0]);
+    expect(historyModel.historyReplay).toBe(true);
+    expect(historyModel.replayIndex).toBe(0);
+    expect(historyModel.board.currentSession.round.moves.length).toBe(entries[0].game.moves.length);
+    expect(shell.submitMoveFromLegalTarget({ model: historyModel }, "4,6")).toBe(false);
+    expect(shell.submitNewRound({ model: historyModel })).toBe(false);
+  });
+
+  it("renders history items with replay controls", () => {
+    const storage = {
+      values: new Map(),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+    };
+    const { shell } = loadShell({ localStorage: storage });
+    const model = shell.applyState(shell.initialModel(), fixture("board-between-rounds"));
+    shell.saveGameToHistory(model);
+    const container = { innerHTML: "" };
+
+    shell.renderMenuHistory(container);
+
+    expect(container.innerHTML).toContain('class="history-item"');
+    expect(container.innerHTML).toContain('data-history-index="0"');
+    expect(container.innerHTML).toContain("Replay");
+  });
 });
