@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import vm from "node:vm";
 
 const required = [
   "public/index.html",
@@ -32,6 +33,53 @@ const elmTypes = readFileSync("src/elm/Board/Types.elm", "utf8");
 const elmProtocol = readFileSync("src/elm/Protocol.elm", "utf8");
 const gameSource = readFileSync("src/game.js", "utf8");
 const serverSource = readFileSync("src/server.js", "utf8");
+const activeFixture = JSON.parse(
+  readFileSync("test/fixtures/phase1/board-active-session.json", "utf8"),
+);
+
+function renderCurrentElmShell() {
+  const storage = {
+    getItem() {
+      return null;
+    },
+    setItem() {},
+    removeItem() {},
+  };
+  const location = {
+    protocol: "https:",
+    host: "traceball.test",
+    search: "?board=ROOM123",
+  };
+  const context = {
+    console,
+    window: { location, localStorage: storage },
+    document: {
+      body: { dataset: {}, classList: { toggle() {} } },
+      querySelector: () => null,
+      querySelectorAll: () => [],
+    },
+    location,
+    localStorage: storage,
+    URLSearchParams,
+    setTimeout,
+    clearTimeout,
+    fetch: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+  };
+  vm.createContext(context);
+  vm.runInContext(elmBundle, context, { filename: "public/elm.js" });
+  const shell = context.window.TraceballElmShell;
+  if (!shell?.renderModel || !shell?.applyState || !shell?.initialModel) {
+    throw new Error("public/elm.js must expose renderable TraceballElmShell helpers.");
+  }
+  const model = {
+    ...shell.applyState(shell.initialModel(), activeFixture),
+    ownSeat: "p1",
+    connectionStatus: "connected",
+  };
+  return shell.renderModel(model);
+}
+
+const currentElmShellHtml = renderCurrentElmShell();
 if (
   !elmHtml.includes('id="elm-root"') ||
   !elmHtml.includes("/elm.js") ||
@@ -374,39 +422,44 @@ if (!css.includes('body[data-mobile-page="play"] .board-card'))
 
 const html = readFileSync("public/index.html", "utf8");
 if (
-  !html.includes('data-page-target="play"') ||
-  !html.includes('data-mobile-page="invite"') ||
-  !html.includes('data-mobile-page="match"')
+  !currentElmShellHtml.includes('data-page-target="play"') ||
+  !currentElmShellHtml.includes('data-page-target="boards"') ||
+  !currentElmShellHtml.includes('data-mobile-page="invite"') ||
+  !currentElmShellHtml.includes('data-mobile-page="match"')
 ) {
-  throw new Error("Mobile page navigation markup is required.");
+  throw new Error("Current Elm shell mobile page navigation markup is required.");
 }
-const homeTab = html.indexOf(">Home</button>");
-const playTab = html.indexOf('data-page-target="play"');
-const matchTab = html.indexOf('data-page-target="match"');
-if (!(homeTab >= 0 && homeTab < playTab && playTab < matchTab))
-  throw new Error("Mobile tabs must be ordered Home, Play, Match.");
-if (html.includes(">Invite</button>"))
+const homeTab = currentElmShellHtml.indexOf(">Home</button>");
+const boardsTab = currentElmShellHtml.indexOf('data-page-target="boards"');
+const playTab = currentElmShellHtml.indexOf('data-page-target="play"');
+const matchTab = currentElmShellHtml.indexOf('data-page-target="match"');
+if (!(homeTab >= 0 && homeTab < boardsTab && boardsTab < playTab && playTab < matchTab))
+  throw new Error("Mobile tabs must be ordered Home, Boards, Play, Match.");
+if (currentElmShellHtml.includes(">Invite</button>"))
   throw new Error("Invite tab must be renamed to Home.");
-if (!html.includes("board-replay replay"))
+if (!currentElmShellHtml.includes("board-replay replay"))
   throw new Error("Replay controls must live with the board.");
-if (!html.includes('id="playLeaveSeat"')) {
+if (!currentElmShellHtml.includes('data-elm-command="leave-seat"')) {
   throw new Error(
-    "Play board page must include its own Leave / forfeit button.",
+    "Current Elm shell must expose Leave / forfeit through Match controls, not duplicate it in Play.",
   );
 }
 if (
-  !html.includes('class="boards-kicker"') ||
-  !html.includes("Server lobby") ||
-  !html.includes("Join, watch, or leave a live board.")
+  !currentElmShellHtml.includes('class="boards-kicker"') ||
+  !currentElmShellHtml.includes("Server lobby") ||
+  !currentElmShellHtml.includes("Public boards expire after one week of inactivity.")
 ) {
-  throw new Error("Boards page header copy must be concise and polished.");
+  throw new Error("Boards page header copy must match the current deduplicated lobby UI.");
 }
-if (html.includes("Pick a board to watch, or claim an open Blue/Red seat.")) {
+if (
+  currentElmShellHtml.includes("Pick a board to watch, or claim an open Blue/Red seat.") ||
+  currentElmShellHtml.includes("Join, watch, or leave a live board.")
+) {
   throw new Error(
-    "Boards page must not use the old awkward wrapping helper text.",
+    "Boards page must not reintroduce old duplicated/wrapping helper text.",
   );
 }
-if (html.includes('class="board-help"'))
+if (currentElmShellHtml.includes('class="board-help"'))
   throw new Error(
     "Play page must not spend vertical board space on a separate bottom helper message.",
   );
@@ -423,30 +476,30 @@ if (
   );
 }
 if (
-  !html.includes("score-strip") ||
-  !html.includes("p1Score") ||
-  !html.includes("p2Score")
+  !currentElmShellHtml.includes("score-strip") ||
+  !currentElmShellHtml.includes("p1Score") ||
+  !currentElmShellHtml.includes("p2Score")
 ) {
   throw new Error("Match card must render the traced name/score/name layout.");
 }
 if (
-  html.includes("modeSelect") ||
-  html.includes("Choose game type") ||
-  html.includes("How do you want to play?")
+  currentElmShellHtml.includes("modeSelect") ||
+  currentElmShellHtml.includes("Choose game type") ||
+  currentElmShellHtml.includes("How do you want to play?")
 ) {
   throw new Error("Do not render a separate choose-game-type explainer card.");
 }
 if (
-  html.includes('id="startLocalSetup"') ||
-  html.includes(">Start local game</button>")
+  currentElmShellHtml.includes('id="startLocalSetup"') ||
+  currentElmShellHtml.includes(">Start local game</button>")
 ) {
   throw new Error(
     "Top-level Start local game button must be removed; Local belongs in the Home selector.",
   );
 }
-const heroStart = html.indexOf('<section class="hero">');
-const navStart = html.indexOf('<nav class="mobile-nav"');
-const heroHtml = html.slice(heroStart, navStart);
+const heroStart = currentElmShellHtml.indexOf('<section class="hero">');
+const navStart = currentElmShellHtml.indexOf('<nav class="mobile-nav"');
+const heroHtml = currentElmShellHtml.slice(heroStart, navStart);
 if (
   heroHtml.includes("Create online game") ||
   heroHtml.includes("Start local game") ||
@@ -456,91 +509,88 @@ if (
     "Hero/top area must not contain Create online game or Start local game buttons.",
   );
 }
-const navEnd = html.indexOf("</nav>", navStart);
-const modeToggle = html.indexOf('id="homeModeToggle"');
-const joinPanel = html.indexOf('id="joinPanel"');
-const localPanel = html.indexOf('id="localPanel"');
-if (
-  !(navEnd < modeToggle && modeToggle < joinPanel && joinPanel < localPanel)
-) {
+const modeToggle = currentElmShellHtml.indexOf('id="homeModeToggle"');
+const joinPanel = currentElmShellHtml.indexOf('id="joinPanel"');
+const localPanel = currentElmShellHtml.indexOf('id="localPanel"');
+if (!(joinPanel >= 0 && joinPanel < modeToggle && modeToggle < localPanel)) {
   throw new Error(
-    "Home Online/Local selector must sit directly under the Home/Play/Match navigation and above the swapped cards.",
+    "Home Online/Local selector must live inside the Home card above the local setup card.",
   );
 }
 if (
-  !html.includes('data-home-mode="online"') ||
-  !html.includes('data-home-mode="local"')
+  !currentElmShellHtml.includes('data-home-mode="online"') ||
+  !currentElmShellHtml.includes('data-home-mode="local"')
 ) {
   throw new Error("Home selector must offer Online and Local options.");
 }
 if (
-  !html.includes('id="onlineActionToggle"') ||
-  !html.includes('data-online-action="new"') ||
-  !html.includes('data-online-action="incoming"')
+  currentElmShellHtml.includes('id="onlineActionToggle"') ||
+  currentElmShellHtml.includes('data-online-action="new"') ||
+  currentElmShellHtml.includes('data-online-action="incoming"')
 ) {
   throw new Error(
-    "Online card must split New game and Incoming game into linked sub-tabs.",
+    "Current Elm Home must not reintroduce duplicated New/Incoming online sub-tabs.",
   );
 }
 if (
-  !html.includes('id="playerNameInput"') ||
-  !html.includes('id="newGamePanel"') ||
-  !html.includes('id="existingGamePanel"')
+  !currentElmShellHtml.includes('id="playerNameInput"') ||
+  !currentElmShellHtml.includes('id="elmOpenBoardForm"') ||
+  !currentElmShellHtml.includes('id="elmBoardCode"')
 ) {
   throw new Error(
-    "Online card must have one generic persisted player-name input shared by both online tabs.",
+    "Online card must have one generic persisted player-name input and one open-board form.",
   );
 }
 if (
-  !html.includes('id="generateRoom"') ||
-  !html.includes(">Generate</button>")
+  !currentElmShellHtml.includes('id="elmCreateBoard"') ||
+  !currentElmShellHtml.includes(">Create board as Blue</button>")
 ) {
   throw new Error(
-    "New game tab must contain a Generate button that creates an online room.",
+    "Online card must contain the current Create board as Blue action.",
   );
 }
 if (
-  !html.includes('id="joinGeneratedRoom"') ||
-  !html.includes(">Join generated game</button>")
+  currentElmShellHtml.includes('id="joinGeneratedRoom"') ||
+  currentElmShellHtml.includes(">Join generated game</button>")
 ) {
   throw new Error(
-    "New game tab must reintroduce an explicit Join button after Generate so invite copying stays on Home.",
+    "Current Elm Home must not duplicate generated-room Join actions after creating a board.",
   );
 }
 if (
-  !html.includes('id="winnerOverlay"') ||
-  !html.includes('class="winner-card"') ||
-  !html.includes("Winner")
+  !currentElmShellHtml.includes('id="winnerOverlay"') ||
+  !currentElmShellHtml.includes('class="winner-card"') ||
+  !currentElmShellHtml.includes("Winner")
 ) {
   throw new Error("Play board must include a golden winner modal overlay.");
 }
 if (
-  !html.includes('id="existingRoomForm"') ||
-  !html.includes('id="existingRoomInput"') ||
-  !html.includes(">Join game</button>")
+  !currentElmShellHtml.includes('id="elmOpenBoardForm"') ||
+  !currentElmShellHtml.includes('id="elmBoardCode"') ||
+  !currentElmShellHtml.includes(">Watch board</button>")
 ) {
   throw new Error(
-    "Online card must allow safely joining an existing game by pasted invite link or room code.",
+    "Online card must allow opening an existing board by room code without duplicated labels.",
   );
 }
-if (html.includes('id="newRoom"') || html.includes('id="joinForm"')) {
+if (currentElmShellHtml.includes('id="newRoom"') || currentElmShellHtml.includes('id="joinForm"')) {
   throw new Error(
     "Online actions must not use the old mixed New game/Join form layout.",
   );
 }
-if (!html.includes("localPanel") || !html.includes("startLocal")) {
+if (!currentElmShellHtml.includes("localPanel") || !currentElmShellHtml.includes("startLocal")) {
   throw new Error("Local selector must reveal the local setup card.");
 }
-if (!html.includes("localP1Name") || !html.includes("localP2Name")) {
+if (!currentElmShellHtml.includes("localP1Name") || !currentElmShellHtml.includes("localP2Name")) {
   throw new Error(
     "Local PvP setup must collect both face-to-face player names.",
   );
 }
-if (!html.includes("copyInviteCard"))
+if (!currentElmShellHtml.includes("copyInviteCard"))
   throw new Error(
     "Copy invite button must live inside the Join this match card.",
   );
-if (html.includes('id="copyInvite"'))
+if (currentElmShellHtml.includes('id="copyInvite"'))
   throw new Error("Top-level copy invite button must be removed.");
 if (
   !serverSource.includes("app.get('/elm'") ||

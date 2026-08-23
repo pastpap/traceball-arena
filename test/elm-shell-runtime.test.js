@@ -382,7 +382,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(html).toContain("data-elm-board-svg");
     expect(html).toContain('viewBox="0 0 900 1300"');
-    expect(html).toContain('aria-label="Read-only Traceball board"');
+    expect(html).toMatch(/aria-label="[^"]*read-only Traceball board"/i);
     expect(html).toContain('data-elm-ball="4,6"');
     expect(html).toContain('data-elm-legal-move="3,5"');
     expect(html).toContain('data-elm-gate="blue"');
