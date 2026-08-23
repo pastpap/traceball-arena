@@ -519,6 +519,23 @@ h2 {
 .elm-board-hud strong {
   color: var(--text);
 }
+.elm-timer-display {
+  width: fit-content;
+  max-width: min(100%, 720px);
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(141, 255, 174, 0.35);
+  border-radius: 999px;
+  background: rgba(0, 8, 3, 0.72);
+  color: #dfffe8;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 18px rgba(17, 191, 70, 0.18);
+}
+.elm-timer-countdown {
+  margin-left: 8px;
+  color: #8dffae;
+}
 .elm-board-hud[data-elm-orientation="blue"] span:nth-child(2) {
   color: #b9d8ff;
 }

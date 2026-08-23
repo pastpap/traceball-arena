@@ -177,6 +177,21 @@ function timerOptions(selectedSeconds = 15) {
     .join("");
 }
 
+function localMoveDeadlineAt(seconds, now = Date.now()) {
+  const normalized = normalizeMoveTimerSeconds(seconds, 15);
+  return normalized > 0 ? Number(now) + normalized * 1000 : null;
+}
+
+function resetLocalRoundDeadline(round, seconds, now = Date.now()) {
+  const deadlineAt = localMoveDeadlineAt(seconds, now);
+  return {
+    ...round,
+    turnStartedAt: deadlineAt == null ? null : Number(now),
+    deadlineAt,
+    moveTimeLimitSeconds: normalizeMoveTimerSeconds(seconds, 15),
+  };
+}
+
 function normalizeLocalName(value, fallback) {
   return (
     String(value || "")
@@ -298,6 +313,7 @@ function createLocalRuntimeBoard({
 } = {}) {
   const ball = { x: 4, y: 6 };
   const visited = ["4,6"];
+  const timerSeconds = normalizeMoveTimerSeconds(moveTimeLimitSeconds, 15);
   const round = {
     state: "InProgress",
     turn,
@@ -307,6 +323,7 @@ function createLocalRuntimeBoard({
     segments: [],
     legalMoves: [],
   };
+  Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
   round.legalMoves = computeLocalLegalMoves(round);
   return {
     code: "LOCAL",
@@ -337,7 +354,7 @@ function createLocalRuntimeBoard({
         blue: Number.isFinite(Number(score?.blue)) ? Number(score.blue) : 0,
         red: Number.isFinite(Number(score?.red)) ? Number(score.red) : 0,
       },
-      moveTimeLimitSeconds: normalizeMoveTimerSeconds(moveTimeLimitSeconds, 15),
+      moveTimeLimitSeconds: timerSeconds,
       round,
     },
   };
@@ -382,6 +399,13 @@ function isValidLocalRuntimeModel(model) {
     !board?.seats?.red?.player?.displayName
   )
     return false;
+  const timerSeconds = normalizeMoveTimerSeconds(
+    board.currentSession?.moveTimeLimitSeconds,
+    15,
+  );
+  if (timerSeconds > 0 && round.deadlineAt == null) {
+    Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
+  }
   return true;
 }
 
@@ -503,6 +527,10 @@ function applyLocalRuntimeMove(model, key) {
   if (stuckWinner === "p1") score.blue = Number(score.blue || 0) + 1;
   if (stuckWinner === "p2") score.red = Number(score.red || 0) + 1;
   const effectiveWinner = winner || stuckWinner;
+  const timerSeconds = normalizeMoveTimerSeconds(
+    model.board.currentSession.moveTimeLimitSeconds,
+    15,
+  );
 
   const nextRound = effectiveWinner
     ? {
@@ -518,11 +546,16 @@ function applyLocalRuntimeMove(model, key) {
         moves,
         segments,
         legalMoves: [],
+        deadlineAt: null,
+        turnStartedAt: null,
       }
-    : {
-        ...inProgressRound,
-        legalMoves: candidateLegalMoves,
-      };
+    : resetLocalRoundDeadline(
+        {
+          ...inProgressRound,
+          legalMoves: candidateLegalMoves,
+        },
+        timerSeconds,
+      );
 
   return {
     ...model,
@@ -2104,6 +2137,11 @@ function onlineTimerMeta(board) {
   return { seconds: seconds && seconds > 0 ? seconds : null, deadlineAt };
 }
 
+function timerRemainingSeconds(timer, now = Date.now()) {
+  if (!timer || timer.deadlineAt == null) return null;
+  return Math.max(0, Math.ceil((Number(timer.deadlineAt) - Number(now)) / 1000));
+}
+
 function onlineTimerText(board) {
   const timer = onlineTimerMeta(board);
   if (!timer) return "";
@@ -2131,7 +2169,12 @@ function renderBoardTimerDisplay(board) {
   const timer = onlineTimerMeta(board);
   if (!timer) return "";
   const limit = timer.seconds ? `${timer.seconds}s` : "server timer";
-  return `<section class="elm-timer-display" data-elm-timer-display aria-label="Move timer"><span>Timer: ${escapeHtml(limit)}</span></section>`;
+  const remaining = timerRemainingSeconds(timer);
+  const countdown =
+    remaining == null
+      ? ""
+      : ` <strong class="elm-timer-countdown" data-elm-timer-countdown>${escapeHtml(remaining)}s left</strong>`;
+  return `<section class="elm-timer-display" data-elm-timer-display aria-label="Move timer"><span>Timer: ${escapeHtml(limit)}</span>${countdown}</section>`;
 }
 
 function titleCase(value) {
@@ -2357,6 +2400,7 @@ function renderModel(model) {
         <div class="board-card mobile-page active" data-mobile-page="play">
           <div id="playStatus" class="play-status">${boardTitle}</div>
           <div class="${boardStageClass}">
+            ${renderBoardTimerDisplay(board)}
             ${boardBody}
             <div id="pauseOverlay" class="${pauseOverlayClass}" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
               <div class="pause-card">
@@ -2819,16 +2863,10 @@ function wireLobbyDrawer() {
     const shell = document.querySelector("[data-elm-lobby-open='true']");
     if (shell) shell.setAttribute("data-elm-lobby-open", "false");
   });
-  document?.addEventListener?.("click", (event) => {
-    const shell = document.querySelector("[data-elm-lobby-open='true']");
-    if (!shell) return;
-    if (
-      !event.target?.closest?.(".lobby-layout") &&
-      !event.target?.closest?.(".hero-lobby-btn")
-    ) {
-      shell.setAttribute("data-elm-lobby-open", "false");
-    }
-  });
+  // Desktop lobby stays open until the explicit Lobby/Game toggle or Escape.
+  // Closing on background/top-bar clicks made the lobby feel like it navigated
+  // back to the Game page accidentally.
+  document?.addEventListener?.("click", () => {});
 }
 
 function rewireBridgeView(root, bridge) {
@@ -3273,6 +3311,7 @@ window.TraceballElmShell = {
   wireBoardMoveTargets,
   wireRoundActions,
   wireDisconnectActions,
+  wireLobbyDrawer,
   mount,
 };
 mount();

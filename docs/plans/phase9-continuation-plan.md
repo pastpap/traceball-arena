@@ -23,6 +23,9 @@ Completed baseline work from `phase9-home-boards-match` and follow-up staging fi
 - Task 1 Board HUD/orientation is implemented: Play shows board code, viewer role, turn, connection state, and a `data-elm-orientation` marker.
 - Task 2 one-shot move feedback is implemented with `data-elm-move-feedback="pending"` and a non-infinite CSS animation.
 - Task 3 online timer display/settings is implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
+- The richer JS-style turn marker/arc animation is already present in the Elm shell canvas overlay; do not re-implement it as missing work.
+- Play now surfaces move countdown text on/near the board again, and local same-screen rounds carry/reset deadline metadata so the same board countdown path works for local games.
+- Desktop lobby now stays open on inert background/top-bar clicks; only the explicit Lobby/Game control or Escape should return to the game view.
 
 ### Progress log (yesterday and today)
 
@@ -52,6 +55,7 @@ Current test status after these fixes: full Vitest suite green.
 - Continue visual parity pass for board art details and any remaining JS-vs-shell differences.
 - Run focused mobile/tablet staging smoke for notification readability and spacing.
 - Keep Match metadata complete while preserving board-first Play focus.
+- If local timer enforcement beyond visible local deadlines is added later, keep it isolated from the online server-authoritative timeout path.
 
 ## Visual asset parity slice to add explicitly
 

@@ -34,6 +34,7 @@ function loadShell(overrides = {}) {
     fetch:
       overrides.fetch ??
       (async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    Date: overrides.Date ?? Date,
   };
   vm.createContext(context);
   vm.runInContext(shellSource, context, { filename: "public/elm.js" });
@@ -203,9 +204,42 @@ describe("Phase 3 Elm shell runtime contract", () => {
       html.indexOf('<aside class="side mobile-page"'),
     );
 
+    expect(playSection).toContain('data-elm-timer-display');
+    expect(playSection).toContain('data-elm-timer-countdown');
     expect(matchSection).toContain(
       "<strong>Timer:</strong> 30s · deadline 32000",
     );
+  });
+
+  it("renders a countdown and resets the local move deadline after each local move", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({
+      blueName: "Stefan",
+      redName: "Alex",
+      moveTimeLimitSeconds: 10,
+    });
+
+    expect(model.board.currentSession.round.deadlineAt).toBe(11000);
+    expect(shell.renderModel(model)).toContain('10s left');
+
+    now = 4000;
+    const moveKey = model.board.currentSession.round.legalMoves
+      .map((move) => `${move.x},${move.y}`)
+      .find((key) => key !== "4,6");
+    const moved = shell.applyLocalRuntimeMove(model, moveKey);
+
+    expect(moved.board.currentSession.round.turnStartedAt).toBe(4000);
+    expect(moved.board.currentSession.round.deadlineAt).toBe(14000);
+    expect(shell.renderModel(moved)).toContain('10s left');
   });
 
   it("renders the current created/joined board in Boards tab and restores share link plus QR", () => {
@@ -1266,6 +1300,34 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("true");
     expect(lobbyBtn.textContent).toBe("Game");
+  });
+
+  it("keeps desktop lobby open on background or top-bar clicks", () => {
+    const listeners = {};
+    const shellNode = {
+      attrs: new Map([["data-elm-lobby-open", "true"]]),
+      setAttribute(key, value) {
+        this.attrs.set(key, String(value));
+      },
+    };
+    const documentStub = {
+      querySelector(selector) {
+        if (selector === "#elm-root") return null;
+        if (selector === "[data-elm-lobby-open='true']") return shellNode;
+        return null;
+      },
+      addEventListener(type, handler) {
+        listeners[type] = handler;
+      },
+    };
+    const { shell } = loadShell({ document: documentStub });
+    shell.wireLobbyDrawer();
+
+    listeners.click({ target: { closest: () => null } });
+    expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("true");
+
+    listeners.keydown({ key: "Escape" });
+    expect(shellNode.attrs.get("data-elm-lobby-open")).toBe("false");
   });
 
   it("exposes board-centric seating commands without a generic Join Game action", () => {
