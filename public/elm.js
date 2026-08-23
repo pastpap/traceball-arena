@@ -127,16 +127,26 @@ function getOrCreateClientId() {
 function getStoredPlayerName() {
   const storage = getStorage();
   const stored = String(storage?.getItem?.(PLAYER_NAME_KEY) || "").trim();
-  return stored.slice(0, 24) || "Elm Player";
+  if (stored && stored !== "Elm Player") return stored.slice(0, 24);
+  const generated = generateRandomPlayerName();
+  storage?.setItem?.(PLAYER_NAME_KEY, generated);
+  return generated;
 }
 
 function persistPlayerName(name) {
   const value =
     String(name || "")
       .trim()
-      .slice(0, 24) || "Elm Player";
+      .slice(0, 24) || generateRandomPlayerName();
   getStorage()?.setItem?.(PLAYER_NAME_KEY, value);
   return value;
+}
+
+function generateRandomPlayerName() {
+  const adjectives = ["Neon", "Turbo", "Cosmic", "Lucky", "Zigzag", "Pixel", "Rocket", "Nimble", "Thunder", "Glitch"];
+  const nouns = ["Striker", "Ranger", "Falcon", "Comet", "Dribbler", "Phantom", "Kicker", "Ace", "Tiger", "Wizard"];
+  const pick = (items) => items[Math.floor(Math.random() * items.length)];
+  return `${pick(adjectives)} ${pick(nouns)}`;
 }
 
 function normalizeMoveTimerSeconds(value, fallback = 15) {

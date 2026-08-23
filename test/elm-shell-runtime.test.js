@@ -148,6 +148,41 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).not.toContain('id="elmPlayerName"');
   });
 
+  it("generates and persists the legacy funny player name when no name is stored", () => {
+    const { shell, storage } = loadShell();
+
+    const html = shell.renderModel(shell.initialModel());
+    const generatedName = storage.values.get("traceballPlayerName");
+
+    expect(generatedName).toMatch(
+      /^(Neon|Turbo|Cosmic|Lucky|Zigzag|Pixel|Rocket|Nimble|Thunder|Glitch) (Striker|Ranger|Falcon|Comet|Dribbler|Phantom|Kicker|Ace|Tiger|Wizard)$/,
+    );
+    expect(html).toContain(`value="${generatedName}"`);
+    expect(html).not.toContain('value="Elm Player"');
+  });
+
+  it("migrates the stale Elm Player fallback to a generated funny name", () => {
+    const storage = {
+      values: new Map([["traceballPlayerName", "Elm Player"]]),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+    };
+    const { shell } = loadShell({ localStorage: storage });
+
+    const html = shell.renderModel(shell.initialModel());
+    const generatedName = storage.values.get("traceballPlayerName");
+
+    expect(generatedName).not.toBe("Elm Player");
+    expect(generatedName).toMatch(
+      /^(Neon|Turbo|Cosmic|Lucky|Zigzag|Pixel|Rocket|Nimble|Thunder|Glitch) (Striker|Ranger|Falcon|Comet|Dribbler|Phantom|Kicker|Ace|Tiger|Wizard)$/,
+    );
+    expect(html).toContain(`value="${generatedName}"`);
+  });
+
   it("renders online timer metadata in Match and Play without enforcing it client-side", () => {
     const { shell } = loadShell();
     const message = fixture("board-active-session");
@@ -326,9 +361,11 @@ describe("Phase 3 Elm shell runtime contract", () => {
       preventDefault() {},
     });
 
-    expect(sent).toEqual([
-      { type: "claimSeat", seatId: "p2", name: "Elm Player" },
-    ]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ type: "claimSeat", seatId: "p2" });
+    expect(sent[0].name).toMatch(
+      /^(Neon|Turbo|Cosmic|Lucky|Zigzag|Pixel|Rocket|Nimble|Thunder|Glitch) (Striker|Ranger|Falcon|Comet|Dribbler|Phantom|Kicker|Ace|Tiger|Wizard)$/,
+    );
     expect(root.innerHTML).toContain("Board ROOM123");
   });
 
