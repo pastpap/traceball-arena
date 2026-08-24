@@ -28,6 +28,7 @@ export function createGame(roomId, options = {}) {
     turnStartedAt: null,
     lastTimeout: null,
     consecutiveTimeouts: 0,
+    timeoutStreaks: { p1: 0, p2: 0 },
     pause: null,
     sessionId: null,
     sessionStartedAt: null,
@@ -59,6 +60,7 @@ export function publicGame(game) {
     turnStartedAt: game.turnStartedAt,
     lastTimeout: game.lastTimeout || null,
     consecutiveTimeouts: game.consecutiveTimeouts || 0,
+    timeoutStreaks: normalizeTimeoutStreaks(game),
     pause: game.pause || null,
     sessionId: game.sessionId || null,
     sessionStartedAt: game.sessionStartedAt || null,
@@ -76,6 +78,15 @@ export function publicGame(game) {
 
 export function boardLastActivityAt(game) {
   return Number(game?.updatedAt ?? game?.createdAt ?? 0);
+}
+
+function normalizeTimeoutStreaks(game) {
+  const streaks = game.timeoutStreaks || {};
+  game.timeoutStreaks = {
+    p1: Number(streaks.p1 || 0),
+    p2: Number(streaks.p2 || 0),
+  };
+  return game.timeoutStreaks;
 }
 
 export function boardExpiresAt(game) {
@@ -327,9 +338,6 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
   if (hasTurnTimedOut(game, now)) return { ok: false, error: 'Time expired.', timeout: true };
   if (game.turn !== playerId) return { ok: false, error: 'Not your turn.' };
-
-  game.consecutiveTimeouts = 0;
-  game.pause = null;
   const from = game.ball;
   const target = normalizePoint(to);
   if (!target) return { ok: false, error: 'Invalid target.' };
@@ -338,6 +346,10 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   if (hasSegment(game, from, target)) return { ok: false, error: 'That line was already used.' };
   if (isTracedMarginSegment(from, target)) return { ok: false, error: 'The margin line is already traced.' };
   if (isBlockedCornerCut(from, target)) return { ok: false, error: 'Cannot cut through the outside corner.' };
+
+  game.consecutiveTimeouts = 0;
+  normalizeTimeoutStreaks(game)[playerId] = 0;
+  game.pause = null;
 
   const visitedBefore = game.visited.includes(pointKey(target));
   const boundaryBounce = isBoundaryPoint(target);
@@ -471,10 +483,17 @@ export function applyTurnTimeout(game, now = Date.now()) {
   if (!hasTurnTimedOut(game, now)) return { ok: false };
   const timedOutPlayer = game.turn;
   game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
+  const timeoutStreaks = normalizeTimeoutStreaks(game);
+  timeoutStreaks[timedOutPlayer] = Number(timeoutStreaks[timedOutPlayer] || 0) + 1;
+
+  if (timeoutStreaks[timedOutPlayer] > 2) {
+    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now, origin: 'repeated-player-timeouts' });
+    return { ok: true, timedOutPlayer, paused: true, origin: 'repeated-player-timeouts' };
+  }
 
   if ((game.consecutiveTimeouts || 0) >= 1) {
     pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now, origin: 'consecutive-timeouts' });
-    return { ok: true, timedOutPlayer, paused: true };
+    return { ok: true, timedOutPlayer, paused: true, origin: 'consecutive-timeouts' };
   }
 
   if (!canReachTurnChange(game)) {
@@ -531,7 +550,7 @@ export function resumeGame(game, now = Date.now(), byPlayerId = null) {
   if (byPlayerId && pause?.byPlayerId && byPlayerId !== pause.byPlayerId) {
     return { ok: false, error: 'Only the player who paused or timed out can resume this game.' };
   }
-  const resetsIdleTimeoutClock = pause?.reason === 'idle' && pause?.origin === 'consecutive-timeouts';
+  const resetsIdleTimeoutClock = pause?.reason === 'idle' && ['consecutive-timeouts', 'repeated-player-timeouts'].includes(pause?.origin);
   game.status = 'playing';
   game.turn = pause?.resumeTurn || game.turn;
   const remainingMs = resetsIdleTimeoutClock
@@ -596,6 +615,7 @@ export function startSession(game, now = Date.now()) {
   game.sessionEndedAt = null;
   game.lastTimeout = null;
   game.consecutiveTimeouts = 0;
+  game.timeoutStreaks = { p1: 0, p2: 0 };
   game.pause = null;
   startTurnClock(game, now);
   game.updatedAt = now;
@@ -633,6 +653,7 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   game.sessionEndedAt = null;
   game.lastTimeout = null;
   game.consecutiveTimeouts = 0;
+  game.timeoutStreaks = { p1: 0, p2: 0 };
   game.pause = null;
   game.turnStartedAt = null;
   game.updatedAt = now;

@@ -453,6 +453,41 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(second.board.currentSession.round.deadlineAt).toBe(null);
   });
 
+  it("pauses local play after one player times out more than twice across their own turns", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({ moveTimeLimitSeconds: 5 });
+
+    now = 6000;
+    const first = shell.expireLocalRuntimeTurnIfNeeded(model);
+    expect(first.board.currentSession.round.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+
+    now = 7000;
+    const afterRedMove1 = shell.applyLocalRuntimeMove(first, "5,6");
+    now = 12000;
+    const second = shell.expireLocalRuntimeTurnIfNeeded(afterRedMove1);
+    expect(second.localPaused).toBe(false);
+    expect(second.board.currentSession.round.timeoutStreaks).toEqual({ p1: 2, p2: 0 });
+
+    now = 13000;
+    const afterRedMove2 = shell.applyLocalRuntimeMove(second, "6,6");
+    now = 18000;
+    const third = shell.expireLocalRuntimeTurnIfNeeded(afterRedMove2);
+
+    expect(third.localPaused).toBe(true);
+    expect(third.board.state).toBe("SessionPaused");
+    expect(third.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p1", resumeTurn: "p1", origin: "repeated-player-timeouts" });
+    expect(third.board.currentSession.round.deadlineAt).toBe(null);
+  });
+
   it("resumes an idle-timeout local pause with a fresh clock for the second timed-out player", () => {
     let now = 1000;
     class FakeDate extends Date {

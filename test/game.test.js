@@ -132,6 +132,34 @@ describe('traceball rules', () => {
     expect(game.segments).toHaveLength(0);
   });
 
+  it('pauses on behalf of one player after that same player times out more than twice in a row', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(applyTurnTimeout(game, 6000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(game.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+
+    expect(makeMove(game, 'p2', { x: 5, y: 6 }, 7000)).toMatchObject({ ok: true, bounce: false });
+    expect(game.turn).toBe('p1');
+    expect(game.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+
+    expect(applyTurnTimeout(game, 12000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(game.timeoutStreaks).toEqual({ p1: 2, p2: 0 });
+
+    expect(makeMove(game, 'p2', { x: 6, y: 6 }, 13000)).toMatchObject({ ok: true, bounce: false });
+    expect(game.turn).toBe('p1');
+    const third = applyTurnTimeout(game, 18000);
+
+    expect(third).toMatchObject({ ok: true, timedOutPlayer: 'p1', paused: true, origin: 'repeated-player-timeouts' });
+    expect(game.status).toBe('paused');
+    expect(game.turn).toBe('p1');
+    expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p1', resumeTurn: 'p1', origin: 'repeated-player-timeouts' });
+    expect(resumeGame(game, 19000, 'p2')).toMatchObject({ ok: false, error: expect.stringMatching(/paused the game|timed out/i) });
+    expect(resumeGame(game, 19000, 'p1').ok).toBe(true);
+    expect(game.turnStartedAt).toBe(19000);
+  });
+
   it('resumes paused games with only the remaining turn time, not a fresh timer', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;

@@ -335,6 +335,7 @@ function createLocalRuntimeBoard({
     moves: [],
     segments: [],
     legalMoves: [],
+    timeoutStreaks: { p1: 0, p2: 0 },
   };
   Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
   round.legalMoves = computeLocalLegalMoves(round);
@@ -370,6 +371,14 @@ function createLocalRuntimeBoard({
       moveTimeLimitSeconds: timerSeconds,
       round,
     },
+  };
+}
+
+function normalizeLocalTimeoutStreaks(round) {
+  const streaks = round?.timeoutStreaks || {};
+  return {
+    p1: Number(streaks.p1 || 0),
+    p2: Number(streaks.p2 || 0),
   };
 }
 
@@ -482,6 +491,9 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
   const timedOutPlayer = round.turn === "p2" ? "p2" : "p1";
   const nextTurn = timedOutPlayer === "p1" ? "p2" : "p1";
   const previousTimeouts = Number(round.consecutiveTimeouts || 0);
+  const timeoutStreaks = normalizeLocalTimeoutStreaks(round);
+  timeoutStreaks[timedOutPlayer] += 1;
+  const repeatedPlayerTimeout = timeoutStreaks[timedOutPlayer] > 2;
   const timeoutRecord = {
     playerId: timedOutPlayer,
     at: Number(now),
@@ -491,14 +503,17 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
     ...round,
     lastTimeout: timeoutRecord,
     consecutiveTimeouts: previousTimeouts + 1,
+    timeoutStreaks,
   };
 
-  if (previousTimeouts >= 1) {
+  if (previousTimeouts >= 1 || repeatedPlayerTimeout) {
     return {
       ...model,
       localPaused: true,
       pendingMoveKey: null,
-      error: "Both players timed out. Game paused.",
+      error: repeatedPlayerTimeout
+        ? `${timedOutPlayer === "p1" ? "Blue" : "Red"} timed out too many times. Game paused.`
+        : "Both players timed out. Game paused.",
       board: {
         ...model.board,
         state: "SessionPaused",
@@ -512,7 +527,7 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
             pausedAt: now,
             resumeTurn: timedOutPlayer,
             remainingMs: 0,
-            origin: "consecutive-timeouts",
+            origin: repeatedPlayerTimeout ? "repeated-player-timeouts" : "consecutive-timeouts",
           },
           round: {
             ...timedRound,
@@ -631,6 +646,8 @@ function applyLocalRuntimeMove(model, key) {
   const getsBounce = visitedBefore || boundaryBounce;
   move.bounce = getsBounce;
   const turnAfterMove = getsBounce ? turn : nextTurn;
+  const timeoutStreaks = normalizeLocalTimeoutStreaks(round);
+  timeoutStreaks[turn] = 0;
   const inProgressRound = {
     ...round,
     state: "InProgress",
@@ -642,6 +659,7 @@ function applyLocalRuntimeMove(model, key) {
     legalMoves: [],
     lastTimeout: null,
     consecutiveTimeouts: 0,
+    timeoutStreaks,
   };
   const candidateLegalMoves = computeLocalLegalMoves(inProgressRound);
   const stuckWinner =
@@ -781,7 +799,7 @@ function resumeLocalRuntimeModel(model, now = Date.now()) {
   );
   const limitMs = timerSeconds * 1000;
   const pause = model.board.currentSession.pause || null;
-  const resetsIdleTimeoutClock = pause?.reason === "idle" && pause?.origin === "consecutive-timeouts";
+  const resetsIdleTimeoutClock = pause?.reason === "idle" && ["consecutive-timeouts", "repeated-player-timeouts"].includes(pause?.origin);
   const rawRemainingMs = Number(pause?.remainingMs);
   const remainingMs = timerSeconds > 0
     ? resetsIdleTimeoutClock
@@ -2777,7 +2795,7 @@ function renderModel(model) {
             <li>Score in the opponent gate. Own gate = own goal.</li>
             <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
             <li>If time expires, no line is drawn; the ball stays and the turn passes.</li>
-            <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
+            <li>Two back-to-back timeouts across both players pause the game; one player timing out more than twice across their own turns also pauses the game.</li>
             <li>The player who paused, or whose timeout triggered the pause, can resume.</li>
             <li>If you are stuck, you lose.</li>
           </ul>
