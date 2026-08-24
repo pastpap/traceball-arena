@@ -92,7 +92,7 @@ app.get('/api/qr', async (req, res) => {
 });
 
 wss.on('connection', (ws) => {
-  const socketState = { roomId: null, playerId: null };
+  const socketState = { roomId: null, playerId: null, clientId: null };
   sockets.set(ws, socketState);
 
   ws.on('message', (raw) => {
@@ -113,6 +113,7 @@ wss.on('connection', (ws) => {
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
+      socketState.clientId = cleanClientId(msg.clientId);
       send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
       broadcast(roomId);
       return;
@@ -125,6 +126,7 @@ wss.on('connection', (ws) => {
       if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
       if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
       const rejoin = rejoinPlayerByClient(game, msg.clientId);
       if (rejoin.ok) {
         socketState.playerId = rejoin.playerId;
@@ -143,6 +145,7 @@ wss.on('connection', (ws) => {
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
+      socketState.clientId = cleanClientId(msg.clientId);
       send(ws, 'joined', { playerId: result.playerId, roomId, rejoined: Boolean(result.rejoined) });
       broadcast(roomId);
       return;
@@ -156,6 +159,7 @@ wss.on('connection', (ws) => {
       const result = joinWaitingList(game, msg.name, msg.clientId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
       send(ws, 'waitingListJoined', { roomId, rejoined: Boolean(result.rejoined) });
       broadcast(roomId);
       return;
@@ -169,6 +173,7 @@ wss.on('connection', (ws) => {
       const result = leaveWaitingList(game, msg.clientId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
       send(ws, 'waitingListLeft', { roomId });
       broadcast(roomId);
       return;
@@ -195,6 +200,7 @@ wss.on('connection', (ws) => {
       const result = leavePlayerAfterOpponentGrace(game, leavingPlayerId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.playerId = null;
+      clearPlayerSocketState(socketState.roomId, leavingPlayerId);
       send(ws, 'left', {
         playerId: leavingPlayerId,
         roomId: socketState.roomId,
@@ -247,6 +253,7 @@ wss.on('connection', (ws) => {
     const state = sockets.get(ws);
     sockets.delete(ws);
     if (!state?.roomId || !state.playerId) return;
+    if (hasOpenPlayerSocket(state.roomId, state.playerId)) return;
     const game = rooms.get(state.roomId);
     if (!game) return;
     const result = markPlayerDisconnected(game, state.playerId);
@@ -273,6 +280,28 @@ function cleanupExpiredRooms(now = Date.now()) {
 function safeRoomId(value) {
   const roomId = String(value || '').trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
+}
+
+function cleanClientId(value) {
+  const clientId = String(value || '').trim();
+  return clientId ? clientId.slice(0, 96) : null;
+}
+
+function hasOpenPlayerSocket(roomId, playerId) {
+  for (const [client, state] of sockets.entries()) {
+    if (
+      state.roomId === roomId
+      && state.playerId === playerId
+      && client.readyState === client.OPEN
+    ) return true;
+  }
+  return false;
+}
+
+function clearPlayerSocketState(roomId, playerId) {
+  for (const state of sockets.values()) {
+    if (state.roomId === roomId && state.playerId === playerId) state.playerId = null;
+  }
 }
 
 function broadcast(roomId) {
