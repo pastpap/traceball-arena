@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, applyTurnTimeout, claimSeat, createGame, freeDisconnectedSeat, leavePlayerAfterOpponentGrace, legalMoves, makeMove, markPlayerDisconnected, pauseGame, resumeGame } from '../src/game.js';
+import { addPlayer, applyTurnTimeout, canReachTurnChange, claimSeat, createGame, freeDisconnectedSeat, leavePlayerAfterOpponentGrace, legalMoves, makeMove, markPlayerDisconnected, pauseGame, resumeGame } from '../src/game.js';
 
 function readyGame() {
   const game = createGame('room-test');
@@ -70,6 +70,34 @@ describe('traceball rules', () => {
     expect(game.turn).toBe('p1');
   });
 
+  it('detects turn-change availability through a forced bounce path', () => {
+    const game = readyGame();
+    game.ball = { x: 0, y: 6 };
+    game.visited = ['4,6', '0,6', '1,5', '1,6', '1,7'];
+    game.segments = [];
+
+    expect(legalMoves(game)).toEqual([{ x: 1, y: 5 }, { x: 1, y: 6 }, { x: 1, y: 7 }]);
+    expect(canReachTurnChange(game)).toBe(true);
+  });
+
+  it('detects no turn-change availability when no legal path exists', () => {
+    const game = readyGame();
+    game.ball = { x: 4, y: 6 };
+    game.segments = [
+      '3,5|4,6',
+      '3,6|4,6',
+      '3,7|4,6',
+      '4,5|4,6',
+      '4,6|4,7',
+      '4,6|5,5',
+      '4,6|5,6',
+      '4,6|5,7',
+    ];
+
+    expect(legalMoves(game)).toHaveLength(0);
+    expect(canReachTurnChange(game)).toBe(false);
+  });
+
   it('passes the turn on timeout without drawing a line or moving the ball', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;
@@ -122,6 +150,24 @@ describe('traceball rules', () => {
     expect(game.turnStartedAt + game.moveTimeLimitMs).toBe(7000);
     expect(game.pause).toBe(null);
     expect(game.consecutiveTimeouts).toBe(0);
+  });
+
+  it('resumes a two-player idle pause with a fresh clock for the second timed-out player', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(applyTurnTimeout(game, 6000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(applyTurnTimeout(game, 11000)).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
+    expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p2', resumeTurn: 'p2', remainingMs: 0 });
+
+    expect(resumeGame(game, 12000).ok).toBe(true);
+
+    expect(game.status).toBe('playing');
+    expect(game.turn).toBe('p2');
+    expect(game.turnStartedAt).toBe(12000);
+    expect(applyTurnTimeout(game, 12000)).toMatchObject({ ok: false });
+    expect(applyTurnTimeout(game, 17000)).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
   });
 
   it('rejects a move that arrives after the server-side timer deadline', () => {

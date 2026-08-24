@@ -512,6 +512,7 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
             pausedAt: now,
             resumeTurn: timedOutPlayer,
             remainingMs: 0,
+            origin: "consecutive-timeouts",
           },
           round: {
             ...timedRound,
@@ -764,6 +765,7 @@ function pauseLocalRuntimeModel(model, now = Date.now()) {
           pausedAt: now,
           resumeTurn: round.turn,
           remainingMs,
+          origin: null,
         },
         round,
       },
@@ -778,15 +780,19 @@ function resumeLocalRuntimeModel(model, now = Date.now()) {
     15,
   );
   const limitMs = timerSeconds * 1000;
-  const rawRemainingMs = Number(model.board.currentSession.pause?.remainingMs);
+  const pause = model.board.currentSession.pause || null;
+  const resetsIdleTimeoutClock = pause?.reason === "idle" && pause?.origin === "consecutive-timeouts";
+  const rawRemainingMs = Number(pause?.remainingMs);
   const remainingMs = timerSeconds > 0
-    ? Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
+    ? resetsIdleTimeoutClock
+      ? limitMs
+      : Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
     : 0;
   const turnStartedAt = timerSeconds > 0 ? Number(now) - (limitMs - remainingMs) : null;
   const deadlineAt = timerSeconds > 0 ? Number(now) + remainingMs : null;
   const round = {
     ...model.board.currentSession.round,
-    turn: model.board.currentSession.pause?.resumeTurn || model.board.currentSession.round.turn,
+    turn: pause?.resumeTurn || model.board.currentSession.round.turn,
     turnStartedAt,
     deadlineAt,
     moveTimeLimitSeconds: timerSeconds,

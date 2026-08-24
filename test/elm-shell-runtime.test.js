@@ -330,8 +330,35 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(second.localPaused).toBe(true);
     expect(second.board.state).toBe("SessionPaused");
     expect(second.board.currentSession.state).toBe("Paused");
-    expect(second.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p2", resumeTurn: "p2" });
+    expect(second.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p2", resumeTurn: "p2", origin: "consecutive-timeouts" });
     expect(second.board.currentSession.round.deadlineAt).toBe(null);
+  });
+
+  it("resumes an idle-timeout local pause with a fresh clock for the second timed-out player", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({ moveTimeLimitSeconds: 5 });
+
+    now = 6000;
+    const first = shell.expireLocalRuntimeTurnIfNeeded(model);
+    now = 11000;
+    const paused = shell.expireLocalRuntimeTurnIfNeeded(first);
+    now = 12000;
+    const resumed = shell.resumeLocalRuntimeModel(paused);
+
+    expect(resumed.localPaused).toBe(false);
+    expect(resumed.board.currentSession.round.turn).toBe("p2");
+    expect(resumed.board.currentSession.round.turnStartedAt).toBe(12000);
+    expect(resumed.board.currentSession.round.deadlineAt).toBe(17000);
+    expect(resumed.board.currentSession.round.consecutiveTimeouts).toBe(2);
   });
 
   it("renders compact mobile Play controls between the timer message and board", () => {

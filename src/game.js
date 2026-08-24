@@ -398,6 +398,43 @@ export function legalMoves(game) {
   return options;
 }
 
+export function canReachTurnChange(game, maxDepth = 120) {
+  const seen = new Set();
+
+  function search(state, depth) {
+    const moves = legalMoves(state);
+    if (moves.length === 0) return false;
+
+    for (const to of moves) {
+      const visitedBefore = state.visited.includes(pointKey(to));
+      const bounce = visitedBefore || isBoundaryPoint(to);
+      if (!bounce) return true;
+    }
+
+    if (depth >= maxDepth) return false;
+    const key = `${pointKey(state.ball)}|${state.segments.slice().sort().join(';')}|${state.visited.slice().sort().join(';')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+
+    for (const to of moves) {
+      const visitedBefore = state.visited.includes(pointKey(to));
+      const bounce = visitedBefore || isBoundaryPoint(to);
+      if (!bounce) continue;
+      const next = {
+        ...state,
+        ball: { ...to },
+        visited: visitedBefore ? state.visited.slice() : [...state.visited, pointKey(to)],
+        segments: [...state.segments, segmentKey(state.ball, to)],
+      };
+      if (search(next, depth + 1)) return true;
+    }
+
+    return false;
+  }
+
+  return search({ ...game, ball: { ...game.ball }, visited: game.visited.slice(), segments: game.segments.slice() }, 0);
+}
+
 export function resetGame(game, now = Date.now()) {
   normalizeSeats(game);
   if (bothSeatsActive(game)) {
@@ -436,8 +473,17 @@ export function applyTurnTimeout(game, now = Date.now()) {
   game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
 
   if ((game.consecutiveTimeouts || 0) >= 1) {
-    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now });
+    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now, origin: 'consecutive-timeouts' });
     return { ok: true, timedOutPlayer, paused: true };
+  }
+
+  if (!canReachTurnChange(game)) {
+    game.status = 'finished';
+    game.turnStartedAt = null;
+    const winner = otherPlayer(timedOutPlayer);
+    finishGame(game, winner, `${playerName(game, timedOutPlayer)} cannot reach a turn-changing move after timing out — ${playerName(game, winner)} wins.`);
+    markUpdated(game, now);
+    return { ok: true, timedOutPlayer, gameOver: true, winner };
   }
 
   const nextPlayer = otherPlayer(timedOutPlayer);
@@ -455,7 +501,7 @@ export function applyTurnTimeout(game, now = Date.now()) {
   return { ok: true, timedOutPlayer, nextPlayer };
 }
 
-export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now() } = {}) {
+export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now(), origin = null } = {}) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
   const elapsed = game.moveTimeLimitMs > 0 && Number.isFinite(game.turnStartedAt)
     ? Math.max(0, now - game.turnStartedAt)
@@ -471,6 +517,7 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
     pausedAt: now,
     resumeTurn: game.turn,
     remainingMs,
+    origin,
   };
   markUpdated(game, now);
   return { ok: true };
@@ -480,13 +527,17 @@ export function resumeGame(game, now = Date.now()) {
   normalizeSeats(game);
   if (game.status !== 'paused') return { ok: false, error: 'Game is not paused.' };
   if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before resuming.' };
+  const pause = game.pause || null;
+  const resetsIdleTimeoutClock = pause?.reason === 'idle' && pause?.origin === 'consecutive-timeouts';
   game.status = 'playing';
-  game.turn = game.pause?.resumeTurn || game.turn;
-  const remainingMs = Number.isFinite(game.pause?.remainingMs)
-    ? Math.max(0, Math.min(game.moveTimeLimitMs || 0, game.pause.remainingMs))
-    : game.moveTimeLimitMs || 0;
+  game.turn = pause?.resumeTurn || game.turn;
+  const remainingMs = resetsIdleTimeoutClock
+    ? game.moveTimeLimitMs || 0
+    : Number.isFinite(pause?.remainingMs)
+      ? Math.max(0, Math.min(game.moveTimeLimitMs || 0, pause.remainingMs))
+      : game.moveTimeLimitMs || 0;
   game.pause = null;
-  game.consecutiveTimeouts = 0;
+  if (!resetsIdleTimeoutClock) game.consecutiveTimeouts = 0;
   if (game.moveTimeLimitMs > 0) {
     game.turnStartedAt = now - (game.moveTimeLimitMs - remainingMs);
   } else {
