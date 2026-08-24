@@ -846,6 +846,25 @@ function sanitizeBoardCode(value) {
   return /^[A-Za-z0-9_-]{6,32}$/.test(code) ? code : "";
 }
 
+function handleUnavailableBoard(root, bridge, onModelChange, errorText, boardCode = "") {
+  bridge.model = {
+    ...bridge.model,
+    board: null,
+    version: 0,
+    boardCode: sanitizeBoardCode(boardCode || bridge.boardCode),
+    error: errorText || "Board not found or expired.",
+    connectionStatus: "error",
+    ownSeat: null,
+    waitingListMember: false,
+    pendingMoveKey: null,
+    pendingNewRound: false,
+    pendingFreeSeat: null,
+  };
+  if (window.history?.replaceState) window.history.replaceState({}, "", "/");
+  renderBridge(root, bridge, onModelChange);
+  loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
+}
+
 function createSocketBridge({ boardCode, root, onModelChange } = {}) {
   const code = sanitizeBoardCode(boardCode);
   const bridge = {
@@ -975,11 +994,15 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
       renderBridge(root, bridge, onModelChange);
       return;
     }
+    if (message.type === "BoardNotFound") {
+      const errorText = message.message || "Board not found or expired.";
+      handleUnavailableBoard(root, bridge, onModelChange, errorText, message.boardCode || bridge.boardCode);
+      return;
+    }
     if (message.type === "error") {
       const errorText = message.error || "Server error.";
       if (/not found|expired/i.test(errorText)) {
-        bridge.model = { ...bridge.model, error: errorText };
-        renderBridge(root, bridge, onModelChange);
+        handleUnavailableBoard(root, bridge, onModelChange, errorText, bridge.boardCode);
       } else {
         // Transient gameplay error (e.g. timer): show as toast, keep board visible
         setToast(errorText);

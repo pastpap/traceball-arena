@@ -202,10 +202,75 @@ describe("Phase 3 Elm shell runtime contract", () => {
   it("refreshes live boards when the desktop lobby is opened", () => {
     const toggleBlock = shellSource.slice(
       shellSource.indexOf('if (command === "toggle-lobby")'),
-      shellSource.indexOf('const name = playerNameFromRoot(root);'),
+      shellSource.indexOf('if (command === "copy-invite")'),
     );
 
     expect(toggleBlock).toContain("loadBoardList(root)");
+  });
+
+  it("falls back to the live board list when the board code in the URL is stale", async () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.readyState = 3;
+        this.onclose?.();
+      }
+    }
+    let fetchCalls = 0;
+    const { root } = loadShell({
+      WebSocket: FakeWebSocket,
+      location: {
+        protocol: "https:",
+        host: "example.test",
+        search: "?board=STALE1",
+      },
+      fetch: async (url) => {
+        fetchCalls += 1;
+        expect(url).toBe("/api/rooms");
+        return {
+          ok: true,
+          json: async () => ({
+            rooms: [
+              {
+                roomId: "LIVE42",
+                elmUrl: "/?board=LIVE42",
+                state: "WaitingForPlayers",
+                occupancy: { activeCount: 0, vacantCount: 2 },
+                moveCount: 0,
+                watcherCount: 0,
+                waitingListCount: 0,
+              },
+            ],
+          }),
+        };
+      },
+    });
+
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify({
+        type: "error",
+        error: "Game not found or expired.",
+      }),
+    });
+    for (let i = 0; i < 10 && !root.innerHTML.includes('data-elm-board-list'); i += 1) {
+      await Promise.resolve();
+    }
+
+    expect(fetchCalls).toBe(1);
+    expect(root.innerHTML).toContain("Board unavailable");
+    expect(root.innerHTML).toContain('data-elm-board-list');
+    expect(root.innerHTML).toContain("LIVE42");
+    expect(root.innerHTML).not.toContain("Live board list is available from the lobby route.");
   });
 
   it("can replace the nested boards panel without dropping the active board shell", async () => {
