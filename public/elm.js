@@ -512,6 +512,7 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
             pausedAt: now,
             resumeTurn: timedOutPlayer,
             remainingMs: 0,
+            origin: "consecutive-timeouts",
           },
           round: {
             ...timedRound,
@@ -764,6 +765,7 @@ function pauseLocalRuntimeModel(model, now = Date.now()) {
           pausedAt: now,
           resumeTurn: round.turn,
           remainingMs,
+          origin: null,
         },
         round,
       },
@@ -778,15 +780,19 @@ function resumeLocalRuntimeModel(model, now = Date.now()) {
     15,
   );
   const limitMs = timerSeconds * 1000;
-  const rawRemainingMs = Number(model.board.currentSession.pause?.remainingMs);
+  const pause = model.board.currentSession.pause || null;
+  const resetsIdleTimeoutClock = pause?.reason === "idle" && pause?.origin === "consecutive-timeouts";
+  const rawRemainingMs = Number(pause?.remainingMs);
   const remainingMs = timerSeconds > 0
-    ? Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
+    ? resetsIdleTimeoutClock
+      ? limitMs
+      : Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
     : 0;
   const turnStartedAt = timerSeconds > 0 ? Number(now) - (limitMs - remainingMs) : null;
   const deadlineAt = timerSeconds > 0 ? Number(now) + remainingMs : null;
   const round = {
     ...model.board.currentSession.round,
-    turn: model.board.currentSession.pause?.resumeTurn || model.board.currentSession.round.turn,
+    turn: pause?.resumeTurn || model.board.currentSession.round.turn,
     turnStartedAt,
     deadlineAt,
     moveTimeLimitSeconds: timerSeconds,
@@ -2313,13 +2319,29 @@ function renderPlayLeaveButton(model) {
   return `<button id="playLeaveSeat" class="play-leave-button ghost danger${hiddenClass(Boolean(model?.ownSeat))}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
 }
 
+function canResumePausedOnlineSession(model) {
+  if (model?.localRuntime) return Boolean(model?.localPaused);
+  const pause = model?.board?.currentSession?.pause || null;
+  if (!pause) return false;
+  if (!model?.ownSeat) return false;
+  return !pause.byPlayerId || pause.byPlayerId === model.ownSeat;
+}
+
 function renderPlayBoardActions(model) {
-  const pauseLabel = model?.localPaused ? "Resume" : "Pause";
-  const pauseCommand = model?.localPaused ? "resume" : "pause";
+  const onlinePaused = !model?.localRuntime && (
+    model?.board?.state === "SessionPaused" || model?.board?.currentSession?.state === "Paused"
+  );
+  const canResumeOnline = onlinePaused && canResumePausedOnlineSession(model);
+  const showPauseControl = model?.localRuntime || canResumeOnline || (!onlinePaused && Boolean(model?.ownSeat));
+  const pauseLabel = model?.localPaused || canResumeOnline ? "Resume" : "Pause";
+  const pauseCommand = model?.localPaused || canResumeOnline ? "resume" : "pause";
+  const pauseButton = showPauseControl
+    ? `<button id="playPauseGame" class="play-pause-button ghost" title="${escapeHtml(pauseLabel)} game" type="button" data-elm-command="${pauseCommand}">⏸ ${escapeHtml(pauseLabel)}</button>`
+    : "";
   return `
     <div class="play-board-actions" data-elm-play-board-actions>
       ${renderPlayLeaveButton(model)}
-      <button id="playPauseGame" class="play-pause-button ghost" title="${escapeHtml(pauseLabel)} game" type="button" data-elm-command="${pauseCommand}">⏸ ${escapeHtml(pauseLabel)}</button>
+      ${pauseButton}
     </div>`;
 }
 
@@ -2515,6 +2537,10 @@ function renderModel(model) {
   const pauseTurn = model.localRuntime
     ? `Turn: ${escapeHtml(colorLabel(board?.currentSession?.round?.turn || ""))}`
     : "Turn resumes here.";
+  const canResumePausedSession = model.localRuntime ? Boolean(model.localPaused) : canResumePausedOnlineSession(model);
+  const resumePauseButton = canResumePausedSession
+    ? '<button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>'
+    : "";
   const moveCount = Number(session?.round?.moves?.length || 0);
   const replayIndex = replayEffectiveIndex(model);
   const replayActive = replayIsActive(model);
@@ -2629,7 +2655,7 @@ function renderModel(model) {
                 <p id="pauseMessage">${pauseMessage}</p>
                 <p id="pauseTurn">${pauseTurn}</p>
                 <div class="pause-actions">
-                  <button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>
+                  ${resumePauseButton}
                   <button id="pauseNewRound" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
                 </div>
               </div>
@@ -2712,7 +2738,7 @@ function renderModel(model) {
             <li>If a move timer is enabled, each move or bounce gets a fresh clock.</li>
             <li>If time expires, no line is drawn; the ball stays and the turn passes.</li>
             <li>Two timeouts in a row pause the game; the board is hidden until play resumes.</li>
-            <li>Either joined player can pause or resume during a round.</li>
+            <li>The player who paused, or whose timeout triggered the pause, can resume.</li>
             <li>If you are stuck, you lose.</li>
           </ul>
         </section>
