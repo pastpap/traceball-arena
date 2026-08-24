@@ -1522,12 +1522,26 @@ function isSeated(model) {
   return normalizeSeatId(model?.ownSeat) !== null;
 }
 
+function isPausedSession(model) {
+  return Boolean(
+    model?.localPaused ||
+      model?.board?.state === "SessionPaused" ||
+      model?.board?.currentSession?.state === "Paused",
+  );
+}
+
+function canStartNewRound(model) {
+  if (!model || model.historyReplay || !isSeated(model)) return false;
+  if (isBetweenRounds(model)) return true;
+  if (model.localRuntime) return Boolean(model.localPaused);
+  if (isPausedSession(model)) return canResumePausedOnlineSession(model);
+  return false;
+}
+
 function submitNewRound(bridge) {
   if (
     !bridge ||
-    bridge.model?.historyReplay ||
-    !isSeated(bridge.model) ||
-    !isBetweenRounds(bridge.model)
+    !canStartNewRound(bridge.model)
   )
     return false;
   if (bridge.model?.localRuntime) {
@@ -2538,7 +2552,7 @@ function renderModel(model) {
   const staleNote = model.ignoredStaleVersion
     ? `<p class="elm-shell-note">Ignored stale version ${Number(model.ignoredStaleVersion)}.</p>`
     : "";
-  const newRoundControlAttr = isSeated(model) && !model?.historyReplay
+  const newRoundControlAttr = canStartNewRound(model)
     ? 'data-elm-command="new-round"'
     : 'disabled aria-disabled="true"';
   const roundWinner = board?.currentSession?.round?.winner || null;
@@ -2563,6 +2577,9 @@ function renderModel(model) {
   const canResumePausedSession = model.localRuntime ? Boolean(model.localPaused) : canResumePausedOnlineSession(model);
   const resumePauseButton = canResumePausedSession
     ? '<button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>'
+    : "";
+  const pauseNewRoundButton = canStartNewRound(model)
+    ? '<button id="pauseNewRound" class="ghost" type="button" data-elm-command="new-round">New round</button>'
     : "";
   const moveCount = Number(session?.round?.moves?.length || 0);
   const replayIndex = replayEffectiveIndex(model);
@@ -2679,7 +2696,7 @@ function renderModel(model) {
                 <p id="pauseTurn">${pauseTurn}</p>
                 <div class="pause-actions">
                   ${resumePauseButton}
-                  <button id="pauseNewRound" class="ghost" type="button" ${newRoundControlAttr}>New round</button>
+                  ${pauseNewRoundButton}
                 </div>
               </div>
             </div>

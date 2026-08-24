@@ -243,6 +243,9 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'reset') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can start a new round.' });
+      if (game.status === 'paused' && game.pause?.byPlayerId && game.pause.byPlayerId !== socketState.playerId) {
+        return send(ws, 'error', { error: 'Only the player who paused or timed out can start a new round while paused.' });
+      }
       resetGame(game);
       broadcast(socketState.roomId);
       return;

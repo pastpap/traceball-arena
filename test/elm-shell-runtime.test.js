@@ -522,7 +522,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(shell.renderModel(model)).toContain('7s left');
   });
 
-  it("only shows the paused online resume control to the player who caused the pause", () => {
+  it("only shows paused online resume and new-round controls to the player who caused the pause", () => {
     const { shell } = loadShell();
     const message = fixture("board-active-session");
     message.board.state = "SessionPaused";
@@ -542,8 +542,13 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(redHtml).toContain('id="resumeGame"');
     expect(redHtml).toContain('data-elm-command="resume"');
+    expect(redHtml).toContain('id="pauseNewRound"');
+    expect(redHtml).toContain('data-elm-command="new-round"');
+    expect(redHtml).not.toContain('id="pauseNewRound" class="ghost" type="button" disabled');
     expect(blueHtml).not.toContain('id="resumeGame"');
+    expect(blueHtml).not.toContain('id="pauseNewRound"');
     expect(watcherHtml).not.toContain('id="resumeGame"');
+    expect(watcherHtml).not.toContain('id="pauseNewRound"');
   });
 
   it("renders the current created/joined board in Boards tab and restores share link plus QR", () => {
@@ -952,6 +957,35 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(seatedHtml).toContain("Continue / New Round");
     expect(watcherHtml).toContain("Waiting for a seated player to continue.");
     expect(watcherHtml).not.toContain('data-elm-command="new-round"');
+  });
+
+  it("sends reset only from the pause initiator while an online session is paused", () => {
+    const sent = [];
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.state = "SessionPaused";
+    message.board.currentSession.state = "Paused";
+    message.board.currentSession.pause = {
+      reason: "manual",
+      byPlayerId: "p1",
+      resumeTurn: "p2",
+      remainingMs: 4000,
+    };
+    const base = shell.applyState(shell.initialModel(), message);
+    const bridge = {
+      model: { ...base, ownSeat: "p2" },
+      newRound() {
+        sent.push({ type: "reset" });
+        return true;
+      },
+    };
+
+    expect(shell.submitNewRound(bridge)).toBe(false);
+    bridge.model = { ...base, ownSeat: "p1" };
+    expect(shell.submitNewRound(bridge)).toBe(true);
+
+    expect(sent).toEqual([{ type: "reset" }]);
+    expect(bridge.model.pendingNewRound).toBe(true);
   });
 
   it("sends reset only from a seated player between rounds", () => {

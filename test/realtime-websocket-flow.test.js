@@ -166,6 +166,40 @@ describe('realtime WebSocket main playing flows', () => {
     }
   });
 
+  it('only allows the player who paused to start a new round from the paused state', async () => {
+    const port = randomPort();
+    const server = await startServer(port);
+    const clients = [];
+    try {
+      const { roomId } = await createRoom(server.baseUrl, 5);
+      const p1 = await connect(server.wsUrl, 'pause-p1');
+      const p2 = await connect(server.wsUrl, 'pause-p2');
+      clients.push(p1, p2);
+
+      send(p1, { type: 'claimSeat', roomId, seatId: 'p1', name: 'P1', clientId: 'pause-blue' });
+      await waitFor(p1, (msg) => msg.type === 'joined' && msg.playerId === 'p1', 'p1 joined');
+      send(p2, { type: 'claimSeat', roomId, seatId: 'p2', name: 'P2', clientId: 'pause-red' });
+      await waitFor(p2, (msg) => msg.type === 'joined' && msg.playerId === 'p2', 'p2 joined');
+      await waitFor(p2, (msg) => msg.type === 'state' && msg.board?.state === 'SessionActive', 'active game');
+
+      send(p1, { type: 'pause' });
+      await waitFor(p2, (msg) => msg.type === 'state' && msg.board?.state === 'SessionPaused', 'paused game');
+
+      send(p2, { type: 'reset' });
+      await waitFor(p2, (msg) => msg.type === 'error' && /paused/i.test(msg.error), 'opponent reset rejection');
+      const stillPaused = await roomSummary(server.baseUrl, roomId);
+      expect(stillPaused.state).toBe('SessionPaused');
+
+      send(p1, { type: 'reset' });
+      await waitFor(p2, (msg) => msg.type === 'state' && msg.board?.state === 'SessionActive' && msg.board?.version > 4, 'pause initiator reset');
+      const restarted = await roomSummary(server.baseUrl, roomId);
+      expect(restarted.state).toBe('SessionActive');
+    } finally {
+      await Promise.all(clients.map(closeClient));
+      await stopServer(server.child);
+    }
+  });
+
   it('passes the first idle timeout, pauses on the second, and keeps the board listed with both players active', async () => {
     const port = randomPort();
     const server = await startServer(port);
