@@ -349,7 +349,58 @@ Recent implementation update (2026-08-18 to 2026-08-19):
 - Re-render preservation now keeps current mobile page and desktop lobby-open state during socket updates.
 - Notification trigger now includes move-count changes (including same-turn bounce chains), not only turn/state changes.
 
-## Phase 10: Switch default frontend
+## Phase 10: Move logic into actual Elm runtime
+
+**Goal:** Replace the hand-written JS shell with a real Elm application that owns Model, update, and view — reducing `public/elm.js` to ~200 lines of port plumbing and canvas animation.
+
+**Prerequisite:** Phase 9 smoke pass accepted. This phase happens before the default-frontend cutover so the cutover ships with a real Elm frontend, not a JS reimplementation.
+
+### Why the current shell is not Elm
+
+Phases 2–9 incrementally added features to the JS shell (`public/elm.js`) rather than to the compiled Elm runtime. The result is a ~3600-line hand-written JS file that reimplements Elm's own model/update/view pattern in plain JavaScript. The `.elm` source files exist and compile, but their output is not used at runtime.
+
+### What moves into Elm
+
+| JS group today                                     | Elm target                                |
+| -------------------------------------------------- | ----------------------------------------- |
+| `initialModel`, `applyState`, `decodeStateMessage` | `Model` type + `update` + `Board.Decode`  |
+| All `render*` functions (~1200 lines)              | `view` with `Html` and `Svg`              |
+| `computeLocalLegalMoves`, `applyLocalRuntimeMove`  | Pure Elm module, testable with `elm-test` |
+| `expireLocalRuntimeTurnIfNeeded`, pause/resume     | `update` branches                         |
+| History, replay state                              | `Model` fields + `update`                 |
+
+### What stays in JS (irreducible ~200 lines)
+
+- WebSocket connection setup and Elm port subscription
+- `localStorage` read/write via ports
+- Canvas rAF loop (turn marker arc, confetti) triggered by Elm port
+- Service worker registration
+- `mount()` entry point
+
+### Elm port surface (JS ↔ Elm boundary)
+
+```
+Ports out (JS → Elm):  socketMessage, localStorageLoaded, tick
+Ports in  (Elm → JS):  socketSend, localStorageSet, startCanvas, stopCanvas
+```
+
+### Migration order
+
+1. Wire the compiled Elm runtime into `elm.html` so `elm make` output is what actually runs.
+2. Port decoders from `Board/Decode.elm` to handle all Phase 1 canonical fixtures.
+3. Move `update` logic in from the JS shell group by group, starting with online state (applyState) then local runtime.
+4. Replace JS `render*` functions with Elm `view`; keep JS rendering as fallback until Elm view is complete.
+5. Delete each JS function as its Elm equivalent passes the existing Vitest/Playwright suite.
+
+### Exit criteria
+
+- `npm run build:elm` produces the runtime actually served at `/`.
+- `public/elm.js` is ≤ 250 lines of port bridge + canvas code.
+- `npm test` and `npm run test:e2e` pass with no test changes.
+- All Phase 1 canonical fixtures render correctly through the Elm decoder.
+- Local same-screen runtime behaves identically to current JS implementation.
+
+## Phase 11: Switch default frontend
 
 **Goal:** Make Elm the primary frontend only after functional parity, lifecycle reliability, and visual parity are proven.
 
@@ -366,63 +417,39 @@ Exit criteria:
 - Staging phone playtest passes.
 - Production deployment plan is explicit and reversible.
 
-## Phase 11: TypeScript shell migration
+## Phase 12: Harden the irreducible JS port layer
 
-**Goal:** Replace the single hand-authored `public/elm.js` with typed TypeScript source modules compiled to the same output file, without changing any observable behavior.
+**Goal:** After Phase 10 moves all logic into Elm, clean up and type-check the ~200 lines of JS that cannot move to Elm, so the port bridge is maintainable and correct.
 
-**Prerequisite:** Phase 10 production cutover accepted and stable.
+**Prerequisite:** Phase 10 complete — `public/elm.js` is already ≤ 250 lines of port bridge and canvas code.
 
-### Why now, not earlier
-
-The shell grew to 165+ functions across ~3600 lines during the Elm rewrite phases. The flat-function style was intentional during rapid iteration — it mirrors Elm's functional model and required no build toolchain. Post-cutover the file is stable enough to modularize safely.
-
-### What TypeScript buys here
-
-- Typed `Model`, `Board`, `Round`, `Session`, `Seat` interfaces catch deep optional-chain bugs that currently surface only at runtime.
-- Module boundaries make agent-assisted work easier: a change to canvas animation no longer requires context about board list rendering.
-- `tsc --noEmit` in CI catches regressions the current static check script misses.
-
-### Proposed source layout
+### What remains in JS after Phase 10
 
 ```
-src/elm-shell/
-  types.ts          # Model, Board, Round, Seat, BridgeState interfaces
-  model.ts          # initialModel, applyState, decodeStateMessage
-  storage.ts        # clientId, playerName, timer persistence
-  local-runtime.ts  # createLocal*, applyLocalRuntimeMove, pause/resume
-  bridge.ts         # createSocketBridge, createLocalBridge, createBoardAsBlue
-  render.ts         # renderModel, renderReadOnlyBoard, renderBoardList, all render*
-  canvas.ts         # ELM_ANIM, tickElmCanvas, wireElmBoardCanvas, confetti
-  history.ts        # saveGameToHistory, loadHistoryReplay, renderMenuHistory
-  wire.ts           # all wire*, rewireBridgeView, scheduleLocalRuntimeTimeout
-  ui.ts             # activateMobilePage, setToast, setGameUpdateBadge
-  main.ts           # mount(), service worker registration
+public/elm.js  (~200 lines total)
+  ports    # WebSocket send/receive, localStorage get/set, clipboard
+  canvas   # rAF loop: turn-marker arc, confetti, seven-segment clock
+  sw       # service worker registration
+  mount()  # Elm.Main.init() + port subscriptions
 ```
+
+### What this phase does
+
+- Rewrite the remaining JS as a single typed TypeScript file `src/elm-shell/main.ts` compiled by `esbuild` to `public/elm.js`.
+- Add strict types for every port message shape so mismatches between Elm port definitions and JS handlers are caught at build time.
+- Add `tsc --noEmit` to `npm run build` so port type drift is a CI failure.
 
 ### Build step
-
-Add `esbuild` as a dev dependency (zero config for this case):
 
 ```json
 "build:shell": "esbuild src/elm-shell/main.ts --bundle --outfile=public/elm.js --target=es2020 --format=iife"
 ```
 
-Update the `build` script to run `build:shell` before `check-static.js`.
-
-### Migration strategy
-
-1. Add `tsconfig.json` for `src/elm-shell/` with `strict: true`, `noEmit: true` for type-checking.
-2. Add `esbuild` as a dev dependency and wire `build:shell` script.
-3. Move functions into typed modules one group at a time; `public/elm.js` remains the compiled output — no behavior change per step.
-4. Run `tsc --noEmit` and `npm test` after each group.
-5. Remove the hand-authored `public/elm.js` once compiled output is confirmed identical in behavior.
-
 ### Exit criteria
 
-- `npm run build` compiles TypeScript and passes static checks.
-- `npm test` and `npm run test:e2e` remain green with no test changes needed.
-- `public/elm.js` is generated, not hand-edited.
-- No observable change in shell behavior or PWA cache behavior.
+- `public/elm.js` is generated from `src/elm-shell/main.ts`, not hand-edited.
+- All Elm port names and message shapes have matching TypeScript types.
+- `npm run build`, `npm test`, and `npm run test:e2e` pass with no changes to tests.
 
 ## Future backend experiment: Elixir/BEAM
 
