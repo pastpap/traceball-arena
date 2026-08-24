@@ -552,7 +552,7 @@ h2 {
   font-weight: 850;
 }
 .play-board-actions {
-  display: flex;
+  display: none;
   justify-content: center;
   align-items: center;
   gap: 8px;
@@ -567,9 +567,11 @@ h2 {
   width: fit-content;
   padding: 10px 16px;
   min-width: 0;
-  border-color: rgba(255, 59, 48, 0.5);
-  color: #ffd3d0;
+  border-color: rgba(255, 59, 48, 0.82);
+  background: rgba(255, 59, 48, 0.18);
+  color: #ffe1df;
   font-weight: 850;
+  box-shadow: 0 0 18px rgba(255, 59, 48, 0.18);
 }
 .board-replay {
   width: min(100%, 720px);
@@ -1136,21 +1138,30 @@ body.menu-open {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     font-size: 0.78rem;
   }
+  .elm-timer-display {
+    margin-bottom: 5px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    line-height: 1.1;
+  }
   .play-board-actions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: center;
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 6px;
     overflow: hidden;
   }
   .play-board-actions .ghost {
     min-width: 0;
+    padding: 7px 9px;
+    font-size: 0.78rem;
+    line-height: 1.05;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .play-pause-button.ghost {
-    grid-column: 1 / -1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1159,7 +1170,6 @@ body.menu-open {
     max-width: 180px;
   }
   .play-leave-button.ghost {
-    grid-column: 1 / -1;
     justify-self: center;
     max-width: min(100%, 220px);
   }
@@ -1329,17 +1339,16 @@ body.menu-open {
   }
   .play-board-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
-    margin-bottom: 7px;
+    gap: 6px;
+    margin-bottom: 6px;
   }
   .play-board-actions .ghost {
     width: 100%;
     min-width: 0;
-    padding: 10px 8px;
-    font-size: 0.84rem;
+    padding: 7px 8px;
+    font-size: 0.78rem;
   }
   .play-pause-button.ghost {
-    grid-column: 1 / -1;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1348,11 +1357,10 @@ body.menu-open {
     width: fit-content;
     max-width: 180px;
     margin-bottom: 0;
-    padding: 9px 14px;
-    font-size: 0.84rem;
+    padding: 8px 12px;
+    font-size: 0.78rem;
   }
   .play-leave-button.ghost {
-    grid-column: 1 / -1;
     justify-self: center;
     width: fit-content;
     max-width: min(100%, 220px);

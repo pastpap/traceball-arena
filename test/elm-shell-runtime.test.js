@@ -276,6 +276,83 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(shell.renderModel(resumed)).toContain('7s left');
   });
 
+  it("passes a local turn on timeout before accepting a stale move", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({
+      blueName: "Stefan",
+      redName: "Alex",
+      moveTimeLimitSeconds: 5,
+    });
+    const staleMoveKey = model.board.currentSession.round.legalMoves
+      .map((move) => `${move.x},${move.y}`)
+      .find((key) => key !== "4,6");
+
+    now = 6000;
+    const timedOut = shell.applyLocalRuntimeMove(model, staleMoveKey);
+
+    expect(timedOut.board.currentSession.round.turn).toBe("p2");
+    expect(timedOut.board.currentSession.round.ball).toEqual({ x: 4, y: 6 });
+    expect(timedOut.board.currentSession.round.moves).toHaveLength(0);
+    expect(timedOut.board.currentSession.round.segments).toHaveLength(0);
+    expect(timedOut.board.currentSession.round.lastTimeout).toMatchObject({ playerId: "p1", at: 6000 });
+    expect(timedOut.board.currentSession.round.consecutiveTimeouts).toBe(1);
+    expect(timedOut.board.currentSession.round.turnStartedAt).toBe(6000);
+    expect(timedOut.board.currentSession.round.deadlineAt).toBe(11000);
+  });
+
+  it("pauses local play after two consecutive move timer expiries", () => {
+    let now = 1000;
+    class FakeDate extends Date {
+      constructor(...args) {
+        super(...(args.length ? args : [now]));
+      }
+      static now() {
+        return now;
+      }
+    }
+    const { shell } = loadShell({ Date: FakeDate });
+    const model = shell.createLocalRuntimeModel({ moveTimeLimitSeconds: 5 });
+
+    now = 6000;
+    const first = shell.expireLocalRuntimeTurnIfNeeded(model);
+    now = 11000;
+    const second = shell.expireLocalRuntimeTurnIfNeeded(first);
+
+    expect(second.localPaused).toBe(true);
+    expect(second.board.state).toBe("SessionPaused");
+    expect(second.board.currentSession.state).toBe("Paused");
+    expect(second.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p2", resumeTurn: "p2" });
+    expect(second.board.currentSession.round.deadlineAt).toBe(null);
+  });
+
+  it("renders compact mobile Play controls between the timer message and board", () => {
+    const { shell } = loadShell();
+    const model = shell.createLocalRuntimeModel({ moveTimeLimitSeconds: 10 });
+    const html = shell.renderModel(model);
+    const playStart = html.indexOf('<div class="board-card mobile-page active"');
+    const playEnd = html.indexOf('<aside class="side mobile-page"');
+    const playSection = html.slice(playStart, playEnd);
+    const timerIndex = playSection.indexOf('data-elm-timer-display');
+    const actionsIndex = playSection.indexOf('class="play-board-actions"');
+    const boardIndex = playSection.indexOf('class="elm-board-preview"');
+
+    expect(actionsIndex).toBeGreaterThan(timerIndex);
+    expect(boardIndex).toBeGreaterThan(actionsIndex);
+    expect(playSection).toContain('id="playLeaveSeat"');
+    expect(playSection).toContain('class="play-leave-button ghost danger');
+    expect(playSection).toContain('id="playPauseGame"');
+    expect(playSection).toContain('class="play-pause-button ghost');
+  });
+
   it("shows paused online timer remaining without counting down to zero while paused", () => {
     let now = 20_000;
     class FakeDate extends Date {

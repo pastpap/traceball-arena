@@ -852,18 +852,13 @@ if (
   );
 }
 if (
-  !/\.play-board-actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\}/.test(
-    css,
-  ) ||
-  !/\.play-pause-button\.ghost\s*\{[\s\S]*?grid-column:\s*1\s*\/\s*-1;[\s\S]*?max-width:\s*180px;[\s\S]*?\}/.test(
-    css,
-  ) ||
-  !/\.play-board-actions\s+\.ghost\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\}/.test(
-    css,
-  )
+  !/\.play-board-actions\s*\{[\s\S]*?display:\s*none;[\s\S]*?\}/.test(css) ||
+  !/\.play-board-actions\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\}/.test(css) ||
+  !/\.play-leave-button\.ghost\s*\{[\s\S]*?border-color:\s*rgba\(255,\s*59,\s*48,\s*0\.82\);[\s\S]*?background:\s*rgba\(255,\s*59,\s*48,\s*0\.18\);[\s\S]*?\}/.test(css) ||
+  !/\.play-board-actions\s+\.ghost\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\}/.test(css)
 ) {
   throw new Error(
-    "Mobile Play Join Blue/Join Red/Pause controls must use a two-column grid with a centered compact Pause button that cannot overflow.",
+    "Mobile Play Leave/Forfeit and Pause controls must be mobile-only, compact, centered, and visibly red-accented for forfeit.",
   );
 }
 if (
@@ -892,12 +887,12 @@ if (
   );
 }
 if (
-  !app.includes("scheduleLocalTurnTimeout") ||
-  !app.includes("localTimeoutTimer") ||
-  !app.includes("Both players timed out. Game paused.")
+  !elmBundle.includes("scheduleLocalRuntimeTimeout") ||
+  !elmBundle.includes("expireLocalRuntimeTurnIfNeeded") ||
+  !elmBundle.includes("Both players timed out. Game paused.")
 ) {
   throw new Error(
-    "Local mode must schedule idle timeout auto-pause without waiting for a board click.",
+    "Elm local mode must schedule idle timeout auto-pause without waiting for a board click.",
   );
 }
 if (

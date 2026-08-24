@@ -470,8 +470,117 @@ function clearSavedLocalRuntimeModel() {
   getStorage()?.removeItem?.(LOCAL_RUNTIME_KEY);
 }
 
+function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
+  if (!isValidLocalRuntimeModel(model) || model.localPaused) return model;
+  const session = model.board.currentSession;
+  const round = session.round;
+  const timerSeconds = normalizeMoveTimerSeconds(session.moveTimeLimitSeconds, 15);
+  if (timerSeconds <= 0) return model;
+  const remainingMs = localRoundRemainingMs(round, timerSeconds, now);
+  if (remainingMs > 0) return model;
+
+  const timedOutPlayer = round.turn === "p2" ? "p2" : "p1";
+  const nextTurn = timedOutPlayer === "p1" ? "p2" : "p1";
+  const previousTimeouts = Number(round.consecutiveTimeouts || 0);
+  const timeoutRecord = {
+    playerId: timedOutPlayer,
+    at: Number(now),
+    ball: cloneJson(round.ball || { x: 4, y: 6 }, { x: 4, y: 6 }),
+  };
+  const timedRound = {
+    ...round,
+    lastTimeout: timeoutRecord,
+    consecutiveTimeouts: previousTimeouts + 1,
+  };
+
+  if (previousTimeouts >= 1) {
+    return {
+      ...model,
+      localPaused: true,
+      pendingMoveKey: null,
+      error: "Both players timed out. Game paused.",
+      board: {
+        ...model.board,
+        state: "SessionPaused",
+        updatedAt: now,
+        currentSession: {
+          ...session,
+          state: "Paused",
+          pause: {
+            reason: "idle",
+            byPlayerId: timedOutPlayer,
+            pausedAt: now,
+            resumeTurn: timedOutPlayer,
+            remainingMs: 0,
+          },
+          round: {
+            ...timedRound,
+            deadlineAt: null,
+            turnStartedAt: null,
+          },
+        },
+      },
+    };
+  }
+
+  const passedRound = {
+    ...timedRound,
+    turn: nextTurn,
+    deadlineAt: null,
+    turnStartedAt: null,
+  };
+  const legalMoves = computeLocalLegalMoves(passedRound);
+  const score = { ...session.score };
+  let nextRound;
+  if (legalMoves.length === 0) {
+    if (timedOutPlayer === "p1") score.blue = Number(score.blue || 0) + 1;
+    if (timedOutPlayer === "p2") score.red = Number(score.red || 0) + 1;
+    nextRound = {
+      ...passedRound,
+      state: "BetweenRounds",
+      winner: timedOutPlayer,
+      endReason: `${nextTurn === "p1" ? "Blue" : "Red"} is stuck after ${timedOutPlayer === "p1" ? "Blue" : "Red"} timed out — ${timedOutPlayer === "p1" ? "Blue" : "Red"} wins.`,
+      legalMoves: [],
+    };
+  } else {
+    nextRound = resetLocalRoundDeadline(
+      {
+        ...passedRound,
+        state: "InProgress",
+        winner: null,
+        endReason: null,
+        legalMoves,
+      },
+      timerSeconds,
+      now,
+    );
+  }
+
+  return {
+    ...model,
+    ownSeat: nextRound.state === "BetweenRounds" ? model.ownSeat : nextTurn,
+    pendingMoveKey: null,
+    replayIndex: null,
+    error: `${timedOutPlayer === "p1" ? "Blue" : "Red"} timed out — ${nextTurn === "p1" ? "Blue" : "Red"}'s turn.`,
+    board: {
+      ...model.board,
+      state: nextRound.state === "BetweenRounds" ? "BetweenRounds" : "SessionActive",
+      updatedAt: now,
+      currentSession: {
+        ...session,
+        state: nextRound.state === "BetweenRounds" ? "BetweenRounds" : "SessionActive",
+        score,
+        pause: null,
+        round: nextRound,
+      },
+    },
+  };
+}
+
 function applyLocalRuntimeMove(model, key) {
   if (!isValidLocalRuntimeModel(model) || model.localPaused) return null;
+  const timeoutModel = expireLocalRuntimeTurnIfNeeded(model);
+  if (timeoutModel !== model) return timeoutModel;
   const point = parseElmPointKey(key);
   if (!point) return null;
   const round = model.board.currentSession.round;
@@ -530,6 +639,8 @@ function applyLocalRuntimeMove(model, key) {
     moves,
     segments,
     legalMoves: [],
+    lastTimeout: null,
+    consecutiveTimeouts: 0,
   };
   const candidateLegalMoves = computeLocalLegalMoves(inProgressRound);
   const stuckWinner =
@@ -2202,6 +2313,16 @@ function renderPlayLeaveButton(model) {
   return `<button id="playLeaveSeat" class="play-leave-button ghost danger${hiddenClass(Boolean(model?.ownSeat))}" type="button" data-elm-command="leave-seat">Leave / forfeit</button>`;
 }
 
+function renderPlayBoardActions(model) {
+  const pauseLabel = model?.localPaused ? "Resume" : "Pause";
+  const pauseCommand = model?.localPaused ? "resume" : "pause";
+  return `
+    <div class="play-board-actions" data-elm-play-board-actions>
+      ${renderPlayLeaveButton(model)}
+      <button id="playPauseGame" class="play-pause-button ghost" title="${escapeHtml(pauseLabel)} game" type="button" data-elm-command="${pauseCommand}">⏸ ${escapeHtml(pauseLabel)}</button>
+    </div>`;
+}
+
 function renderPlayBoardBody(model, board) {
   const recovery = renderBoardRecovery(model);
   if (recovery) return recovery;
@@ -2499,6 +2620,7 @@ function renderModel(model) {
           <div id="playStatus" class="play-status">${boardTitle}</div>
           <div class="${boardStageClass}">
             ${renderBoardTimerDisplay(board)}
+            ${renderPlayBoardActions(model)}
             ${boardBody}
             <div id="pauseOverlay" class="${pauseOverlayClass}" aria-live="polite" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
               <div class="pause-card">
@@ -2967,6 +3089,25 @@ function wireLobbyDrawer() {
   document?.addEventListener?.("click", () => {});
 }
 
+function scheduleLocalRuntimeTimeout(root, bridge) {
+  if (bridge?.localTimeoutTimer) {
+    clearTimeout(bridge.localTimeoutTimer);
+    bridge.localTimeoutTimer = null;
+  }
+  if (!bridge?.model?.localRuntime || bridge.model.localPaused) return;
+  const round = bridge.model.board?.currentSession?.round;
+  const deadlineAt = Number(round?.deadlineAt);
+  if (!Number.isFinite(deadlineAt)) return;
+  const delay = Math.max(0, deadlineAt - Date.now());
+  bridge.localTimeoutTimer = setTimeout(() => {
+    const nextModel = expireLocalRuntimeTurnIfNeeded(bridge.model);
+    if (nextModel === bridge.model) return;
+    bridge.model = nextModel;
+    saveLocalRuntimeModel(bridge.model);
+    refreshBridgeRender(root, bridge);
+  }, delay);
+}
+
 function rewireBridgeView(root, bridge) {
   wireOpenBoardForm(root);
   wireSeatingActions(root, bridge);
@@ -2976,6 +3117,7 @@ function rewireBridgeView(root, bridge) {
   wireRoundActions(root, bridge);
   wireDisconnectActions(root, bridge);
   wireAppMenu(root, bridge);
+  scheduleLocalRuntimeTimeout(root, bridge);
   wireLobbyTabs();
   wireLobbyDrawer();
 }
@@ -3385,6 +3527,7 @@ window.TraceballElmShell = {
   createLocalRuntimeModel,
   serializeLocalRuntimeModel,
   restoreLocalRuntimeModel,
+  expireLocalRuntimeTurnIfNeeded,
   applyLocalRuntimeMove,
   pauseLocalRuntimeModel,
   resumeLocalRuntimeModel,
