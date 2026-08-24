@@ -3268,6 +3268,9 @@ function wirePhase9ShellActions(root, bridge) {
     if (page) {
       event.preventDefault?.();
       activateMobilePage(page);
+      if (page === "boards") {
+        loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
+      }
       return;
     }
     const command = target?.dataset?.elmCommand;
@@ -3279,6 +3282,7 @@ function wirePhase9ShellActions(root, bridge) {
       const btn = event.target?.closest?.(".hero-lobby-btn");
       if (btn) btn.textContent = open ? "Lobby" : "Game";
       if (open) setGameUpdateBadge(false); // switching to game view
+      if (!open) loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
       return;
     }
     const name = playerNameFromRoot(root);

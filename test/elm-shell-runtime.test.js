@@ -184,6 +184,60 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).toContain(`value="${generatedName}"`);
   });
 
+  it("renders an actionable live boards panel on desktop board views", () => {
+    const { shell } = loadShell();
+    const model = shell.applyState(
+      shell.initialModel(),
+      fixture("board-creator-only"),
+    );
+
+    const html = shell.renderModel(model);
+
+    expect(html).toContain('id="boardsPanel"');
+    expect(html).toContain('data-elm-board-list');
+    expect(html).toContain('data-elm-command="refresh-boards"');
+    expect(html).not.toContain("Live board list is available from the lobby route.");
+  });
+
+  it("refreshes live boards when the desktop lobby is opened", () => {
+    const toggleBlock = shellSource.slice(
+      shellSource.indexOf('if (command === "toggle-lobby")'),
+      shellSource.indexOf('const name = playerNameFromRoot(root);'),
+    );
+
+    expect(toggleBlock).toContain("loadBoardList(root)");
+  });
+
+  it("can replace the nested boards panel without dropping the active board shell", async () => {
+    const { shell, root } = loadShell({
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({
+          rooms: [
+            {
+              roomId: "LIVE42",
+              state: "OneSeatOccupied",
+              occupancy: { activeCount: 1, vacantCount: 1 },
+              score: { blue: 0, red: 0 },
+              moveCount: 0,
+            },
+          ],
+        }),
+      }),
+    });
+    const model = shell.applyState(
+      shell.initialModel(),
+      fixture("board-creator-only"),
+    );
+    root.innerHTML = shell.renderModel(model);
+
+    await shell.loadBoardList(root);
+
+    expect(root.innerHTML).toContain('data-elm-board-card="LIVE42"');
+    expect(root.innerHTML).toContain('class="game-layout"');
+    expect(root.innerHTML).toContain('class="board-stage');
+  });
+
   it("renders online timer metadata in Match and Play without enforcing it client-side", () => {
     const { shell } = loadShell();
     const message = fixture("board-active-session");
