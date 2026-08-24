@@ -194,9 +194,11 @@ describe("Phase 3 Elm shell runtime contract", () => {
     const html = shell.renderModel(model);
 
     expect(html).toContain('id="boardsPanel"');
-    expect(html).toContain('data-elm-board-list');
+    expect(html).toContain("data-elm-board-list");
     expect(html).toContain('data-elm-command="refresh-boards"');
-    expect(html).not.toContain("Live board list is available from the lobby route.");
+    expect(html).not.toContain(
+      "Live board list is available from the lobby route.",
+    );
   });
 
   it("refreshes live boards when the desktop lobby is opened", () => {
@@ -262,15 +264,21 @@ describe("Phase 3 Elm shell runtime contract", () => {
         error: "Game not found or expired.",
       }),
     });
-    for (let i = 0; i < 10 && !root.innerHTML.includes('data-elm-board-list'); i += 1) {
+    for (
+      let i = 0;
+      i < 10 && !root.innerHTML.includes("data-elm-board-list");
+      i += 1
+    ) {
       await Promise.resolve();
     }
 
     expect(fetchCalls).toBe(1);
     expect(root.innerHTML).toContain("Board unavailable");
-    expect(root.innerHTML).toContain('data-elm-board-list');
+    expect(root.innerHTML).toContain("data-elm-board-list");
     expect(root.innerHTML).toContain("LIVE42");
-    expect(root.innerHTML).not.toContain("Live board list is available from the lobby route.");
+    expect(root.innerHTML).not.toContain(
+      "Live board list is available from the lobby route.",
+    );
   });
 
   it("can replace the nested boards panel without dropping the active board shell", async () => {
@@ -323,8 +331,8 @@ describe("Phase 3 Elm shell runtime contract", () => {
       html.indexOf('<aside class="side mobile-page"'),
     );
 
-    expect(playSection).toContain('data-elm-timer-display');
-    expect(playSection).toContain('data-elm-timer-countdown');
+    expect(playSection).toContain("data-elm-timer-display");
+    expect(playSection).toContain("data-elm-timer-countdown");
     expect(matchSection).toContain(
       "<strong>Timer:</strong> 30s · deadline 32000",
     );
@@ -348,7 +356,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     });
 
     expect(model.board.currentSession.round.deadlineAt).toBe(11000);
-    expect(shell.renderModel(model)).toContain('10s left');
+    expect(shell.renderModel(model)).toContain("10s left");
 
     now = 4000;
     const moveKey = model.board.currentSession.round.legalMoves
@@ -358,7 +366,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(moved.board.currentSession.round.turnStartedAt).toBe(4000);
     expect(moved.board.currentSession.round.deadlineAt).toBe(14000);
-    expect(shell.renderModel(moved)).toContain('10s left');
+    expect(shell.renderModel(moved)).toContain("10s left");
   });
 
   it("freezes local countdown while paused and resumes with the remaining time", () => {
@@ -381,18 +389,20 @@ describe("Phase 3 Elm shell runtime contract", () => {
     now = 4000;
     const paused = shell.pauseLocalRuntimeModel(model);
     expect(paused.localPaused).toBe(true);
-    expect(paused.board.currentSession.pause).toMatchObject({ remainingMs: 7000 });
+    expect(paused.board.currentSession.pause).toMatchObject({
+      remainingMs: 7000,
+    });
     expect(paused.board.currentSession.round.deadlineAt).toBe(null);
 
     now = 20000;
-    expect(shell.renderModel(paused)).toContain('7s left');
+    expect(shell.renderModel(paused)).toContain("7s left");
 
     const resumed = shell.resumeLocalRuntimeModel(paused);
     expect(resumed.localPaused).toBe(false);
     expect(resumed.board.currentSession.pause).toBe(null);
     expect(resumed.board.currentSession.round.turnStartedAt).toBe(17000);
     expect(resumed.board.currentSession.round.deadlineAt).toBe(27000);
-    expect(shell.renderModel(resumed)).toContain('7s left');
+    expect(shell.renderModel(resumed)).toContain("7s left");
   });
 
   it("passes a local turn on timeout before accepting a stale move", () => {
@@ -422,7 +432,10 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(timedOut.board.currentSession.round.ball).toEqual({ x: 4, y: 6 });
     expect(timedOut.board.currentSession.round.moves).toHaveLength(0);
     expect(timedOut.board.currentSession.round.segments).toHaveLength(0);
-    expect(timedOut.board.currentSession.round.lastTimeout).toMatchObject({ playerId: "p1", at: 6000 });
+    expect(timedOut.board.currentSession.round.lastTimeout).toMatchObject({
+      playerId: "p1",
+      at: 6000,
+    });
     expect(timedOut.board.currentSession.round.consecutiveTimeouts).toBe(1);
     expect(timedOut.board.currentSession.round.turnStartedAt).toBe(6000);
     expect(timedOut.board.currentSession.round.deadlineAt).toBe(11000);
@@ -449,7 +462,12 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(second.localPaused).toBe(true);
     expect(second.board.state).toBe("SessionPaused");
     expect(second.board.currentSession.state).toBe("Paused");
-    expect(second.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p2", resumeTurn: "p2", origin: "consecutive-timeouts" });
+    expect(second.board.currentSession.pause).toMatchObject({
+      reason: "idle",
+      byPlayerId: "p2",
+      resumeTurn: "p2",
+      origin: "consecutive-timeouts",
+    });
     expect(second.board.currentSession.round.deadlineAt).toBe(null);
   });
 
@@ -468,14 +486,20 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     now = 6000;
     const first = shell.expireLocalRuntimeTurnIfNeeded(model);
-    expect(first.board.currentSession.round.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+    expect(first.board.currentSession.round.timeoutStreaks).toEqual({
+      p1: 1,
+      p2: 0,
+    });
 
     now = 7000;
     const afterRedMove1 = shell.applyLocalRuntimeMove(first, "5,6");
     now = 12000;
     const second = shell.expireLocalRuntimeTurnIfNeeded(afterRedMove1);
     expect(second.localPaused).toBe(false);
-    expect(second.board.currentSession.round.timeoutStreaks).toEqual({ p1: 2, p2: 0 });
+    expect(second.board.currentSession.round.timeoutStreaks).toEqual({
+      p1: 2,
+      p2: 0,
+    });
 
     now = 13000;
     const afterRedMove2 = shell.applyLocalRuntimeMove(second, "6,6");
@@ -484,7 +508,12 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(third.localPaused).toBe(true);
     expect(third.board.state).toBe("SessionPaused");
-    expect(third.board.currentSession.pause).toMatchObject({ reason: "idle", byPlayerId: "p1", resumeTurn: "p1", origin: "repeated-player-timeouts" });
+    expect(third.board.currentSession.pause).toMatchObject({
+      reason: "idle",
+      byPlayerId: "p1",
+      resumeTurn: "p1",
+      origin: "repeated-player-timeouts",
+    });
     expect(third.board.currentSession.round.deadlineAt).toBe(null);
   });
 
@@ -519,10 +548,12 @@ describe("Phase 3 Elm shell runtime contract", () => {
     const { shell } = loadShell();
     const model = shell.createLocalRuntimeModel({ moveTimeLimitSeconds: 10 });
     const html = shell.renderModel(model);
-    const playStart = html.indexOf('<div class="board-card mobile-page active"');
+    const playStart = html.indexOf(
+      '<div class="board-card mobile-page active"',
+    );
     const playEnd = html.indexOf('<aside class="side mobile-page"');
     const playSection = html.slice(playStart, playEnd);
-    const timerIndex = playSection.indexOf('data-elm-timer-display');
+    const timerIndex = playSection.indexOf("data-elm-timer-display");
     const actionsIndex = playSection.indexOf('class="play-board-actions"');
     const boardIndex = playSection.indexOf('class="elm-board-preview"');
 
@@ -549,12 +580,17 @@ describe("Phase 3 Elm shell runtime contract", () => {
     message.board.state = "SessionPaused";
     message.board.currentSession.state = "Paused";
     message.board.currentSession.moveTimeLimitSeconds = 10;
-    message.board.currentSession.pause = { reason: "manual", byPlayerId: "p1", resumeTurn: "p1", remainingMs: 7000 };
+    message.board.currentSession.pause = {
+      reason: "manual",
+      byPlayerId: "p1",
+      resumeTurn: "p1",
+      remainingMs: 7000,
+    };
     delete message.board.currentSession.round.deadlineAt;
 
     const model = shell.applyState(shell.initialModel(), message);
 
-    expect(shell.renderModel(model)).toContain('7s left');
+    expect(shell.renderModel(model)).toContain("7s left");
   });
 
   it("only shows paused online resume and new-round controls to the player who caused the pause", () => {
@@ -579,7 +615,9 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(redHtml).toContain('data-elm-command="resume"');
     expect(redHtml).toContain('id="pauseNewRound"');
     expect(redHtml).toContain('data-elm-command="new-round"');
-    expect(redHtml).not.toContain('id="pauseNewRound" class="ghost" type="button" disabled');
+    expect(redHtml).not.toContain(
+      'id="pauseNewRound" class="ghost" type="button" disabled',
+    );
     expect(blueHtml).not.toContain('id="resumeGame"');
     expect(blueHtml).not.toContain('id="pauseNewRound"');
     expect(watcherHtml).not.toContain('id="resumeGame"');
@@ -700,9 +738,10 @@ describe("Phase 3 Elm shell runtime contract", () => {
         if (type === "click") this.handler = handler;
       },
     };
+    const body = { dataset: {}, classList: { toggle() {} } };
     const { shell, root } = loadShell({
       document: {
-        body: { dataset: {}, classList: { toggle() {} } },
+        body,
         querySelector: (selector) =>
           selector === "[data-elm-shell-actions]" ? shellActions : null,
         querySelectorAll: () => [],
@@ -748,6 +787,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
       /^(Neon|Turbo|Cosmic|Lucky|Zigzag|Pixel|Rocket|Nimble|Thunder|Glitch) (Striker|Ranger|Falcon|Comet|Dribbler|Phantom|Kicker|Ace|Tiger|Wizard)$/,
     );
     expect(root.innerHTML).toContain("Board ROOM123");
+    expect(body.dataset.mobilePage).toBe("play");
   });
 
   it("shows a winner overlay and winner name when a round has ended", () => {
@@ -762,7 +802,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).toContain('id="winnerOverlay"');
     expect(html).toContain('class="winner-overlay"');
     expect(html).not.toContain('class="winner-overlay hidden"');
-    expect(html).toContain("Red");
+    expect(html).toContain("Friend");
     expect(html).toContain("Winner");
   });
 
@@ -988,7 +1028,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     const seatedHtml = shell.renderModel({ ...base, ownSeat: "p1" });
 
     expect(seatedHtml).toContain("data-elm-round-result");
-    expect(seatedHtml).toContain("Blue wins this round");
+    expect(seatedHtml).toContain("Stefan wins this round");
     expect(seatedHtml).toContain("p1 scored!");
     expect(seatedHtml).toContain("Blue 1 — Red 0");
     expect(seatedHtml).toContain('data-elm-command="new-round"');
@@ -1264,7 +1304,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(html).toContain("Score Blue 2 — Red 1");
     expect(html).toContain("Last activity");
     expect(html).toContain("Expires");
-    expect(html).toContain('href="/elm?board=ROOM123"');
+    expect(html).toContain('href="/elm?board=ROOM123&amp;mobilePage=match"');
     expect(html).toContain("Open board");
   });
 
@@ -1296,9 +1336,46 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(root.innerHTML).toContain('id="boardsPanel"');
     expect(root.innerHTML).toContain("data-elm-board-list");
     expect(root.innerHTML).toContain('data-elm-board-card="ROOM123"');
-    expect(root.innerHTML).toContain('href="/elm?board=ROOM123"');
+    expect(root.innerHTML).toContain(
+      'href="/elm?board=ROOM123&amp;mobilePage=match"',
+    );
     expect(root.innerHTML).toContain('id="joinPanel"');
     expect(root.innerHTML).toContain('class="board-card mobile-page active"');
+  });
+
+  it("opens directly on Match mobile tab when URL carries mobilePage=match", () => {
+    const sockets = [];
+    class FakeWebSocket {
+      static OPEN = 1;
+      constructor() {
+        this.readyState = FakeWebSocket.OPEN;
+        sockets.push(this);
+      }
+      send() {}
+      close() {
+        this.closed = true;
+      }
+    }
+
+    const body = { dataset: { mobilePage: "play" } };
+    const { shell } = loadShell({
+      WebSocket: FakeWebSocket,
+      location: {
+        protocol: "https:",
+        host: "example.test",
+        search: "?board=ROOM123&mobilePage=match",
+      },
+      document: {
+        body,
+        querySelector: (selector) =>
+          selector === "#elm-root" ? { innerHTML: "" } : null,
+        querySelectorAll: () => [],
+      },
+    });
+
+    expect(shell.parseMobilePageFromLocation()).toBe("match");
+    expect(body.dataset.mobilePage).toBe("match");
+    expect(sockets.length).toBe(1);
   });
 
   it("keeps Boards panel active on mobile when refreshing board list", async () => {
@@ -1799,7 +1876,13 @@ describe("Phase 3 Elm shell runtime contract", () => {
     }
 
     let createBody;
+    const body = { dataset: { mobilePage: "invite" } };
     const { shell, root } = loadShell({
+      document: {
+        body,
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      },
       WebSocket: FakeWebSocket,
       fetch: async (url, options) => {
         expect(url).toBe("/api/rooms");
@@ -1828,6 +1911,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
         clientId: bridge.clientId,
       },
     ]);
+    expect(body.dataset.mobilePage).toBe("play");
   });
 
   it("renders replay step state and projects board segments for the selected move index", () => {
@@ -2029,7 +2113,9 @@ describe("Phase 3 Elm shell runtime contract", () => {
       /\.elm-board-badge-bottom\s*{[\s\S]*bottom:\s*var\(--elm-board-badge-gate-corridor-y\);[\s\S]*transform:\s*translate\(-50%,\s*50%\);/,
     );
     expect(cssSource).not.toMatch(/\.elm-board-badge-top\s*{[\s\S]*top:\s*4px/);
-    expect(cssSource).not.toMatch(/\.elm-board-badge-bottom\s*{[\s\S]*bottom:\s*4px/);
+    expect(cssSource).not.toMatch(
+      /\.elm-board-badge-bottom\s*{[\s\S]*bottom:\s*4px/,
+    );
     expect(cssSource).toMatch(
       /\.match-action-row\s*\+\s*\.match-details\s*{[\s\S]*margin-top:\s*1rem;/,
     );
@@ -2069,7 +2155,9 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(model.dismissedWinnerKey).toBe("");
     expect(shell.renderModel(model)).toContain('class="winner-overlay"');
-    expect(shell.renderModel(model)).not.toContain('class="winner-overlay hidden"');
+    expect(shell.renderModel(model)).not.toContain(
+      'class="winner-overlay hidden"',
+    );
   });
 
   it("saves replayable history entries and converts them back into read-only replay models", () => {
@@ -2086,18 +2174,27 @@ describe("Phase 3 Elm shell runtime contract", () => {
       },
     };
     const { shell } = loadShell({ localStorage: storage });
-    const model = shell.applyState(shell.initialModel(), fixture("board-between-rounds"));
+    const model = shell.applyState(
+      shell.initialModel(),
+      fixture("board-between-rounds"),
+    );
 
     shell.saveGameToHistory(model);
     const entries = JSON.parse(storage.getItem("traceballGameHistory"));
     expect(entries[0].game).toBeTruthy();
-    expect(entries[0].game.moves.length).toBe(model.board.currentSession.round.moves.length);
+    expect(entries[0].game.moves.length).toBe(
+      model.board.currentSession.round.moves.length,
+    );
 
     const historyModel = shell.historyEntryToModel(entries[0]);
     expect(historyModel.historyReplay).toBe(true);
     expect(historyModel.replayIndex).toBe(0);
-    expect(historyModel.board.currentSession.round.moves.length).toBe(entries[0].game.moves.length);
-    expect(shell.submitMoveFromLegalTarget({ model: historyModel }, "4,6")).toBe(false);
+    expect(historyModel.board.currentSession.round.moves.length).toBe(
+      entries[0].game.moves.length,
+    );
+    expect(
+      shell.submitMoveFromLegalTarget({ model: historyModel }, "4,6"),
+    ).toBe(false);
     expect(shell.submitNewRound({ model: historyModel })).toBe(false);
   });
 
@@ -2112,7 +2209,10 @@ describe("Phase 3 Elm shell runtime contract", () => {
       },
     };
     const { shell } = loadShell({ localStorage: storage });
-    const model = shell.applyState(shell.initialModel(), fixture("board-between-rounds"));
+    const model = shell.applyState(
+      shell.initialModel(),
+      fixture("board-between-rounds"),
+    );
     shell.saveGameToHistory(model);
     const container = { innerHTML: "" };
 

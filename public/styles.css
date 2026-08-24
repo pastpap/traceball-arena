@@ -2276,7 +2276,7 @@ details.match-info-details[open] .match-info-toggle {
 
 /* Player score badges on board */
 .elm-board-badge {
-  --elm-board-badge-gate-corridor-y: calc(56 / 1300 * 100%);
+  --elm-board-badge-gate-corridor-y: calc(36 / 1300 * 100%);
   position: absolute;
   left: 50%;
   display: inline-flex;

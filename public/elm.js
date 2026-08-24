@@ -143,8 +143,30 @@ function persistPlayerName(name) {
 }
 
 function generateRandomPlayerName() {
-  const adjectives = ["Neon", "Turbo", "Cosmic", "Lucky", "Zigzag", "Pixel", "Rocket", "Nimble", "Thunder", "Glitch"];
-  const nouns = ["Striker", "Ranger", "Falcon", "Comet", "Dribbler", "Phantom", "Kicker", "Ace", "Tiger", "Wizard"];
+  const adjectives = [
+    "Neon",
+    "Turbo",
+    "Cosmic",
+    "Lucky",
+    "Zigzag",
+    "Pixel",
+    "Rocket",
+    "Nimble",
+    "Thunder",
+    "Glitch",
+  ];
+  const nouns = [
+    "Striker",
+    "Ranger",
+    "Falcon",
+    "Comet",
+    "Dribbler",
+    "Phantom",
+    "Kicker",
+    "Ace",
+    "Tiger",
+    "Wizard",
+  ];
   const pick = (items) => items[Math.floor(Math.random() * items.length)];
   return `${pick(adjectives)} ${pick(nouns)}`;
 }
@@ -197,10 +219,16 @@ function localRoundRemainingMs(round, seconds, now = Date.now()) {
   if (timerSeconds <= 0) return 0;
   const limitMs = timerSeconds * 1000;
   if (Number.isFinite(Number(round?.deadlineAt))) {
-    return Math.max(0, Math.min(limitMs, Number(round.deadlineAt) - Number(now)));
+    return Math.max(
+      0,
+      Math.min(limitMs, Number(round.deadlineAt) - Number(now)),
+    );
   }
   if (Number.isFinite(Number(round?.turnStartedAt))) {
-    return Math.max(0, Math.min(limitMs, limitMs - (Number(now) - Number(round.turnStartedAt))));
+    return Math.max(
+      0,
+      Math.min(limitMs, limitMs - (Number(now) - Number(round.turnStartedAt))),
+    );
   }
   return limitMs;
 }
@@ -425,7 +453,8 @@ function isValidLocalRuntimeModel(model) {
     board.currentSession?.moveTimeLimitSeconds,
     15,
   );
-  const isPaused = model.localPaused === true || board.currentSession?.state === "Paused";
+  const isPaused =
+    model.localPaused === true || board.currentSession?.state === "Paused";
   if (timerSeconds > 0 && round.deadlineAt == null && !isPaused) {
     Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
   }
@@ -483,7 +512,10 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
   if (!isValidLocalRuntimeModel(model) || model.localPaused) return model;
   const session = model.board.currentSession;
   const round = session.round;
-  const timerSeconds = normalizeMoveTimerSeconds(session.moveTimeLimitSeconds, 15);
+  const timerSeconds = normalizeMoveTimerSeconds(
+    session.moveTimeLimitSeconds,
+    15,
+  );
   if (timerSeconds <= 0) return model;
   const remainingMs = localRoundRemainingMs(round, timerSeconds, now);
   if (remainingMs > 0) return model;
@@ -527,7 +559,9 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
             pausedAt: now,
             resumeTurn: timedOutPlayer,
             remainingMs: 0,
-            origin: repeatedPlayerTimeout ? "repeated-player-timeouts" : "consecutive-timeouts",
+            origin: repeatedPlayerTimeout
+              ? "repeated-player-timeouts"
+              : "consecutive-timeouts",
           },
           round: {
             ...timedRound,
@@ -580,11 +614,15 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
     error: `${timedOutPlayer === "p1" ? "Blue" : "Red"} timed out — ${nextTurn === "p1" ? "Blue" : "Red"}'s turn.`,
     board: {
       ...model.board,
-      state: nextRound.state === "BetweenRounds" ? "BetweenRounds" : "SessionActive",
+      state:
+        nextRound.state === "BetweenRounds" ? "BetweenRounds" : "SessionActive",
       updatedAt: now,
       currentSession: {
         ...session,
-        state: nextRound.state === "BetweenRounds" ? "BetweenRounds" : "SessionActive",
+        state:
+          nextRound.state === "BetweenRounds"
+            ? "BetweenRounds"
+            : "SessionActive",
         score,
         pause: null,
         round: nextRound,
@@ -799,14 +837,26 @@ function resumeLocalRuntimeModel(model, now = Date.now()) {
   );
   const limitMs = timerSeconds * 1000;
   const pause = model.board.currentSession.pause || null;
-  const resetsIdleTimeoutClock = pause?.reason === "idle" && ["consecutive-timeouts", "repeated-player-timeouts"].includes(pause?.origin);
+  const resetsIdleTimeoutClock =
+    pause?.reason === "idle" &&
+    ["consecutive-timeouts", "repeated-player-timeouts"].includes(
+      pause?.origin,
+    );
   const rawRemainingMs = Number(pause?.remainingMs);
-  const remainingMs = timerSeconds > 0
-    ? resetsIdleTimeoutClock
-      ? limitMs
-      : Math.max(0, Math.min(limitMs, Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs))
-    : 0;
-  const turnStartedAt = timerSeconds > 0 ? Number(now) - (limitMs - remainingMs) : null;
+  const remainingMs =
+    timerSeconds > 0
+      ? resetsIdleTimeoutClock
+        ? limitMs
+        : Math.max(
+            0,
+            Math.min(
+              limitMs,
+              Number.isFinite(rawRemainingMs) ? rawRemainingMs : limitMs,
+            ),
+          )
+      : 0;
+  const turnStartedAt =
+    timerSeconds > 0 ? Number(now) - (limitMs - remainingMs) : null;
   const deadlineAt = timerSeconds > 0 ? Number(now) + remainingMs : null;
   const round = {
     ...model.board.currentSession.round,
@@ -859,12 +909,25 @@ function parseBoardCodeFromLocation() {
   );
 }
 
+function parseMobilePageFromLocation() {
+  const loc = window.location || location;
+  const params = new URLSearchParams(loc.search || "");
+  const page = String(params.get("mobilePage") || "").trim();
+  return ["invite", "boards", "play", "match"].includes(page) ? page : "";
+}
+
 function sanitizeBoardCode(value) {
   const code = String(value || "").trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(code) ? code : "";
 }
 
-function handleUnavailableBoard(root, bridge, onModelChange, errorText, boardCode = "") {
+function handleUnavailableBoard(
+  root,
+  bridge,
+  onModelChange,
+  errorText,
+  boardCode = "",
+) {
   bridge.model = {
     ...bridge.model,
     board: null,
@@ -1014,13 +1077,25 @@ function createSocketBridge({ boardCode, root, onModelChange } = {}) {
     }
     if (message.type === "BoardNotFound") {
       const errorText = message.message || "Board not found or expired.";
-      handleUnavailableBoard(root, bridge, onModelChange, errorText, message.boardCode || bridge.boardCode);
+      handleUnavailableBoard(
+        root,
+        bridge,
+        onModelChange,
+        errorText,
+        message.boardCode || bridge.boardCode,
+      );
       return;
     }
     if (message.type === "error") {
       const errorText = message.error || "Server error.";
       if (/not found|expired/i.test(errorText)) {
-        handleUnavailableBoard(root, bridge, onModelChange, errorText, bridge.boardCode);
+        handleUnavailableBoard(
+          root,
+          bridge,
+          onModelChange,
+          errorText,
+          bridge.boardCode,
+        );
       } else {
         // Transient gameplay error (e.g. timer): show as toast, keep board visible
         setToast(errorText);
@@ -1097,6 +1172,29 @@ function boardUrl(code = "") {
   return `/?board=${encodeURIComponent(code)}`;
 }
 
+function withMobilePage(url, page = "match") {
+  const text = String(url || "");
+  const pageParam = `mobilePage=${encodeURIComponent(page)}`;
+  if (!text) return text;
+  if (/([?&])mobilePage=/.test(text)) {
+    return text.replace(/([?&])mobilePage=[^&#]*/g, `$1${pageParam}`);
+  }
+  try {
+    const loc = window.location || location;
+    const origin = loc.origin || `${loc.protocol}//${loc.host}`;
+    const parsed = new URL(text, origin);
+    parsed.searchParams.set("mobilePage", page);
+    if (parsed.origin === origin) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    return parsed.toString();
+  } catch {
+    const [baseAndQuery, hash = ""] = text.split("#");
+    const separator = baseAndQuery.includes("?") ? "&" : "?";
+    return `${baseAndQuery}${separator}${pageParam}${hash ? `#${hash}` : ""}`;
+  }
+}
+
 function absoluteRoomInviteUrl(code = "") {
   const loc = window.location || location;
   const origin = loc.origin || `${loc.protocol}//${loc.host}`;
@@ -1167,6 +1265,7 @@ async function createBoardAsBlue({
       bridge.claimSeat("p1", name);
     };
   }
+  activateMobilePage("play");
   return bridge;
 }
 
@@ -1543,8 +1642,8 @@ function isSeated(model) {
 function isPausedSession(model) {
   return Boolean(
     model?.localPaused ||
-      model?.board?.state === "SessionPaused" ||
-      model?.board?.currentSession?.state === "Paused",
+    model?.board?.state === "SessionPaused" ||
+    model?.board?.currentSession?.state === "Paused",
   );
 }
 
@@ -1557,11 +1656,7 @@ function canStartNewRound(model) {
 }
 
 function submitNewRound(bridge) {
-  if (
-    !bridge ||
-    !canStartNewRound(bridge.model)
-  )
-    return false;
+  if (!bridge || !canStartNewRound(bridge.model)) return false;
   if (bridge.model?.localRuntime) {
     bridge.model = restartLocalRuntimeRound(bridge.model);
     saveLocalRuntimeModel(bridge.model);
@@ -1672,12 +1767,15 @@ function elmTurnId(model) {
 function elmTurnColor(id) {
   return id === "red" ? "#ff3b30" : "#0b7cff";
 }
+function elmGateCenterY(id) {
+  return id === "red" ? 0.5 : 11.5;
+}
 function elmTurnSpot(id) {
-  const gy = id === "red" ? 0 : 12;
+  const gy = elmGateCenterY(id);
   return { x: Math.min(900 - 28, elmScreenX(5) + 38), y: elmScreenY(gy) };
 }
 function elmClockSpot(id) {
-  const gy = id === "red" ? 0 : 12;
+  const gy = elmGateCenterY(id);
   return { x: Math.max(26, elmScreenX(3) - 54), y: elmScreenY(gy) };
 }
 function elmDrawSevenSeg(ctx2d, char, x, y, w, h, color) {
@@ -2128,6 +2226,12 @@ function winnerLabel(winner) {
   return "Round";
 }
 
+function winnerPlayerName(board, winner) {
+  const seat = normalizeSeatId(winner);
+  if (seat === "red" || seat === "blue") return playerDisplayName(board, seat);
+  return winnerLabel(winner);
+}
+
 function winnerOverlayKey(model) {
   const board = model?.board;
   const session = board?.currentSession;
@@ -2149,7 +2253,7 @@ function renderRoundResult(model) {
   const session = board?.currentSession;
   const round = session?.round;
   if (!isBetweenRounds(model) || !round) return "";
-  const winner = winnerLabel(round.winner);
+  const winner = winnerPlayerName(board, round.winner);
   const blueScore = Number(session?.score?.blue || 0);
   const redScore = Number(session?.score?.red || 0);
   const endReason = round.endReason || "Round complete.";
@@ -2262,6 +2366,7 @@ function renderBoardList(rooms = []) {
     .map((room) => {
       const code = room?.roomId || room?.code || "";
       const elmUrl = room?.elmUrl || boardUrl(code);
+      const openBoardUrl = withMobilePage(elmUrl, "match");
       const moves = Number(room?.moveCount || 0);
       const watchers = Number(
         room?.watcherCount ?? room?.watchers?.length ?? 0,
@@ -2276,7 +2381,7 @@ function renderBoardList(rooms = []) {
         <p>Score ${escapeHtml(roomSummaryScore(room))}</p>
         <p>${moves} traced moves · ${watchers} watching · ${waiting} waiting</p>
         <p class="elm-shell-note">Last activity ${escapeHtml(formatTimestamp(room?.lastActivityAt))} · Expires ${escapeHtml(formatTimestamp(room?.expiresAt))}</p>
-        <a class="elm-primary-link" href="${escapeHtml(elmUrl)}">Open board</a>
+        <a class="elm-primary-link" href="${escapeHtml(openBoardUrl)}">Open board</a>
       </article>`;
     })
     .join("");
@@ -2383,13 +2488,18 @@ function canResumePausedOnlineSession(model) {
 }
 
 function renderPlayBoardActions(model) {
-  const onlinePaused = !model?.localRuntime && (
-    model?.board?.state === "SessionPaused" || model?.board?.currentSession?.state === "Paused"
-  );
+  const onlinePaused =
+    !model?.localRuntime &&
+    (model?.board?.state === "SessionPaused" ||
+      model?.board?.currentSession?.state === "Paused");
   const canResumeOnline = onlinePaused && canResumePausedOnlineSession(model);
-  const showPauseControl = model?.localRuntime || canResumeOnline || (!onlinePaused && Boolean(model?.ownSeat));
+  const showPauseControl =
+    model?.localRuntime ||
+    canResumeOnline ||
+    (!onlinePaused && Boolean(model?.ownSeat));
   const pauseLabel = model?.localPaused || canResumeOnline ? "Resume" : "Pause";
-  const pauseCommand = model?.localPaused || canResumeOnline ? "resume" : "pause";
+  const pauseCommand =
+    model?.localPaused || canResumeOnline ? "resume" : "pause";
   const pauseButton = showPauseControl
     ? `<button id="playPauseGame" class="play-pause-button ghost" title="${escapeHtml(pauseLabel)} game" type="button" data-elm-command="${pauseCommand}">⏸ ${escapeHtml(pauseLabel)}</button>`
     : "";
@@ -2428,14 +2538,30 @@ function onlineTimerMeta(board) {
   const remainingSeconds = Number.isFinite(pausedRemainingMs)
     ? Math.max(0, Math.ceil(pausedRemainingMs / 1000))
     : null;
-  if ((!seconds || seconds <= 0) && deadlineAt == null && remainingSeconds == null) return null;
-  return { seconds: seconds && seconds > 0 ? seconds : null, deadlineAt, remainingSeconds };
+  if (
+    (!seconds || seconds <= 0) &&
+    deadlineAt == null &&
+    remainingSeconds == null
+  )
+    return null;
+  return {
+    seconds: seconds && seconds > 0 ? seconds : null,
+    deadlineAt,
+    remainingSeconds,
+  };
 }
 
 function timerRemainingSeconds(timer, now = Date.now()) {
-  if (timer?.remainingSeconds != null && Number.isFinite(Number(timer.remainingSeconds))) return Math.max(0, Number(timer.remainingSeconds));
+  if (
+    timer?.remainingSeconds != null &&
+    Number.isFinite(Number(timer.remainingSeconds))
+  )
+    return Math.max(0, Number(timer.remainingSeconds));
   if (!timer || timer.deadlineAt == null) return null;
-  return Math.max(0, Math.ceil((Number(timer.deadlineAt) - Number(now)) / 1000));
+  return Math.max(
+    0,
+    Math.ceil((Number(timer.deadlineAt) - Number(now)) / 1000),
+  );
 }
 
 function onlineTimerText(board) {
@@ -2575,7 +2701,9 @@ function renderModel(model) {
     : 'disabled aria-disabled="true"';
   const roundWinner = board?.currentSession?.round?.winner || null;
   const winnerKey = winnerOverlayKey(model);
-  const winnerName = roundWinner ? winnerLabel(roundWinner) : "Player";
+  const winnerName = roundWinner
+    ? winnerPlayerName(board, roundWinner)
+    : "Player";
   const winnerOverlayClass =
     roundWinner && model?.dismissedWinnerKey !== winnerKey
       ? "winner-overlay"
@@ -2592,7 +2720,9 @@ function renderModel(model) {
   const pauseTurn = model.localRuntime
     ? `Turn: ${escapeHtml(colorLabel(board?.currentSession?.round?.turn || ""))}`
     : "Turn resumes here.";
-  const canResumePausedSession = model.localRuntime ? Boolean(model.localPaused) : canResumePausedOnlineSession(model);
+  const canResumePausedSession = model.localRuntime
+    ? Boolean(model.localPaused)
+    : canResumePausedOnlineSession(model);
   const resumePauseButton = canResumePausedSession
     ? '<button id="resumeGame" class="primary" type="button" data-elm-command="resume">Resume game</button>'
     : "";
@@ -2841,11 +2971,18 @@ function legacyGameSnapshotFromModel(model) {
     roomId: board.code || (model?.localRuntime ? "local" : "online"),
     status: "finished",
     players: {
-      p1: { id: "p1", name: playerDisplayName(board, "blue"), color: "#0b7cff" },
+      p1: {
+        id: "p1",
+        name: playerDisplayName(board, "blue"),
+        color: "#0b7cff",
+      },
       p2: { id: "p2", name: playerDisplayName(board, "red"), color: "#ff3b30" },
     },
     turn: seatColorToId(round.turn) || round.turn || "p1",
-    ball: cloneJson(round.ball || moves.at(-1)?.to || { x: 4, y: 6 }, { x: 4, y: 6 }),
+    ball: cloneJson(round.ball || moves.at(-1)?.to || { x: 4, y: 6 }, {
+      x: 4,
+      y: 6,
+    }),
     visited: Array.isArray(round.visited) ? [...round.visited] : ["4,6"],
     segments,
     moves,
@@ -2879,20 +3016,29 @@ function boardFromHistoryEntry(entry) {
   const players = game.players || entry.players || {};
   const p1 = historyPlayerName(players, "p1", "Blue");
   const p2 = historyPlayerName(players, "p2", "Red");
-  const winner = historyWinnerSeat(game.winner || entry.winner) === "p2" ? "p2" : "p1";
+  const winner =
+    historyWinnerSeat(game.winner || entry.winner) === "p2" ? "p2" : "p1";
   const moves = cloneJson(game.moves, []);
   const segments = Array.isArray(game.segments)
     ? [...game.segments]
     : moves.map((move) => move?.segment).filter(Boolean);
   const score = game.score || entry.score || {};
-  const moveTimeLimitSeconds = Math.round(Number(game.moveTimeLimitMs || entry.moveTimeLimitMs || 0) / 1000);
+  const moveTimeLimitSeconds = Math.round(
+    Number(game.moveTimeLimitMs || entry.moveTimeLimitMs || 0) / 1000,
+  );
   return {
     code: entry.roomId || game.roomId || "HISTORY",
     state: "BetweenRounds",
     version: Number(entry.playedAt || entry.savedAt || 1),
     seats: {
-      blue: { state: "Occupied", player: { id: "history-blue", displayName: p1 } },
-      red: { state: "Occupied", player: { id: "history-red", displayName: p2 } },
+      blue: {
+        state: "Occupied",
+        player: { id: "history-blue", displayName: p1 },
+      },
+      red: {
+        state: "Occupied",
+        player: { id: "history-red", displayName: p2 },
+      },
     },
     watchers: [],
     waitingList: [],
@@ -2909,7 +3055,10 @@ function boardFromHistoryEntry(entry) {
       round: {
         state: "BetweenRounds",
         turn: game.turn || "p1",
-        ball: cloneJson(game.ball || moves.at(-1)?.to || { x: 4, y: 6 }, { x: 4, y: 6 }),
+        ball: cloneJson(game.ball || moves.at(-1)?.to || { x: 4, y: 6 }, {
+          x: 4,
+          y: 6,
+        }),
         visited: Array.isArray(game.visited) ? [...game.visited] : ["4,6"],
         moves,
         segments,
@@ -2931,7 +3080,8 @@ function historyEntryToModel(entry) {
     version: Number(board.version || Date.now()),
     replayIndex: 0,
     historyReplay: true,
-    historyEntryId: entry?.id || entry?.signature || String(entry?.playedAt || "history"),
+    historyEntryId:
+      entry?.id || entry?.signature || String(entry?.playedAt || "history"),
     connectionStatus: "history",
     ownSeat: null,
     dismissedWinnerKey: "",
@@ -3027,7 +3177,7 @@ function renderMenuHistory(container) {
       const date = entry.playedAt
         ? new Date(entry.playedAt).toLocaleDateString()
         : "";
-      const replayDisabled = entry.game ? "" : " disabled aria-disabled=\"true\"";
+      const replayDisabled = entry.game ? "" : ' disabled aria-disabled="true"';
       return `<article class="history-item"><div class="history-item-title"><span>${escapeHtml(winnerName)} won</span><span>${escapeHtml(score)}</span></div><div class="history-meta">${escapeHtml(entry.mode || "online")} \u00b7 ${escapeHtml(p1)} vs ${escapeHtml(p2)} \u00b7 ${entry.moveCount || 0} moves${date ? ` \u00b7 ${escapeHtml(date)}` : ""}</div><button type="button" data-history-index="${index}"${replayDisabled}>Replay</button></article>`;
     })
     .join("");
@@ -3340,7 +3490,8 @@ function wirePhase9ShellActions(root, bridge) {
       const btn = event.target?.closest?.(".hero-lobby-btn");
       if (btn) btn.textContent = open ? "Lobby" : "Game";
       if (open) setGameUpdateBadge(false); // switching to game view
-      if (!open) loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
+      if (!open)
+        loadBoardList(root).then?.(() => rewireBridgeView(root, bridge));
       return;
     }
     const name = playerNameFromRoot(root);
@@ -3349,6 +3500,9 @@ function wirePhase9ShellActions(root, bridge) {
       changed = bridge.claimSeat?.("p1", name) || false;
     if (command === "claim-red")
       changed = bridge.claimSeat?.("p2", name) || false;
+    if (changed && (command === "claim-blue" || command === "claim-red")) {
+      activateMobilePage("play");
+    }
     if (command === "join-waiting-list")
       changed = bridge.joinWaitingList?.(name) || false;
     if (command === "leave-waiting-list")
@@ -3585,6 +3739,7 @@ async function mount() {
   const root = document.querySelector("#elm-root");
   if (!root) return;
   const boardCode = parseBoardCodeFromLocation();
+  const mobilePage = parseMobilePageFromLocation();
   if (boardCode && (window.WebSocket || typeof WebSocket !== "undefined")) {
     createSocketBridge({
       boardCode,
@@ -3593,6 +3748,7 @@ async function mount() {
         rewireBridgeView(root, bridge);
       },
     });
+    if (mobilePage) activateMobilePage(mobilePage);
     return;
   }
   let model = { ...initialModel(), clientId: getOrCreateClientId() };
@@ -3609,6 +3765,7 @@ window.TraceballElmShell = {
   getOrCreateClientId,
   websocketUrl,
   parseBoardCodeFromLocation,
+  parseMobilePageFromLocation,
   createSocketBridge,
   createBoardAsBlue,
   createLocalBridge,
