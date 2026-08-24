@@ -229,7 +229,7 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'resume') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can resume.' });
-      const result = resumeGame(game);
+      const result = resumeGame(game, Date.now(), socketState.playerId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       broadcast(socketState.roomId);
       return;

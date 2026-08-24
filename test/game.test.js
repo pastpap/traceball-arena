@@ -152,7 +152,7 @@ describe('traceball rules', () => {
     expect(game.consecutiveTimeouts).toBe(0);
   });
 
-  it('resumes a two-player idle pause with a fresh clock for the second timed-out player', () => {
+  it('resumes a two-player idle pause with a fresh clock for the second timed-out player only', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;
     game.turnStartedAt = 1000;
@@ -161,7 +161,10 @@ describe('traceball rules', () => {
     expect(applyTurnTimeout(game, 11000)).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
     expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p2', resumeTurn: 'p2', remainingMs: 0 });
 
-    expect(resumeGame(game, 12000).ok).toBe(true);
+    expect(resumeGame(game, 12000, 'p1')).toMatchObject({ ok: false, error: expect.stringMatching(/paused the game|timed out/i) });
+    expect(game.status).toBe('paused');
+
+    expect(resumeGame(game, 12000, 'p2').ok).toBe(true);
 
     expect(game.status).toBe('playing');
     expect(game.turn).toBe('p2');

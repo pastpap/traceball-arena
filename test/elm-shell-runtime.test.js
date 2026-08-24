@@ -395,12 +395,36 @@ describe("Phase 3 Elm shell runtime contract", () => {
     message.board.state = "SessionPaused";
     message.board.currentSession.state = "Paused";
     message.board.currentSession.moveTimeLimitSeconds = 10;
-    message.board.currentSession.pause = { reason: "manual", resumeTurn: "p1", remainingMs: 7000 };
+    message.board.currentSession.pause = { reason: "manual", byPlayerId: "p1", resumeTurn: "p1", remainingMs: 7000 };
     delete message.board.currentSession.round.deadlineAt;
 
     const model = shell.applyState(shell.initialModel(), message);
 
     expect(shell.renderModel(model)).toContain('7s left');
+  });
+
+  it("only shows the paused online resume control to the player who caused the pause", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.state = "SessionPaused";
+    message.board.currentSession.state = "Paused";
+    message.board.currentSession.pause = {
+      reason: "idle",
+      byPlayerId: "p2",
+      resumeTurn: "p2",
+      remainingMs: 0,
+      origin: "consecutive-timeouts",
+    };
+
+    const paused = shell.applyState(shell.initialModel(), message);
+    const redHtml = shell.renderModel({ ...paused, ownSeat: "p2" });
+    const blueHtml = shell.renderModel({ ...paused, ownSeat: "p1" });
+    const watcherHtml = shell.renderModel({ ...paused, ownSeat: null });
+
+    expect(redHtml).toContain('id="resumeGame"');
+    expect(redHtml).toContain('data-elm-command="resume"');
+    expect(blueHtml).not.toContain('id="resumeGame"');
+    expect(watcherHtml).not.toContain('id="resumeGame"');
   });
 
   it("renders the current created/joined board in Boards tab and restores share link plus QR", () => {

@@ -523,11 +523,14 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
   return { ok: true };
 }
 
-export function resumeGame(game, now = Date.now()) {
+export function resumeGame(game, now = Date.now(), byPlayerId = null) {
   normalizeSeats(game);
   if (game.status !== 'paused') return { ok: false, error: 'Game is not paused.' };
   if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before resuming.' };
   const pause = game.pause || null;
+  if (byPlayerId && pause?.byPlayerId && byPlayerId !== pause.byPlayerId) {
+    return { ok: false, error: 'Only the player who paused or timed out can resume this game.' };
+  }
   const resetsIdleTimeoutClock = pause?.reason === 'idle' && pause?.origin === 'consecutive-timeouts';
   game.status = 'playing';
   game.turn = pause?.resumeTurn || game.turn;
