@@ -366,6 +366,64 @@ Exit criteria:
 - Staging phone playtest passes.
 - Production deployment plan is explicit and reversible.
 
+## Phase 11: TypeScript shell migration
+
+**Goal:** Replace the single hand-authored `public/elm.js` with typed TypeScript source modules compiled to the same output file, without changing any observable behavior.
+
+**Prerequisite:** Phase 10 production cutover accepted and stable.
+
+### Why now, not earlier
+
+The shell grew to 165+ functions across ~3600 lines during the Elm rewrite phases. The flat-function style was intentional during rapid iteration — it mirrors Elm's functional model and required no build toolchain. Post-cutover the file is stable enough to modularize safely.
+
+### What TypeScript buys here
+
+- Typed `Model`, `Board`, `Round`, `Session`, `Seat` interfaces catch deep optional-chain bugs that currently surface only at runtime.
+- Module boundaries make agent-assisted work easier: a change to canvas animation no longer requires context about board list rendering.
+- `tsc --noEmit` in CI catches regressions the current static check script misses.
+
+### Proposed source layout
+
+```
+src/elm-shell/
+  types.ts          # Model, Board, Round, Seat, BridgeState interfaces
+  model.ts          # initialModel, applyState, decodeStateMessage
+  storage.ts        # clientId, playerName, timer persistence
+  local-runtime.ts  # createLocal*, applyLocalRuntimeMove, pause/resume
+  bridge.ts         # createSocketBridge, createLocalBridge, createBoardAsBlue
+  render.ts         # renderModel, renderReadOnlyBoard, renderBoardList, all render*
+  canvas.ts         # ELM_ANIM, tickElmCanvas, wireElmBoardCanvas, confetti
+  history.ts        # saveGameToHistory, loadHistoryReplay, renderMenuHistory
+  wire.ts           # all wire*, rewireBridgeView, scheduleLocalRuntimeTimeout
+  ui.ts             # activateMobilePage, setToast, setGameUpdateBadge
+  main.ts           # mount(), service worker registration
+```
+
+### Build step
+
+Add `esbuild` as a dev dependency (zero config for this case):
+
+```json
+"build:shell": "esbuild src/elm-shell/main.ts --bundle --outfile=public/elm.js --target=es2020 --format=iife"
+```
+
+Update the `build` script to run `build:shell` before `check-static.js`.
+
+### Migration strategy
+
+1. Add `tsconfig.json` for `src/elm-shell/` with `strict: true`, `noEmit: true` for type-checking.
+2. Add `esbuild` as a dev dependency and wire `build:shell` script.
+3. Move functions into typed modules one group at a time; `public/elm.js` remains the compiled output — no behavior change per step.
+4. Run `tsc --noEmit` and `npm test` after each group.
+5. Remove the hand-authored `public/elm.js` once compiled output is confirmed identical in behavior.
+
+### Exit criteria
+
+- `npm run build` compiles TypeScript and passes static checks.
+- `npm test` and `npm run test:e2e` remain green with no test changes needed.
+- `public/elm.js` is generated, not hand-edited.
+- No observable change in shell behavior or PWA cache behavior.
+
 ## Future backend experiment: Elixir/BEAM
 
 Do not combine with Elm migration until the frontend/backend protocol is stable.
