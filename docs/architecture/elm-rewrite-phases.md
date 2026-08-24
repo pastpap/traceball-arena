@@ -223,15 +223,14 @@ Exit criteria:
 
 **Goal:** Make the Elm route look and feel like the current JavaScript frontend before it can become the default production UI, while also preserving the clearer board-centric lifecycle semantics from Phases 3-8.
 
-Current user-observed gaps from the Phase 9 staging playtest:
+Current status after the late Phase 9 staging pass:
 
-- Home only exposes online board opening/creation; it must also expose local same-screen game creation.
-- The player name is split/inconsistent: the seated player can be `Stefan` while the visible Elm input still says `Elm Player`.
-- Boards tab is static copy; it must show active online boards.
-- Play tab is overloaded with board-action cards, round-result cards, seat cards, and session text that distract from gameplay.
-- Online gameplay lost legacy board behavior: turn indicator animation is missing, online player orientation is not flipped so the seated player always attacks upward, and move timers are missing.
-- Match tab lacks board/match metadata that was previously available elsewhere.
-- Board itself needs more embedded player/status/timer information so the page does not need large cards above the board.
+- Home supports online board opening/creation and local same-screen setup with one persisted player identity.
+- Boards tab loads live `/api/rooms` data and refreshes from desktop/mobile board views.
+- Play is intentionally board-centric: board, replay, leave/forfeit, and compact pause/winner overlays only.
+- Board visuals, player badges, gate/bounce markers, winner overlay/confetti, pause blur, turn feedback, legal-move affordances, and timers have been ported/polished beyond the first Elm shell.
+- Match owns lifecycle and metadata. Detailed board/session information is intentionally hidden under the ℹ info control to keep the panel uncluttered.
+- Phone and desktop staging playtesting are the primary quality gates; old iPad/iOS 15 compatibility is a best-effort final smoke item rather than a blocker for every change.
 
 Deliverables:
 
@@ -335,7 +334,7 @@ Exit criteria:
 - Match tab contains board/session/watcher/waiting-list/score controls and details.
 - Online seated players always attack upward; local games keep fixed shared-board orientation.
 - Turn animation and timers match the JavaScript behavior closely enough for user playtesting.
-- iPad/iOS 15 smoke passes for home, local setup, board list, join/watch/rejoin, orientation, turn animation, timer, move input, between-round, replay, and leave/forfeit flows.
+- Final staging phone/desktop smoke passes for home, local setup, board list, join/watch/rejoin, orientation, turn animation, timer, move input, between-round, replay, and leave/forfeit flows; old iPad/iOS 15 is best-effort/non-blocking unless a regression reproduces on current target devices.
 - The PR body explicitly lists any remaining non-parity gaps; if there are non-trivial gaps, Phase 10 cannot proceed.
 
 Recent implementation update (2026-08-18 to 2026-08-19):
@@ -356,10 +355,10 @@ Recent implementation update (2026-08-18 to 2026-08-19):
 
 Deliverables:
 
-- Elm route becomes default app route only after Phase 9 visual parity is complete. ⚠️ Current `elm-rewrite` staging serves the functional Elm shell by default for testing, but this is not production-ready UI parity.
-- Old JS frontend removed or kept behind a temporary fallback flag. ⚠️ Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
-- PWA service worker cache version bumped after parity cutover. ⚠️ Current staging cache is `traceball-arena-v34` for shell testing, not final production parity.
-- README updated with Elm development commands and explicit visual-parity status.
+- Elm route becomes default app route only after the final polish/smoke pass is accepted. `elm-rewrite` staging currently serves the Elm shell by default for testing.
+- Old JS frontend removed or kept behind a temporary fallback flag. Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
+- PWA service worker cache version bumped after parity/cutover changes. Current staging cache is tracked in `public/sw.js`.
+- README updated with Elm development commands and current parity/cutover status.
 
 Exit criteria:
 

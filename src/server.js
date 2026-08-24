@@ -186,7 +186,12 @@ wss.on('connection', (ws) => {
       const timeout = applyTurnTimeout(game);
       if (timeout.ok) {
         broadcast(socketState.roomId);
-        return send(ws, 'error', { error: timeout.paused ? 'Both players timed out — game paused.' : 'Time expired — turn passed.' });
+        const timeoutMessage = timeout.paused
+          ? timeout.origin === 'repeated-player-timeouts'
+            ? 'Same player timed out too often — game paused.'
+            : 'Both players timed out — game paused.'
+          : 'Time expired — turn passed.';
+        return send(ws, 'error', { error: timeoutMessage });
       }
       const result = makeMove(game, socketState.playerId, msg.to);
       if (!result.ok) return send(ws, 'error', { error: result.error });

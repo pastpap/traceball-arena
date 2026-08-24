@@ -626,7 +626,7 @@ describe("Phase 3 Elm shell runtime contract", () => {
     expect(boardsSection).toContain("Open board");
   });
 
-  it("renders viewer role and connection info in match sidebar details (HUD removed from play area)", () => {
+  it("renders viewer role and connection info behind the Match info toggle (HUD removed from play area)", () => {
     const { shell } = loadShell();
     const model = {
       ...shell.applyState(
@@ -647,6 +647,9 @@ describe("Phase 3 Elm shell runtime contract", () => {
 
     expect(playSection).not.toContain("data-elm-board-hud");
     expect(matchSection).toContain("data-elm-match-details");
+    expect(matchSection).toContain('class="match-info-details"');
+    expect(matchSection).toContain('aria-label="Board info"');
+    expect(matchSection).toContain("ℹ");
     expect(matchSection).toContain("Blue player");
     expect(matchSection).toContain("Connection:");
   });

@@ -67,7 +67,7 @@ The project grew through small playable slices:
 4. **Robust room lifecycle** — watcher sockets for invite pages, stable client IDs, reconnect/rejoin handling for mobile/PWA lifecycle events, and guarded mutating actions.
 5. **Local same-screen mode** — client-side local PvP with the same state shape as online rooms, cumulative score preservation, static face-to-face board, and no WebSocket slot consumption.
 6. **Game polish** — gate labels, score strip, winner modal, gate confetti, player-colored move hints, slower result animation, and a jumping turn marker.
-7. **Phase 9 shell parity (ongoing)** — desktop lobby/game toggle, desktop lobby tabs (Game/Boards), board-focused Play surface, player name badges on board, and non-disruptive move notifications (badges + toasts, no auto-navigation).
+7. **Phase 9 shell parity** — desktop lobby/game toggle, desktop lobby tabs (Game/Boards), board-focused Play surface, player name badges on board, richer board visuals/overlays, decluttered Match info under an ℹ control, and non-disruptive move notifications (badges + toasts, no auto-navigation).
 
 The implementation intentionally stays no-DB for now: rooms, scores, and replays are in memory and disappear when the Railway service restarts.
 
@@ -77,9 +77,9 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current default frontend:
 
-- `/` currently renders the functional Phase 8/10-testing Elm shell on `elm-rewrite` staging so lifecycle flows can be tested end-to-end, but it is **not production-ready visual parity** yet.
-- Phase 9 is now explicit: the Elm UI must match the JavaScript UI layout, graphics, board artifacts, overlays, replay, and mobile behavior before the default-route cutover is considered complete.
-- Recent Phase 9 progress includes desktop-first de-cluttering (lobby/game toggle, two-tab lobby), top-bar simplification, board-embedded player labels, and live update notifications that preserve current view context.
+- `/` currently renders the board-centric Elm shell on `elm-rewrite` staging for end-to-end testing. Core lifecycle, room, timer, pause, replay, and mobile/desktop flows are now considered functionally covered; remaining cutover work is a final polish/smoke pass, not a broad Phase 9 rebuild.
+- Phase 9 parity includes intentionally improved structure: Play stays board/replay-focused, and detailed board/match metadata is decluttered behind the Match tab ℹ info control instead of large always-visible cards.
+- Recent Phase 9 progress includes desktop-first de-cluttering (lobby/game toggle, two-tab lobby), top-bar simplification, board-embedded player labels and visuals, winner/pause overlays, and live update notifications that preserve current view context.
 - `/room/:roomId` redirects to `/?board=<roomId>` so older invite links continue into the primary board-centric frontend.
 - `/elm` remains as a direct compatibility alias for the Elm shell.
 - `/legacy` and `/legacy/room/:roomId` keep the old JavaScript frontend available as a temporary fallback; setting `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
