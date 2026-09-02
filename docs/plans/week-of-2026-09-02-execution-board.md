@@ -40,20 +40,54 @@ Exit for Day 1:
 - Green full test suite.
 - Updated list of remaining parity defects with severity.
 
+### Day 1 parity defect register (updated 2026-09-02)
+
+Legend:
+
+- Severity high: blocks trial readiness or core gameplay trust.
+- Severity medium: does not block gameplay authority, but affects parity/readability/operability.
+- Severity low: polish or observability gaps.
+
+Current list:
+
+| ID    | Severity | Area                     | Defect to track                                                                                 | Owner        | Status                |
+| ----- | -------- | ------------------------ | ----------------------------------------------------------------------------------------------- | ------------ | --------------------- |
+| PD-01 | High     | Core gameplay timer/win  | Post-win timeout progression mutated board state after winner.                                  | Elm Frontend | Closed (fixed + test) |
+| PD-02 | Medium   | Browser parity evidence  | Desktop Safari and iPhone Safari smoke evidence matrix still incomplete for final packet.       | QA Mobile    | Open                  |
+| PD-03 | Medium   | PWA parity               | Refresh-path automation is Chromium-only; WebKit refresh behavior remains manual-evidence only. | Elm Frontend | Open                  |
+| PD-04 | Medium   | Mobile readability       | Notification/tab readability and spacing need focused phone/tablet pass under live state churn. | Elm Frontend | Open                  |
+| PD-05 | Low      | Legacy-device confidence | iOS 15 iPad profile is still best-effort and not yet captured in this run window.               | QA Mobile    | Open (best-effort)    |
+
+Resolved summary:
+
+- High-severity open defects: 0
+- Medium-severity open defects: 3
+- Low-severity open defects: 1
+
 ### Day 2 (2026-09-03)
 
 - Elm Frontend
-  - Resolve high/medium parity defects from Day 1.
-  - Validate board-contained timer, winner, and replay readability on mobile.
+  - Close PD-03 by executing and documenting WebKit manual refresh-path evidence against current service-worker cache key.
+  - Close PD-04 by running a focused mobile readability pass (Play/Match tabs, badges, toasts, overlay text, timer legibility).
 - Realtime Backend
-  - Validate board list/expiry/fallback messages and edge cases under reconnect.
+  - Re-verify timeout/pause/winner invariants under reconnect and stale-socket close (targeted realtime flow checks).
 - State Architect
-  - Review current behavior vs board state invariants and flag rule drift.
+  - Review timer/pause/winner/disconnect transitions versus board-state-machine invariants and flag any drift.
+- QA Mobile
+  - Close PD-02 by finishing Safari desktop + iPhone Safari matrix rows for Home/Boards/Play/Match/pause/timeout/replay/winner.
+  - Attempt PD-05 capture (iOS 15 iPad profile) when available; otherwise log explicit risk note.
+
+Day 2 command gate (automation before manual signoff):
+
+- npm test
+- npm run build
+- npm run test:e2e -- --grep "Home and Boards smoke|Match tab smoke|manual pause only allows the pausing player|local replay controls step through moves|winner overlay appears after a scored local round|PWA refresh smoke"
 
 Exit for Day 2:
 
 - No high-severity parity defects open.
 - Lifecycle rule review complete.
+- Safari desktop + iPhone matrix entries captured or explicitly risk-noted.
 
 ### Day 3 (2026-09-04)
 
@@ -171,6 +205,16 @@ No-Go if any true:
 - Publish daily status in this file or linked task tracker
 
 ## 9) Progress updates
+
+- 2026-09-02: Executed Day 2 command gate baseline.
+  - Command: `npm test && npm run build && npm run test:e2e -- --grep "Home and Boards smoke|Match tab smoke|manual pause only allows the pausing player|local replay controls step through moves|winner overlay appears after a scored local round|PWA refresh smoke"`
+  - Result: unit/runtime/build all green; targeted e2e 22 passed, 2 skipped (WebKit PWA refresh skips by design).
+  - Tracking impact: PD-03 remains open for manual WebKit refresh evidence; no new high-severity parity defects introduced.
+
+- 2026-09-02: Day 1 parity defect register and Day 2 queue were refreshed in this board.
+  - Added explicit PD-01 through PD-05 tracking with owner and severity.
+  - Confirmed no open high-severity parity defects.
+  - Day 2 is now scoped to closing PD-02/PD-03/PD-04 and risk-logging PD-05 if unavailable.
 
 - 2026-09-02: Ran consolidated production-trial smoke evidence pack.
   - Command: `npm run test:e2e -- --grep "Home and Boards smoke|Match tab smoke|manual pause only allows the pausing player|local replay controls step through moves|winner overlay appears after a scored local round|PWA refresh smoke"`

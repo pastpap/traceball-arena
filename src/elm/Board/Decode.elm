@@ -60,13 +60,14 @@ seatDecoder =
 
 sessionDecoder : Decoder Session
 sessionDecoder =
-    Decode.map6 Session
+    Decode.map7 Session
         (Decode.maybe (Decode.field "id" Decode.string))
         (Decode.field "state" sessionStateDecoder)
         (Decode.field "score" scoreDecoder)
         (Decode.maybe (Decode.field "turn" Decode.string))
         (Decode.field "winner" (Decode.nullable Decode.string))
         (Decode.field "endReason" (Decode.nullable Decode.string))
+        sessionMoveCountDecoder
 
 
 scoreDecoder : Decoder Score
@@ -74,6 +75,15 @@ scoreDecoder =
     Decode.map2 Score
         (Decode.field "blue" Decode.int)
         (Decode.field "red" Decode.int)
+
+
+sessionMoveCountDecoder : Decoder Int
+sessionMoveCountDecoder =
+    Decode.oneOf
+        [ Decode.at [ "round", "moves" ] (Decode.list Decode.value)
+            |> Decode.map List.length
+        , Decode.succeed 0
+        ]
 
 
 boardStateDecoder : Decoder BoardState

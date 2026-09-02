@@ -5,8 +5,8 @@ import Html exposing (Html, div, h2, li, p, section, span, text, ul)
 import Html.Attributes exposing (class)
 
 
-viewBoard : Board -> Html msg
-viewBoard board =
+viewBoard : Maybe Int -> Board -> Html msg
+viewBoard replayIndex board =
     section [ class "elm-board-shell" ]
         [ div [ class "elm-board-header" ]
             [ h2 [] [ text ("Board " ++ board.code) ]
@@ -17,9 +17,39 @@ viewBoard board =
             [ viewSeat "Blue" board.blue
             , viewSeat "Red" board.red
             ]
+        , viewBoardMeta replayIndex board
         , viewSession board.currentSession
         , viewPeople "Watchers" board.watchers
         , viewPeople "Waiting list" board.waitingList
+        ]
+
+
+viewBoardMeta : Maybe Int -> Board -> Html msg
+viewBoardMeta replayIndex board =
+    let
+        moveCount =
+            board.currentSession
+                |> Maybe.map .moveCount
+                |> Maybe.withDefault 0
+
+        replayStatus =
+            if moveCount <= 0 then
+                "Replay: no moves yet."
+
+            else
+                case replayIndex of
+                    Just idx ->
+                        "Replay " ++ String.fromInt idx ++ " / " ++ String.fromInt moveCount
+
+                    Nothing ->
+                        "Live view at move " ++ String.fromInt moveCount ++ " / " ++ String.fromInt moveCount
+    in
+    div [ class "elm-board-meta" ]
+        [ p [] [ text ("Board state: " ++ boardStateLabel board.state) ]
+        , p [] [ text ("Occupancy: " ++ String.fromInt (occupiedSeatCount board) ++ "/2 seated") ]
+        , p [] [ text ("Watchers: " ++ String.fromInt (List.length board.watchers) ++ " · Waiting list: " ++ String.fromInt (List.length board.waitingList)) ]
+        , p [] [ text ("Updated: " ++ String.fromInt board.updatedAt ++ " · Expires: " ++ String.fromInt board.expiresAt) ]
+        , p [ class "elm-replay-meta" ] [ text replayStatus ]
         ]
 
 
@@ -42,6 +72,7 @@ viewSession maybeSession =
             div [ class "elm-session" ]
                 [ span [ class "elm-seat-label" ] [ text (sessionStateLabel session.state) ]
                 , p [] [ text ("Score: Blue " ++ String.fromInt session.score.blue ++ " — Red " ++ String.fromInt session.score.red) ]
+                , p [] [ text ("Moves: " ++ String.fromInt session.moveCount) ]
                 ]
 
 
@@ -55,6 +86,24 @@ viewPeople label people =
           else
             ul [] (List.map (\person -> li [] [ text person.displayName ]) people)
         ]
+
+
+occupiedSeatCount : Board -> Int
+occupiedSeatCount board =
+    List.length (List.filter isSeatOccupied [ board.blue, board.red ])
+
+
+isSeatOccupied : Seat -> Bool
+isSeatOccupied seat =
+    case seat.state of
+        Occupied ->
+            True
+
+        DisconnectedReserved ->
+            True
+
+        _ ->
+            False
 
 
 boardStateLabel : BoardState -> String

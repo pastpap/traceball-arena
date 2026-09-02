@@ -23,7 +23,13 @@ function loadShell(overrides = {}) {
   };
   const context = {
     console,
-    window: { location, localStorage: storage, WebSocket: overrides.WebSocket },
+    window: {
+      location,
+      localStorage: storage,
+      WebSocket: overrides.WebSocket,
+      Elm: overrides.Elm,
+      history: overrides.history,
+    },
     document: overrides.document ?? { querySelector: () => root },
     location,
     localStorage: storage,
@@ -35,6 +41,7 @@ function loadShell(overrides = {}) {
       overrides.fetch ??
       (async () => ({ ok: false, status: 404, json: async () => ({}) })),
     Date: overrides.Date ?? Date,
+    URL: overrides.URL ?? URL,
   };
   vm.createContext(context);
   vm.runInContext(shellSource, context, { filename: "public/elm.js" });
@@ -46,6 +53,320 @@ function fixture(name) {
 }
 
 describe("Phase 3 Elm shell runtime contract", () => {
+  it("parses runtime=elm query to enable Elm runtime mode", () => {
+    const { shell } = loadShell({
+      location: {
+        protocol: "https:",
+        host: "example.test",
+        search: "?runtime=elm",
+      },
+    });
+
+    expect(shell.parseFrontendRuntimeFromLocation()).toBe("elm-runtime");
+  });
+
+  it("mounts Elm runtime without synthetic fixture injection", async () => {
+    const messages = [];
+    const statuses = [];
+    let initFlags = null;
+    const fakeElm = {
+      Main: {
+        init({ flags }) {
+          initFlags = flags;
+          return {
+            ports: {
+              incomingSocketMessage: {
+                send: (message) => messages.push(message),
+              },
+              incomingConnectionStatus: {
+                send: (status) => statuses.push(status),
+              },
+            },
+          };
+        },
+      },
+    };
+    const { shell } = loadShell({
+      Elm: fakeElm,
+      localStorage: {
+        values: new Map([["traceballPlayerName", "Stefan"]]),
+        getItem(key) {
+          return this.values.get(key) ?? null;
+        },
+        setItem(key, value) {
+          this.values.set(key, String(value));
+        },
+      },
+      document: {
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      },
+    });
+    const runtimeRoot = { innerHTML: "" };
+
+    const mounted = await shell.mountElmRuntime(runtimeRoot, { boardCode: "" });
+
+    expect(mounted).toBe(true);
+    expect(initFlags.boardCode).toBe("");
+    expect(initFlags.clientId).toMatch(/^traceball-elm-/);
+    expect(initFlags.playerName).toBe("Stefan");
+    expect(statuses).not.toContain("error");
+    expect(messages).toHaveLength(0);
+    expect(statuses).not.toContain("error");
+  });
+
+  it("persists player name updates emitted from Elm runtime", async () => {
+    let sendCommand = () => {};
+    const storage = {
+      values: new Map([["traceballPlayerName", "Stefan"]]),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+    };
+    const fakeElm = {
+      Main: {
+        init() {
+          return {
+            ports: {
+              incomingSocketMessage: { send: () => {} },
+              incomingConnectionStatus: { send: () => {} },
+              outgoingClientCommand: {
+                subscribe(callback) {
+                  sendCommand = callback;
+                },
+              },
+            },
+          };
+        },
+      },
+    };
+    const { shell } = loadShell({
+      Elm: fakeElm,
+      localStorage: storage,
+      document: {
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      },
+      fetch: async () => ({
+        ok: true,
+        json: async () => fixture("board-active-session"),
+      }),
+    });
+    const runtimeRoot = { innerHTML: "" };
+
+    await shell.mountElmRuntime(runtimeRoot, { boardCode: "" });
+    sendCommand({ type: "persistPlayerName", name: "Alex" });
+
+    expect(storage.values.get("traceballPlayerName")).toBe("Alex");
+  });
+
+  it("accepts Elm watch-board port requests and sends watch commands over websocket", async () => {
+    const messages = [];
+    const statuses = [];
+    const sockets = [];
+    let sendCommand = () => {};
+    class FakeWebSocket {
+      constructor(url) {
+        this.url = url;
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    const fakeElm = {
+      Main: {
+        init() {
+          return {
+            ports: {
+              incomingSocketMessage: {
+                send: (message) => messages.push(message),
+              },
+              incomingConnectionStatus: {
+                send: (status) => statuses.push(status),
+              },
+              outgoingClientCommand: {
+                subscribe(callback) {
+                  sendCommand = callback;
+                },
+              },
+            },
+          };
+        },
+      },
+    };
+    const historyCalls = [];
+    const { shell } = loadShell({
+      Elm: fakeElm,
+      WebSocket: FakeWebSocket,
+      document: {
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      },
+      history: {
+        replaceState(_state, _title, url) {
+          historyCalls.push(String(url));
+        },
+      },
+      location: {
+        protocol: "https:",
+        host: "example.test",
+        href: "https://example.test/elm?runtime=elm",
+        search: "?runtime=elm",
+      },
+      fetch: async () => ({
+        ok: true,
+        json: async () => fixture("board-active-session"),
+      }),
+    });
+    const runtimeRoot = { innerHTML: "" };
+
+    const mounted = await shell.mountElmRuntime(runtimeRoot, { boardCode: "" });
+    expect(mounted).toBe(true);
+
+    sendCommand({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    expect(sockets.length).toBe(1);
+    expect(statuses).not.toContain("error");
+
+    sockets[0].onopen();
+    expect(statuses).toContain("connected");
+    expect(sockets[0].sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    expect(historyCalls.length).toBe(1);
+    expect(historyCalls[0]).toContain("board=ROOM123");
+    expect(messages.some((message) => message.type === "error")).toBe(false);
+  });
+
+  it("forwards Elm outgoing client commands through websocket as-is", async () => {
+    const messages = [];
+    const sockets = [];
+    let sendCommand = () => {};
+    class FakeWebSocket {
+      constructor(url) {
+        this.url = url;
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    const fakeElm = {
+      Main: {
+        init() {
+          return {
+            ports: {
+              incomingSocketMessage: {
+                send: (message) => messages.push(message),
+              },
+              incomingConnectionStatus: {
+                send: () => {},
+              },
+              outgoingClientCommand: {
+                subscribe(callback) {
+                  sendCommand = callback;
+                },
+              },
+            },
+          };
+        },
+      },
+    };
+    const { shell } = loadShell({
+      Elm: fakeElm,
+      WebSocket: FakeWebSocket,
+      document: {
+        querySelector: () => null,
+        querySelectorAll: () => [],
+      },
+      location: {
+        protocol: "https:",
+        host: "example.test",
+        href: "https://example.test/elm?runtime=elm",
+        search: "?runtime=elm",
+      },
+      fetch: async () => ({
+        ok: true,
+        json: async () => fixture("board-active-session"),
+      }),
+    });
+    const runtimeRoot = { innerHTML: "" };
+
+    await shell.mountElmRuntime(runtimeRoot, { boardCode: "" });
+    sendCommand({ type: "watch", roomId: "ROOM123" });
+    sockets[0].onopen();
+
+    sendCommand({
+      type: "claimSeat",
+      seatId: "p1",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    sendCommand({
+      type: "joinWaitingList",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    sendCommand({
+      type: "leaveWaitingList",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    sendCommand({ type: "leave" });
+    sendCommand({ type: "move", to: { x: 4, y: 5 } });
+    sendCommand({ type: "reset" });
+    sendCommand({ type: "freeSeat", seatId: "p2" });
+
+    expect(sockets[0].sent[1]).toMatchObject({
+      type: "claimSeat",
+      seatId: "p1",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    expect(sockets[0].sent[2]).toMatchObject({
+      type: "joinWaitingList",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    expect(sockets[0].sent[3]).toMatchObject({
+      type: "leaveWaitingList",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-custom",
+    });
+    expect(sockets[0].sent[4]).toMatchObject({ type: "leave" });
+    expect(sockets[0].sent[5]).toMatchObject({
+      type: "move",
+      to: { x: 4, y: 5 },
+    });
+    expect(sockets[0].sent[6]).toMatchObject({ type: "reset" });
+    expect(sockets[0].sent[7]).toMatchObject({
+      type: "freeSeat",
+      seatId: "p2",
+    });
+    expect(messages.some((message) => message.type === "error")).toBe(false);
+  });
+
   it("renders every canonical state fixture without throwing", () => {
     const { shell } = loadShell();
     const fixtureNames = [

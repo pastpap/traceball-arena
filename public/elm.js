@@ -1,4 +1,3 @@
-const FIXTURE_URL = "/fixtures/phase1/board-active-session.json";
 const CLIENT_ID_KEY = "traceballElmClientId";
 const PLAYER_NAME_KEY = "traceballPlayerName";
 const ONLINE_TIMER_KEY = "traceballOnlineMoveTimer";
@@ -926,11 +925,31 @@ function parseBoardCodeFromLocation() {
   );
 }
 
+function parseRawBoardCodeFromLocation() {
+  const loc = window.location || location;
+  const params = new URLSearchParams(loc.search || "");
+  return String(
+    params.get("board") || params.get("room") || params.get("code") || "",
+  ).trim();
+}
+
 function parseMobilePageFromLocation() {
   const loc = window.location || location;
   const params = new URLSearchParams(loc.search || "");
   const page = String(params.get("mobilePage") || "").trim();
   return ["invite", "boards", "play", "match"].includes(page) ? page : "";
+}
+
+function parseFrontendRuntimeFromLocation() {
+  const loc = window.location || location;
+  const params = new URLSearchParams(loc.search || "");
+  const runtime = String(params.get("runtime") || params.get("frontend") || "")
+    .trim()
+    .toLowerCase();
+  if (["elm", "elm-runtime", "elmruntime"].includes(runtime)) {
+    return "elm-runtime";
+  }
+  return "js-shell";
 }
 
 function sanitizeBoardCode(value) {
@@ -3760,9 +3779,122 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+async function mountElmRuntime(root, { boardCode } = {}) {
+  const elmMain = window.Elm?.Main;
+  if (!elmMain?.init) return false;
+
+  const clientId = getOrCreateClientId();
+  const playerName = getStoredPlayerName();
+  const app = elmMain.init({
+    node: root,
+    flags: {
+      boardCode: boardCode || "",
+      clientId,
+      playerName,
+    },
+  });
+
+  const pushMessage = (message) => {
+    app?.ports?.incomingSocketMessage?.send?.(message);
+  };
+  const pushStatus = (status) => {
+    app?.ports?.incomingConnectionStatus?.send?.(status);
+  };
+  let activeSocket = null;
+
+  const closeActiveSocket = () => {
+    if (!activeSocket) return;
+    activeSocket.onopen = null;
+    activeSocket.onmessage = null;
+    activeSocket.onerror = null;
+    activeSocket.onclose = null;
+    activeSocket.close?.();
+    activeSocket = null;
+  };
+
+  const connectToBoard = (requestedBoardCode, requestedClientId = clientId) => {
+    const code = String(requestedBoardCode || "").trim();
+    if (!(window.WebSocket || typeof WebSocket !== "undefined")) {
+      pushStatus("error");
+      pushMessage({
+        type: "error",
+        error: "WebSocket unavailable for Elm runtime online mode.",
+      });
+      return;
+    }
+
+    closeActiveSocket();
+    const SocketCtor = window.WebSocket || WebSocket;
+    const socket = new SocketCtor(websocketUrl());
+    activeSocket = socket;
+    socket.onopen = () => {
+      if (window.history?.replaceState && typeof URL === "function") {
+        const href =
+          window.location?.href ||
+          `${window.location?.protocol || "https:"}//${window.location?.host || "example.test"}/`;
+        const url = new URL(href);
+        url.searchParams.set("board", code);
+        window.history.replaceState({}, "", url);
+      }
+      pushStatus("connected");
+      socket.send(
+        JSON.stringify({
+          type: "watch",
+          roomId: code,
+          clientId: String(requestedClientId || clientId || "").trim(),
+        }),
+      );
+    };
+    socket.onmessage = (event) => {
+      try {
+        pushMessage(JSON.parse(event.data));
+      } catch {
+        pushMessage({ type: "error", error: "malformed websocket message" });
+      }
+    };
+    socket.onerror = () => {
+      pushStatus("error");
+    };
+    socket.onclose = () => {
+      if (socket !== activeSocket) return;
+      pushStatus("disconnected");
+      activeSocket = null;
+    };
+  };
+
+  app?.ports?.outgoingClientCommand?.subscribe?.((command) => {
+    if (!command || typeof command !== "object") return;
+    const type = String(command.type || "");
+    if (type === "watch") {
+      connectToBoard(command.roomId, command.clientId);
+      return;
+    }
+    if (type === "persistPlayerName") {
+      persistPlayerName(command.name);
+      return;
+    }
+    if (!activeSocket || typeof activeSocket.send !== "function") {
+      pushMessage({
+        type: "error",
+        error: "Socket unavailable for command dispatch.",
+      });
+      return;
+    }
+    activeSocket.send(JSON.stringify(command));
+  });
+
+  return true;
+}
+
 async function mount() {
   const root = document.querySelector("#elm-root");
   if (!root) return;
+  if (parseFrontendRuntimeFromLocation() === "elm-runtime") {
+    const mounted = await mountElmRuntime(root, {
+      boardCode: parseRawBoardCodeFromLocation(),
+    });
+    if (mounted) return;
+  }
   const boardCode = parseBoardCodeFromLocation();
   const mobilePage = parseMobilePageFromLocation();
   if (boardCode && (window.WebSocket || typeof WebSocket !== "undefined")) {
@@ -3791,6 +3923,8 @@ window.TraceballElmShell = {
   websocketUrl,
   parseBoardCodeFromLocation,
   parseMobilePageFromLocation,
+  parseFrontendRuntimeFromLocation,
+  mountElmRuntime,
   createSocketBridge,
   createBoardAsBlue,
   createLocalBridge,

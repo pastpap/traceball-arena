@@ -2,11 +2,11 @@ module Board.Types exposing
     ( Board
     , BoardState(..)
     , Person
+    , Score
     , Seat
     , SeatState(..)
     , Session
     , SessionState(..)
-    , Score
     )
 
 
@@ -65,6 +65,7 @@ type alias Session =
     , turn : Maybe String
     , winner : Maybe String
     , endReason : Maybe String
+    , moveCount : Int
     }
 
 

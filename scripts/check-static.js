@@ -69,7 +69,9 @@ function renderCurrentElmShell() {
   vm.runInContext(elmBundle, context, { filename: "public/elm.js" });
   const shell = context.window.TraceballElmShell;
   if (!shell?.renderModel || !shell?.applyState || !shell?.initialModel) {
-    throw new Error("public/elm.js must expose renderable TraceballElmShell helpers.");
+    throw new Error(
+      "public/elm.js must expose renderable TraceballElmShell helpers.",
+    );
   }
   const model = {
     ...shell.applyState(shell.initialModel(), activeFixture),
@@ -94,10 +96,10 @@ if (
 }
 if (
   !elmBundle.includes("TraceballElmShell") ||
-  !elmBundle.includes("board-active-session.json")
+  !elmBundle.includes("mountElmRuntime")
 ) {
   throw new Error(
-    "public/elm.js must provide the minimal Elm-shell runtime and load a Phase 1 fixture.",
+    "public/elm.js must provide the minimal Elm-shell runtime bridge with mountElmRuntime support.",
   );
 }
 if (
@@ -313,7 +315,9 @@ if (!css.includes("--elm-board-badge-gate-corridor-y")) {
     "Board player badges must be positioned in the gate corridor, not pinned to the board edge.",
   );
 }
-if (!/\.match-action-row\s*\+\s*\.match-details\s*{[\s\S]*margin-top:/.test(css)) {
+if (
+  !/\.match-action-row\s*\+\s*\.match-details\s*{[\s\S]*margin-top:/.test(css)
+) {
   throw new Error(
     "Match details must have spacing below action buttons so Round Complete does not touch controls.",
   );
@@ -437,13 +441,22 @@ if (
   !currentElmShellHtml.includes('data-mobile-page="invite"') ||
   !currentElmShellHtml.includes('data-mobile-page="match"')
 ) {
-  throw new Error("Current Elm shell mobile page navigation markup is required.");
+  throw new Error(
+    "Current Elm shell mobile page navigation markup is required.",
+  );
 }
 const homeTab = currentElmShellHtml.indexOf(">Home</button>");
 const boardsTab = currentElmShellHtml.indexOf('data-page-target="boards"');
 const playTab = currentElmShellHtml.indexOf('data-page-target="play"');
 const matchTab = currentElmShellHtml.indexOf('data-page-target="match"');
-if (!(homeTab >= 0 && homeTab < boardsTab && boardsTab < playTab && playTab < matchTab))
+if (
+  !(
+    homeTab >= 0 &&
+    homeTab < boardsTab &&
+    boardsTab < playTab &&
+    playTab < matchTab
+  )
+)
   throw new Error("Mobile tabs must be ordered Home, Boards, Play, Match.");
 if (currentElmShellHtml.includes(">Invite</button>"))
   throw new Error("Invite tab must be renamed to Home.");
@@ -457,12 +470,18 @@ if (!currentElmShellHtml.includes('data-elm-command="leave-seat"')) {
 if (
   !currentElmShellHtml.includes('class="boards-kicker"') ||
   !currentElmShellHtml.includes("Server lobby") ||
-  !currentElmShellHtml.includes("Public boards expire after one week of inactivity.")
+  !currentElmShellHtml.includes(
+    "Public boards expire after one week of inactivity.",
+  )
 ) {
-  throw new Error("Boards page header copy must match the current deduplicated lobby UI.");
+  throw new Error(
+    "Boards page header copy must match the current deduplicated lobby UI.",
+  );
 }
 if (
-  currentElmShellHtml.includes("Pick a board to watch, or claim an open Blue/Red seat.") ||
+  currentElmShellHtml.includes(
+    "Pick a board to watch, or claim an open Blue/Red seat.",
+  ) ||
   currentElmShellHtml.includes("Join, watch, or leave a live board.")
 ) {
   throw new Error(
@@ -583,15 +602,24 @@ if (
     "Online card must allow opening an existing board by room code without duplicated labels.",
   );
 }
-if (currentElmShellHtml.includes('id="newRoom"') || currentElmShellHtml.includes('id="joinForm"')) {
+if (
+  currentElmShellHtml.includes('id="newRoom"') ||
+  currentElmShellHtml.includes('id="joinForm"')
+) {
   throw new Error(
     "Online actions must not use the old mixed New game/Join form layout.",
   );
 }
-if (!currentElmShellHtml.includes("localPanel") || !currentElmShellHtml.includes("startLocal")) {
+if (
+  !currentElmShellHtml.includes("localPanel") ||
+  !currentElmShellHtml.includes("startLocal")
+) {
   throw new Error("Local selector must reveal the local setup card.");
 }
-if (!currentElmShellHtml.includes("localP1Name") || !currentElmShellHtml.includes("localP2Name")) {
+if (
+  !currentElmShellHtml.includes("localP1Name") ||
+  !currentElmShellHtml.includes("localP2Name")
+) {
   throw new Error(
     "Local PvP setup must collect both face-to-face player names.",
   );
@@ -853,9 +881,15 @@ if (
 }
 if (
   !/\.play-board-actions\s*\{[\s\S]*?display:\s*none;[\s\S]*?\}/.test(css) ||
-  !/\.play-board-actions\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\}/.test(css) ||
-  !/\.play-leave-button\.ghost\s*\{[\s\S]*?border-color:\s*rgba\(255,\s*59,\s*48,\s*0\.82\);[\s\S]*?background:\s*rgba\(255,\s*59,\s*48,\s*0\.18\);[\s\S]*?\}/.test(css) ||
-  !/\.play-board-actions\s+\.ghost\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\}/.test(css)
+  !/\.play-board-actions\s*\{[\s\S]*?display:\s*grid;[\s\S]*?grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);[\s\S]*?\}/.test(
+    css,
+  ) ||
+  !/\.play-leave-button\.ghost\s*\{[\s\S]*?border-color:\s*rgba\(255,\s*59,\s*48,\s*0\.82\);[\s\S]*?background:\s*rgba\(255,\s*59,\s*48,\s*0\.18\);[\s\S]*?\}/.test(
+    css,
+  ) ||
+  !/\.play-board-actions\s+\.ghost\s*\{[\s\S]*?overflow:\s*hidden;[\s\S]*?\}/.test(
+    css,
+  )
 ) {
   throw new Error(
     "Mobile Play Leave/Forfeit and Pause controls must be mobile-only, compact, centered, and visibly red-accented for forfeit.",
