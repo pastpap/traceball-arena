@@ -436,6 +436,7 @@ function createLocalRuntimeModel({
 function isValidLocalRuntimeModel(model) {
   if (!model || model.localRuntime !== true) return false;
   const board = model.board;
+  const session = board?.currentSession;
   const round = board?.currentSession?.round;
   if (!board || board.code !== "LOCAL" || !round) return false;
   if (
@@ -450,12 +451,22 @@ function isValidLocalRuntimeModel(model) {
   )
     return false;
   const timerSeconds = normalizeMoveTimerSeconds(
-    board.currentSession?.moveTimeLimitSeconds,
+    session?.moveTimeLimitSeconds,
     15,
   );
-  const isPaused =
-    model.localPaused === true || board.currentSession?.state === "Paused";
-  if (timerSeconds > 0 && round.deadlineAt == null && !isPaused) {
+  const isPaused = model.localPaused === true || session?.state === "Paused";
+  const roundWinner = round?.winner ?? null;
+  const isBetweenRounds =
+    board?.state === "BetweenRounds" ||
+    session?.state === "BetweenRounds" ||
+    round?.state === "BetweenRounds";
+  if (
+    timerSeconds > 0 &&
+    round.deadlineAt == null &&
+    !isPaused &&
+    roundWinner == null &&
+    !isBetweenRounds
+  ) {
     Object.assign(round, resetLocalRoundDeadline(round, timerSeconds));
   }
   return true;
@@ -512,6 +523,12 @@ function expireLocalRuntimeTurnIfNeeded(model, now = Date.now()) {
   if (!isValidLocalRuntimeModel(model) || model.localPaused) return model;
   const session = model.board.currentSession;
   const round = session.round;
+  const roundWinner = round?.winner ?? null;
+  const isBetweenRounds =
+    model.board?.state === "BetweenRounds" ||
+    session?.state === "BetweenRounds" ||
+    round?.state === "BetweenRounds";
+  if (roundWinner != null || isBetweenRounds) return model;
   const timerSeconds = normalizeMoveTimerSeconds(
     session.moveTimeLimitSeconds,
     15,

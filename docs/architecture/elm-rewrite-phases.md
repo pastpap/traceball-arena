@@ -349,6 +349,13 @@ Recent implementation update (2026-08-18 to 2026-08-19):
 - Re-render preservation now keeps current mobile page and desktop lobby-open state during socket updates.
 - Notification trigger now includes move-count changes (including same-turn bounce chains), not only turn/state changes.
 
+Execution tracking links for the current late-Phase 9 window:
+
+- `docs/plans/week-of-2026-09-02-execution-board.md`
+- `docs/plans/prod-trial-smoke-runbook.md`
+
+Use those docs for owner assignment, daily sequencing, evidence capture, and final Go/No-Go trial decisioning.
+
 ## Phase 10: Move logic into actual Elm runtime
 
 **Goal:** Replace the hand-written JS shell with a real Elm application that owns Model, update, and view — reducing `public/elm.js` to ~200 lines of port plumbing and canvas animation.

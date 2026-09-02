@@ -8,6 +8,13 @@
 
 **Tech Stack:** Node.js, Express, WebSocket `ws`, Vitest, static HTML/CSS/JS in `public/`, checked-in Elm shell fallback.
 
+Execution tracking for this week is consolidated in:
+
+- `docs/plans/week-of-2026-09-02-execution-board.md`
+- `docs/plans/prod-trial-smoke-runbook.md`
+
+Use the weekly execution board as the source for owner assignments/day-by-day sequencing, and keep this document focused on implementation scope and parity detail.
+
 ---
 
 ## Current Phase 9 status

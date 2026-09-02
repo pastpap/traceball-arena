@@ -152,4 +152,39 @@ describe("Task 4 local same-screen runtime helpers", () => {
     expect(bounced.board.currentSession.round.turn).toBe("p1");
     expect(bounced.ownSeat).toBe("p1");
   });
+
+  it("keeps winner state stable after deadline passes in a finished local round", () => {
+    const { shell } = loadShell();
+    const now = Date.now();
+
+    const model = shell.createLocalRuntimeModel({
+      blueName: "Blue",
+      redName: "Red",
+      moveTimeLimitSeconds: 5,
+    });
+
+    model.board.currentSession.round = {
+      ...model.board.currentSession.round,
+      turn: "p1",
+      ball: { x: 4, y: 1 },
+      visited: ["4,6", "4,1"],
+      moves: [],
+      segments: [],
+      legalMoves: [{ x: 4, y: 0 }],
+      turnStartedAt: now,
+      deadlineAt: now + 5000,
+    };
+
+    const won = shell.applyLocalRuntimeMove(model, "4,0");
+    expect(won.board.state).toBe("BetweenRounds");
+    expect(won.board.currentSession.state).toBe("BetweenRounds");
+    expect(won.board.currentSession.round.winner).toBe("p1");
+    expect(won.board.currentSession.round.deadlineAt).toBe(null);
+
+    const afterDeadline = shell.expireLocalRuntimeTurnIfNeeded(won, 90_000);
+    expect(afterDeadline.board.state).toBe("BetweenRounds");
+    expect(afterDeadline.board.currentSession.state).toBe("BetweenRounds");
+    expect(afterDeadline.board.currentSession.round.winner).toBe("p1");
+    expect(afterDeadline.board.currentSession.round.deadlineAt).toBe(null);
+  });
 });
