@@ -60,6 +60,16 @@ async function showMobilePlayIfNeeded(page) {
   }
 }
 
+async function clickOwnTurnMove(page, key) {
+  const move = page
+    .locator(
+      `[data-elm-legal-context="own-turn"] [data-elm-legal-move="${key}"]`,
+    )
+    .first();
+  await expect(move).toBeVisible();
+  await move.click();
+}
+
 async function joinRed(page, name = "P2") {
   const nameInput = page.locator("#elmPlayerName");
   if (await nameInput.count()) await nameInput.fill(name);
@@ -172,5 +182,129 @@ test.describe("main realtime playing flows", () => {
       await safeClose(p1Context);
       await safeClose(p2Context);
     }
+  });
+
+  test("manual pause only allows the pausing player to resume or start a new round", async ({
+    browser,
+  }) => {
+    const p1Context = await browser.newContext();
+    const p2Context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+    });
+    const p1 = await p1Context.newPage();
+    const p2 = await p2Context.newPage();
+    try {
+      const boardCode = await createBoardAsBlue(p1, "P1");
+      await openBoard(p2, boardCode, "P2");
+      await joinRed(p2, "P2");
+
+      await p1.locator('[data-elm-command="pause"]:visible').first().click();
+
+      await expect(p1.locator("#pauseOverlay")).toBeVisible();
+      await expect(p2.locator("#pauseOverlay")).toBeVisible();
+
+      await expect(p1.locator("#resumeGame:visible")).toHaveCount(1);
+      await expect(p1.locator("#pauseNewRound:visible")).toHaveCount(1);
+
+      await expect(p2.locator("#resumeGame:visible")).toHaveCount(0);
+      await expect(p2.locator("#pauseNewRound:visible")).toHaveCount(0);
+
+      await p1.locator("#resumeGame:visible").click();
+
+      await expect(p1.locator("#pauseOverlay")).toBeHidden();
+      await expect(p2.locator("#pauseOverlay")).toBeHidden();
+      await expect(p1.locator("#playStatus")).toContainText(
+        `Board ${boardCode}`,
+      );
+      await expect(p2.locator("#playStatus")).toContainText(
+        `Board ${boardCode}`,
+      );
+    } finally {
+      await safeClose(p1Context);
+      await safeClose(p2Context);
+    }
+  });
+
+  test("local replay controls step through moves and return to live board", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await showMobileHomeIfNeeded(page);
+
+    await page.locator("#localMode").click();
+    await page.locator("#localP1Name").fill("Blue");
+    await page.locator("#localP2Name").fill("Red");
+    await page.locator("#localMoveTimer").selectOption("10");
+    await page.locator("#startLocal").click();
+
+    await showMobilePlayIfNeeded(page);
+    await expect(page.locator(".board-stage")).toBeVisible();
+    await expect(page.locator("#replayText")).toContainText(
+      "Replay appears once moves are made.",
+    );
+
+    await page
+      .locator('[data-elm-legal-context="own-turn"] [data-elm-legal-move]')
+      .first()
+      .click();
+    await page
+      .locator('[data-elm-legal-context="own-turn"] [data-elm-legal-move]')
+      .first()
+      .click();
+
+    await expect(page.locator("#replayText")).toContainText(
+      "Live view at move 2 / 2",
+    );
+
+    await page.locator("#replayStart").click();
+    await expect(page.locator("#replayText")).toContainText("Replay 0 / 2");
+
+    await page.locator("#replayNext").click();
+    await expect(page.locator("#replayText")).toContainText("Replay 1 / 2");
+
+    await page.locator("#replayEnd").click();
+    await expect(page.locator("#replayText")).toContainText(
+      "Live view at move 2 / 2",
+    );
+  });
+
+  test("winner overlay appears after a scored local round and new round clears it", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await showMobileHomeIfNeeded(page);
+
+    await page.locator("#localMode").click();
+    await page.locator("#localP1Name").fill("Blue");
+    await page.locator("#localP2Name").fill("Red");
+    await page.locator("#localMoveTimer").selectOption("10");
+    await page.locator("#startLocal").click();
+
+    await showMobilePlayIfNeeded(page);
+
+    // Deterministic path to Blue scoring at the top gate.
+    await clickOwnTurnMove(page, "4,5");
+    await clickOwnTurnMove(page, "5,5");
+    await clickOwnTurnMove(page, "4,4");
+    await clickOwnTurnMove(page, "5,4");
+    await clickOwnTurnMove(page, "4,3");
+    await clickOwnTurnMove(page, "5,3");
+    await clickOwnTurnMove(page, "4,2");
+    await clickOwnTurnMove(page, "5,2");
+    await clickOwnTurnMove(page, "4,1");
+    await clickOwnTurnMove(page, "4,0");
+
+    await expect(page.locator("#winnerOverlay")).toBeVisible();
+    await expect(page.locator("#winnerName")).toContainText(/Blue/i);
+    await expect(page.locator("#winnerNewRound")).toBeVisible();
+
+    await page.locator("#winnerNewRound").click();
+
+    await expect(page.locator("#winnerOverlay")).toBeHidden();
+    await expect(page.locator("#playStatus")).toContainText(/Board LOCAL/i);
+    await expect(page.locator("#replayText")).toContainText(
+      /Replay appears once moves are made.|Live view at move 0 \/ 0/i,
+    );
   });
 });

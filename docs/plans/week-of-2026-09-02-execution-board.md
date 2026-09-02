@@ -165,3 +165,31 @@ No-Go if any true:
 - Run automated checks: npm run build && npm test
 - Execute smoke runbook matrix and collect evidence
 - Publish daily status in this file or linked task tracker
+
+## 9) Progress updates
+
+- 2026-09-02: Added automated fallback route drill coverage in `test/fallback-routes.test.js`.
+  - Verifies default `/` serves Elm while `/legacy` serves legacy shell.
+  - Verifies `TRACEBALL_FRONTEND=legacy` forces legacy shell on `/`.
+  - Verifies `/room/:roomId` redirects to `/?board=...` in Elm mode.
+  - Verifies `/room/:roomId` and `/legacy/room/:roomId` serve legacy shell in legacy mode.
+  - Command: `npm test -- --run test/fallback-routes.test.js` passed.
+- 2026-09-02: Added browser e2e pause-ownership scenario in `test/e2e/main-playing-flows.spec.js`.
+  - Verifies manual pause by Player A shows resume/new-round controls only for Player A.
+  - Verifies Player B cannot resume/new-round while paused by Player A.
+  - Verifies Player A resumes successfully and both clients return to active board view.
+  - Command: `npm run test:e2e -- --grep "manual pause only allows the pausing player"` passed.
+- 2026-09-02: Expanded browser matrix for smoke scenarios in `playwright.config.js`.
+  - Added desktop Safari-equivalent project: `webkit`.
+  - Added Android-chromium shape project: `mobile-chromium-shape`.
+  - Re-ran pause-ownership smoke across all projects (chromium, webkit, mobile-chromium-shape, mobile-webkit-shape): passed.
+- 2026-09-02: Added replay browser smoke in `test/e2e/main-playing-flows.spec.js`.
+  - Covers local-game replay flow: create 2 moves, replay start, replay next, replay end, return to live board.
+  - Command: `npm run test:e2e -- --grep "local replay controls step through moves"` passed across all projects.
+- 2026-09-02: Added winner-overlay browser smoke in `test/e2e/main-playing-flows.spec.js`.
+  - Covers deterministic local scoring path, winner overlay visibility, winner label, and New Round flow clearing overlay.
+  - Command: `npm run test:e2e -- --grep "winner overlay appears after a scored local round"` passed across all projects.
+- 2026-09-02: Added PWA refresh-path smoke scaffolding in `test/e2e/pwa-refresh.spec.js`.
+  - Verifies service worker registration readiness, update hook invocation, active `/sw.js` script, controller after reload, and `SKIP_WAITING`/cache markers in `sw.js`.
+  - Scoped to Chromium projects (`chromium`, `mobile-chromium-shape`) and skipped on WebKit projects.
+  - Command: `npm run test:e2e -- --grep "PWA refresh smoke"` passed on Chromium projects.

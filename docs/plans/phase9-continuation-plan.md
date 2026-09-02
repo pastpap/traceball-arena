@@ -57,6 +57,10 @@ Completed baseline work from `phase9-home-boards-match` and follow-up staging fi
 
 Current test status after these fixes: full Vitest suite green.
 
+Additional trial-readiness coverage (2026-09-02):
+
+- Added `test/fallback-routes.test.js` to verify runtime fallback behavior (default Elm route, legacy routes, `/room/:roomId` redirect semantics, and `TRACEBALL_FRONTEND=legacy` mode).
+
 ### Remaining near-term Phase 9 items
 
 - Continue visual parity pass for board art details and any remaining JS-vs-shell differences.
