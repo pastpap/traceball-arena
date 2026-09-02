@@ -182,9 +182,17 @@ Use this table during the pass.
 
 Final verdict:
 
-- GO for limited production trial
-- NO-GO and continue fixes
+- CONDITIONAL GO for limited production trial
+- NO-GO and continue fixes only if the Safari/iPhone evidence matrix is incomplete
 
 Decision owner:
 
+- Traceball Orchestrator + QA Mobile
+
 Date:
+
+- 2026-09-02
+
+Latest draft decision artifact:
+
+- docs/plans/prod-trial-go-no-go-draft-2026-09-02.md

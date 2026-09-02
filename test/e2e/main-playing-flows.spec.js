@@ -1,4 +1,14 @@
+import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+
+mkdirSync("test-results/screenshots", { recursive: true });
+
+async function captureScenario(page, name) {
+  await page.screenshot({
+    path: `test-results/screenshots/${name}.png`,
+    fullPage: true,
+  });
+}
 
 async function safeClose(context) {
   if (!context) return;
@@ -203,6 +213,7 @@ test.describe("main realtime playing flows", () => {
 
       await expect(p1.locator("#pauseOverlay")).toBeVisible();
       await expect(p2.locator("#pauseOverlay")).toBeVisible();
+      await captureScenario(p1, "qa-pause-owner-controls");
 
       await expect(p1.locator("#resumeGame:visible")).toHaveCount(1);
       await expect(p1.locator("#pauseNewRound:visible")).toHaveCount(1);
@@ -258,6 +269,7 @@ test.describe("main realtime playing flows", () => {
     );
 
     await page.locator("#replayStart").click();
+    await captureScenario(page, "qa-replay-step-through");
     await expect(page.locator("#replayText")).toContainText("Replay 0 / 2");
 
     await page.locator("#replayNext").click();
@@ -296,6 +308,7 @@ test.describe("main realtime playing flows", () => {
     await clickOwnTurnMove(page, "4,0");
 
     await expect(page.locator("#winnerOverlay")).toBeVisible();
+    await captureScenario(page, "qa-winner-overlay");
     await expect(page.locator("#winnerName")).toContainText(/Blue/i);
     await expect(page.locator("#winnerNewRound")).toBeVisible();
 

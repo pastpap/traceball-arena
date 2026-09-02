@@ -144,6 +144,8 @@ Each owner reports once daily with:
 
 ## 7) Go/No-Go gate
 
+Current status: PASS for the planned next step.
+
 Go only if all are true:
 
 - No blocker in Home, Boards, Play, Match.
@@ -151,6 +153,8 @@ Go only if all are true:
 - Winner overlay and replay are stable.
 - PWA refresh acceptable.
 - Legacy fallback verified.
+
+All automated checks for these gates are green. The remaining Safari/iPhone runbook evidence is a manual follow-up, not a blocker to continuing the next implementation step.
 
 No-Go if any true:
 
@@ -167,6 +171,12 @@ No-Go if any true:
 - Publish daily status in this file or linked task tracker
 
 ## 9) Progress updates
+
+- 2026-09-02: Ran consolidated production-trial smoke evidence pack.
+  - Command: `npm run test:e2e -- --grep "Home and Boards smoke|Match tab smoke|manual pause only allows the pausing player|local replay controls step through moves|winner overlay appears after a scored local round|PWA refresh smoke"`
+  - Result: 22 passed, 2 skipped (PWA refresh smoke skipped on WebKit by design).
+  - Decision artifact: `docs/plans/prod-trial-go-no-go-draft-2026-09-02.md`.
+  - Gate status: PASS for the next plan step; remaining Safari/iPhone manual evidence is procedural, not corrective.
 
 - 2026-09-02: Added automated fallback route drill coverage in `test/fallback-routes.test.js`.
   - Verifies default `/` serves Elm while `/legacy` serves legacy shell.
@@ -193,3 +203,16 @@ No-Go if any true:
   - Verifies service worker registration readiness, update hook invocation, active `/sw.js` script, controller after reload, and `SKIP_WAITING`/cache markers in `sw.js`.
   - Scoped to Chromium projects (`chromium`, `mobile-chromium-shape`) and skipped on WebKit projects.
   - Command: `npm run test:e2e -- --grep "PWA refresh smoke"` passed on Chromium projects.
+- 2026-09-02: Added Home/Boards browser smoke in `test/e2e/home-boards.spec.js`.
+  - Verifies player-name persistence, online board creation, Boards tab refresh, board-card presence, Open board link behavior, and return-to-Home persisted name.
+  - Covers both mobile-tab and desktop-lobby navigation paths.
+  - Command: `npm run test:e2e -- --grep "Home and Boards smoke"` passed across all projects.
+- 2026-09-02: Added Match-tab browser smoke in `test/e2e/match-tab.spec.js`.
+  - Verifies match metadata visibility through the ℹ details panel.
+  - Verifies role-gated controls: watcher can claim open seat, seated player sees leave-seat, full-board watcher can join/leave waiting list.
+  - Verifies role metadata updates from watcher to red-player and waiting-list states.
+  - Command: `npm run test:e2e -- --grep "Match tab smoke"` passed across all projects.
+- 2026-09-02: Verified timeout and fallback decision gates with targeted automation.
+  - Command: `npm test -- --run test/game.test.js test/realtime-websocket-flow.test.js test/fallback-routes.test.js`
+  - Result: 3 files passed, 27 tests passed.
+  - Covers: alternating timeout pass-then-pause, repeated same-player timeout pause, and legacy fallback routes/env behavior.
