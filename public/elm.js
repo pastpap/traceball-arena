@@ -2533,11 +2533,19 @@ function onlineTimerMeta(board) {
     : Number.isFinite(Number(rawMs))
       ? Math.round(Number(rawMs) / 1000)
       : null;
-  const deadlineAt = round?.deadlineAt ?? session?.deadlineAt ?? null;
+  const rawDeadlineAt = round?.deadlineAt ?? session?.deadlineAt ?? null;
   const pausedRemainingMs = Number(session?.pause?.remainingMs);
-  const remainingSeconds = Number.isFinite(pausedRemainingMs)
+  const rawRemainingSeconds = Number.isFinite(pausedRemainingMs)
     ? Math.max(0, Math.ceil(pausedRemainingMs / 1000))
     : null;
+  const roundWinner = round?.winner ?? null;
+  const isBetweenRounds =
+    board?.state === "BetweenRounds" ||
+    session?.state === "BetweenRounds" ||
+    round?.state === "BetweenRounds";
+  const freezeCountdown = roundWinner != null || isBetweenRounds;
+  const deadlineAt = freezeCountdown ? null : rawDeadlineAt;
+  const remainingSeconds = freezeCountdown ? null : rawRemainingSeconds;
   if (
     (!seconds || seconds <= 0) &&
     deadlineAt == null &&

@@ -338,6 +338,19 @@ describe("Phase 3 Elm shell runtime contract", () => {
     );
   });
 
+  it("stops timer countdown display once a winner is present", () => {
+    const { shell } = loadShell();
+    const message = fixture("board-active-session");
+    message.board.currentSession.moveTimeLimitSeconds = 30;
+    message.board.currentSession.round.deadlineAt = 32000;
+    message.board.currentSession.round.winner = "p2";
+    const html = shell.renderBoardMessage(message);
+
+    expect(html).toContain("data-elm-timer-display");
+    expect(html).not.toContain("data-elm-timer-countdown");
+    expect(html).toContain("Timer: 30s");
+  });
+
   it("renders a countdown and resets the local move deadline after each local move", () => {
     let now = 1000;
     class FakeDate extends Date {
