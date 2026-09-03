@@ -1,7 +1,10 @@
 module Board.Types exposing
     ( Board
     , BoardState(..)
+    , Move
     , Person
+    , Point
+    , Round
     , Score
     , Seat
     , SeatState(..)
@@ -36,6 +39,34 @@ type SessionState
     | UnknownSessionState String
 
 
+type alias Point =
+    { x : Int
+    , y : Int
+    }
+
+
+type alias Move =
+    { from : Point
+    , to : Point
+    , playerId : String
+    , segment : String
+    , bounce : Bool
+    }
+
+
+type alias Round =
+    { state : String
+    , turn : String
+    , ball : Point
+    , visited : List String
+    , segments : List String
+    , moves : List Move
+    , legalMoves : List Point
+    , winner : Maybe String
+    , endReason : Maybe String
+    }
+
+
 type alias Person =
     { displayName : String
     , joinedAt : Maybe Int
@@ -66,6 +97,8 @@ type alias Session =
     , winner : Maybe String
     , endReason : Maybe String
     , moveCount : Int
+    , round : Maybe Round
+    , moveTimeLimitSeconds : Maybe Int
     }
 
 

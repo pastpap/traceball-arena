@@ -1,4 +1,4 @@
-module Board.Decode exposing (boardDecoder, boardStateDecoder, personDecoder, seatDecoder, seatStateDecoder, sessionDecoder)
+module Board.Decode exposing (boardDecoder, boardStateDecoder, personDecoder, pointDecoder, roundDecoder, seatDecoder, seatStateDecoder, sessionDecoder)
 
 import Board.Types exposing (..)
 import Json.Decode as Decode exposing (Decoder)
@@ -60,7 +60,19 @@ seatDecoder =
 
 sessionDecoder : Decoder Session
 sessionDecoder =
-    Decode.map7 Session
+    Decode.map8
+        (\id_ state_ score_ turn_ winner_ endReason_ moveCount_ round_ ->
+            { id = id_
+            , state = state_
+            , score = score_
+            , turn = turn_
+            , winner = winner_
+            , endReason = endReason_
+            , moveCount = moveCount_
+            , round = round_
+            , moveTimeLimitSeconds = Nothing
+            }
+        )
         (Decode.maybe (Decode.field "id" Decode.string))
         (Decode.field "state" sessionStateDecoder)
         (Decode.field "score" scoreDecoder)
@@ -68,6 +80,13 @@ sessionDecoder =
         (Decode.field "winner" (Decode.nullable Decode.string))
         (Decode.field "endReason" (Decode.nullable Decode.string))
         sessionMoveCountDecoder
+        (Decode.maybe (Decode.field "round" roundDecoder))
+        |> Decode.andThen
+            (\base ->
+                Decode.map
+                    (\secs -> { base | moveTimeLimitSeconds = secs })
+                    (Decode.maybe (Decode.field "moveTimeLimitSeconds" Decode.int))
+            )
 
 
 scoreDecoder : Decoder Score
@@ -84,6 +103,53 @@ sessionMoveCountDecoder =
             |> Decode.map List.length
         , Decode.succeed 0
         ]
+
+
+pointDecoder : Decoder Point
+pointDecoder =
+    Decode.map2 Point
+        (Decode.field "x" Decode.int)
+        (Decode.field "y" Decode.int)
+
+
+moveDecoder : Decoder Move
+moveDecoder =
+    Decode.map5 Move
+        (Decode.field "from" pointDecoder)
+        (Decode.field "to" pointDecoder)
+        (Decode.field "playerId" Decode.string)
+        (Decode.oneOf [ Decode.field "segment" Decode.string, Decode.succeed "" ])
+        (Decode.oneOf [ Decode.field "bounce" Decode.bool, Decode.succeed False ])
+
+
+roundDecoder : Decoder Round
+roundDecoder =
+    Decode.map8
+        (\state turn ball visited segments moves legalMoves winner ->
+            { state = state
+            , turn = turn
+            , ball = ball
+            , visited = visited
+            , segments = segments
+            , moves = moves
+            , legalMoves = legalMoves
+            , winner = winner
+            , endReason = Nothing
+            }
+        )
+        (Decode.field "state" Decode.string)
+        (Decode.field "turn" Decode.string)
+        (Decode.field "ball" pointDecoder)
+        (Decode.oneOf [ Decode.field "visited" (Decode.list Decode.string), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.field "segments" (Decode.list Decode.string), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.field "moves" (Decode.list moveDecoder), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.field "legalMoves" (Decode.list pointDecoder), Decode.succeed [] ])
+        (Decode.field "winner" (Decode.nullable Decode.string))
+        |> Decode.andThen
+            (\r ->
+                Decode.map (\er -> { r | endReason = er })
+                    (Decode.field "endReason" (Decode.nullable Decode.string))
+            )
 
 
 boardStateDecoder : Decoder BoardState
