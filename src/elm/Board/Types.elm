@@ -62,6 +62,7 @@ type alias Round =
     , segments : List String
     , moves : List Move
     , legalMoves : List Point
+    , deadlineAt : Maybe Int
     , winner : Maybe String
     , endReason : Maybe String
     }

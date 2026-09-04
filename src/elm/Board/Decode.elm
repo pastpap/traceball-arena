@@ -73,12 +73,12 @@ sessionDecoder =
             , moveTimeLimitSeconds = Nothing
             }
         )
-        (Decode.maybe (Decode.field "id" Decode.string))
+        sessionIdDecoder
         (Decode.field "state" sessionStateDecoder)
         (Decode.field "score" scoreDecoder)
-        (Decode.maybe (Decode.field "turn" Decode.string))
-        (Decode.field "winner" (Decode.nullable Decode.string))
-        (Decode.field "endReason" (Decode.nullable Decode.string))
+        sessionTurnDecoder
+        sessionWinnerDecoder
+        sessionEndReasonDecoder
         sessionMoveCountDecoder
         (Decode.maybe (Decode.field "round" roundDecoder))
         |> Decode.andThen
@@ -87,6 +87,42 @@ sessionDecoder =
                     (\secs -> { base | moveTimeLimitSeconds = secs })
                     (Decode.maybe (Decode.field "moveTimeLimitSeconds" Decode.int))
             )
+
+
+sessionIdDecoder : Decoder (Maybe String)
+sessionIdDecoder =
+    Decode.oneOf
+        [ Decode.field "id" (Decode.nullable Decode.string)
+        , Decode.field "sessionId" (Decode.nullable Decode.string)
+        , Decode.succeed Nothing
+        ]
+
+
+sessionTurnDecoder : Decoder (Maybe String)
+sessionTurnDecoder =
+    Decode.oneOf
+        [ Decode.field "turn" (Decode.nullable Decode.string)
+        , Decode.at [ "round", "turn" ] Decode.string |> Decode.map Just
+        , Decode.succeed Nothing
+        ]
+
+
+sessionWinnerDecoder : Decoder (Maybe String)
+sessionWinnerDecoder =
+    Decode.oneOf
+        [ Decode.field "winner" (Decode.nullable Decode.string)
+        , Decode.at [ "round", "winner" ] (Decode.nullable Decode.string)
+        , Decode.succeed Nothing
+        ]
+
+
+sessionEndReasonDecoder : Decoder (Maybe String)
+sessionEndReasonDecoder =
+    Decode.oneOf
+        [ Decode.field "endReason" (Decode.nullable Decode.string)
+        , Decode.at [ "round", "endReason" ] (Decode.nullable Decode.string)
+        , Decode.succeed Nothing
+        ]
 
 
 scoreDecoder : Decoder Score
@@ -133,6 +169,7 @@ roundDecoder =
             , segments = segments
             , moves = moves
             , legalMoves = legalMoves
+            , deadlineAt = Nothing
             , winner = winner
             , endReason = Nothing
             }
@@ -147,8 +184,13 @@ roundDecoder =
         (Decode.field "winner" (Decode.nullable Decode.string))
         |> Decode.andThen
             (\r ->
-                Decode.map (\er -> { r | endReason = er })
-                    (Decode.field "endReason" (Decode.nullable Decode.string))
+                Decode.map2 (\deadlineAt endReason -> { r | deadlineAt = deadlineAt, endReason = endReason })
+                    (Decode.maybe (Decode.field "deadlineAt" Decode.int))
+                    (Decode.oneOf
+                        [ Decode.field "endReason" (Decode.nullable Decode.string)
+                        , Decode.succeed Nothing
+                        ]
+                    )
             )
 
 

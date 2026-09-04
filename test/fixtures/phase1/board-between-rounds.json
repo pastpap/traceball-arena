@@ -32,6 +32,7 @@
       "sessionId": "session-between-rounds-fixture",
       "startedAt": 2000,
       "state": "BetweenRounds",
+      "moveTimeLimitSeconds": 15,
       "score": {
         "blue": 1,
         "red": 0
@@ -68,6 +69,7 @@
           }
         ],
         "legalMoves": [],
+        "deadlineAt": 15000,
         "winner": "blue",
         "endReason": "p1 scored!"
       },

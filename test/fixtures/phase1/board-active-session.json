@@ -32,6 +32,7 @@
       "sessionId": "session-active-fixture",
       "startedAt": 2000,
       "state": "Active",
+      "moveTimeLimitSeconds": 15,
       "score": {
         "blue": 0,
         "red": 0
@@ -82,6 +83,7 @@
             "y": 7
           }
         ],
+        "deadlineAt": 17000,
         "winner": null,
         "endReason": null
       },

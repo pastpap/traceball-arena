@@ -4373,6 +4373,52 @@ function _Browser_load(url)
 
 
 
+function _Time_now(millisToPosix)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		callback(_Scheduler_succeed(millisToPosix(Date.now())));
+	});
+}
+
+var _Time_setInterval = F2(function(interval, task)
+{
+	return _Scheduler_binding(function(callback)
+	{
+		var id = setInterval(function() { _Scheduler_rawSpawn(task); }, interval);
+		return function() { clearInterval(id); };
+	});
+});
+
+function _Time_here()
+{
+	return _Scheduler_binding(function(callback)
+	{
+		callback(_Scheduler_succeed(
+			A2($elm$time$Time$customZone, -(new Date().getTimezoneOffset()), _List_Nil)
+		));
+	});
+}
+
+
+function _Time_getZoneName()
+{
+	return _Scheduler_binding(function(callback)
+	{
+		try
+		{
+			var name = $elm$time$Time$Name(Intl.DateTimeFormat().resolvedOptions().timeZone);
+		}
+		catch (e)
+		{
+			var name = $elm$time$Time$Offset(new Date().getTimezoneOffset());
+		}
+		callback(_Scheduler_succeed(name));
+	});
+}
+
+
+
 var _Bitwise_and = F2(function(a, b)
 {
 	return a & b;
@@ -5196,6 +5242,12 @@ var $elm$core$Task$perform = F2(
 				A2($elm$core$Task$map, toMessage, task)));
 	});
 var $elm$browser$Browser$element = _Browser_element;
+var $author$project$Main$Tick = function (a) {
+	return {$: 'Tick', a: a};
+};
+var $author$project$Main$ViewportMeasured = function (a) {
+	return {$: 'ViewportMeasured', a: a};
+};
 var $elm$json$Json$Decode$decodeValue = _Json_run;
 var $author$project$Main$Flags = F6(
 	function (boardCode, clientId, playerName, savedLocalGame, savedLocalPaused, onlineMoveTimer) {
@@ -5265,8 +5317,43 @@ var $author$project$Main$localMoveDecoderHelper = A6(
 				A2($elm$json$Json$Decode$field, 'bounce', $elm$json$Json$Decode$bool),
 				$elm$json$Json$Decode$succeed(false)
 			])));
-var $elm$json$Json$Decode$map3 = _Json_map3;
+var $elm$json$Json$Decode$map6 = _Json_map6;
 var $elm$json$Json$Decode$map8 = _Json_map8;
+var $elm$core$List$any = F2(
+	function (isOkay, list) {
+		any:
+		while (true) {
+			if (!list.b) {
+				return false;
+			} else {
+				var x = list.a;
+				var xs = list.b;
+				if (isOkay(x)) {
+					return true;
+				} else {
+					var $temp$isOkay = isOkay,
+						$temp$list = xs;
+					isOkay = $temp$isOkay;
+					list = $temp$list;
+					continue any;
+				}
+			}
+		}
+	});
+var $elm$core$List$member = F2(
+	function (x, xs) {
+		return A2(
+			$elm$core$List$any,
+			function (a) {
+				return _Utils_eq(a, x);
+			},
+			xs);
+	});
+var $author$project$Main$timerOptions = _List_fromArray(
+	[0, 5, 10, 15, 20, 30]);
+var $author$project$Main$normalizeMoveTimerSeconds = function (seconds) {
+	return A2($elm$core$List$member, seconds, $author$project$Main$timerOptions) ? seconds : 15;
+};
 var $elm$json$Json$Decode$null = _Json_decodeNull;
 var $elm$json$Json$Decode$nullable = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
@@ -5279,13 +5366,20 @@ var $elm$json$Json$Decode$nullable = function (decoder) {
 var $author$project$Main$localGameDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	function (base) {
-		return A4(
-			$elm$json$Json$Decode$map3,
-			F3(
-				function (scoreRed, winner, endReason) {
+		return A7(
+			$elm$json$Json$Decode$map6,
+			F6(
+				function (scoreRed, winner, endReason, moveTimerSeconds, turnStartedAtMs, consecutiveTimeouts) {
 					return _Utils_update(
 						base,
-						{endReason: endReason, scoreRed: scoreRed, winner: winner});
+						{
+							consecutiveTimeouts: consecutiveTimeouts,
+							endReason: endReason,
+							moveTimerSeconds: $author$project$Main$normalizeMoveTimerSeconds(moveTimerSeconds),
+							scoreRed: scoreRed,
+							turnStartedAtMs: turnStartedAtMs,
+							winner: winner
+						});
 				}),
 			A2($elm$json$Json$Decode$field, 'scoreRed', $elm$json$Json$Decode$int),
 			A2(
@@ -5295,13 +5389,34 @@ var $author$project$Main$localGameDecoder = A2(
 			A2(
 				$elm$json$Json$Decode$field,
 				'endReason',
-				$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)));
+				$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2($elm$json$Json$Decode$field, 'moveTimerSeconds', $elm$json$Json$Decode$int),
+						$elm$json$Json$Decode$succeed(15)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2(
+						$elm$json$Json$Decode$field,
+						'turnStartedAtMs',
+						$elm$json$Json$Decode$nullable($elm$json$Json$Decode$int)),
+						$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2($elm$json$Json$Decode$field, 'consecutiveTimeouts', $elm$json$Json$Decode$int),
+						$elm$json$Json$Decode$succeed(0)
+					])));
 	},
 	A9(
 		$elm$json$Json$Decode$map8,
 		F8(
 			function (blueName_, redName_, turn, ball, visited, segments, moves, scoreBlue) {
-				return {ball: ball, blueName: blueName_, endReason: $elm$core$Maybe$Nothing, moves: moves, redName: redName_, scoreBlue: scoreBlue, scoreRed: 0, segments: segments, turn: turn, visited: visited, winner: $elm$core$Maybe$Nothing};
+				return {ball: ball, blueName: blueName_, consecutiveTimeouts: 0, endReason: $elm$core$Maybe$Nothing, moveTimerSeconds: 15, moves: moves, redName: redName_, scoreBlue: scoreBlue, scoreRed: 0, segments: segments, turn: turn, turnStartedAtMs: $elm$core$Maybe$Nothing, visited: visited, winner: $elm$core$Maybe$Nothing};
 			}),
 		A2($elm$json$Json$Decode$field, 'blueName', $elm$json$Json$Decode$string),
 		A2($elm$json$Json$Decode$field, 'redName', $elm$json$Json$Decode$string),
@@ -5335,7 +5450,6 @@ var $author$project$Main$localGameDecoder = A2(
 			'moves',
 			$elm$json$Json$Decode$list($author$project$Main$localMoveDecoderHelper)),
 		A2($elm$json$Json$Decode$field, 'scoreBlue', $elm$json$Json$Decode$int)));
-var $elm$json$Json$Decode$map6 = _Json_map6;
 var $elm$json$Json$Decode$maybe = function (decoder) {
 	return $elm$json$Json$Decode$oneOf(
 		_List_fromArray(
@@ -5404,6 +5518,7 @@ var $author$project$Main$applyFlags = F2(
 		if (_v0.$ === 'Ok') {
 			var parsed = _v0.a;
 			var sanitized = $author$project$Main$sanitizeBoardCode(parsed.boardCode);
+			var shouldOpenGameImmediately = $author$project$Main$isValidBoardCode(sanitized);
 			var invalid = (!$elm$core$String$isEmpty(
 				$elm$core$String$trim(parsed.boardCode))) && (!$author$project$Main$isValidBoardCode(sanitized));
 			return _Utils_update(
@@ -5421,7 +5536,7 @@ var $author$project$Main$applyFlags = F2(
 					mainTab: 'game',
 					onlineMoveTimer: parsed.onlineMoveTimer,
 					playerName: $author$project$Main$sanitizePlayerName(parsed.playerName),
-					showLobby: false
+					showLobby: !shouldOpenGameImmediately
 				});
 		} else {
 			var decodeError = _v0.a;
@@ -5434,6 +5549,23 @@ var $author$project$Main$applyFlags = F2(
 		}
 	});
 var $elm$core$Platform$Cmd$batch = _Platform_batch;
+var $elm$browser$Browser$Dom$getViewport = _Browser_withWindow(_Browser_getViewport);
+var $elm$time$Time$Name = function (a) {
+	return {$: 'Name', a: a};
+};
+var $elm$time$Time$Offset = function (a) {
+	return {$: 'Offset', a: a};
+};
+var $elm$time$Time$Zone = F2(
+	function (a, b) {
+		return {$: 'Zone', a: a, b: b};
+	});
+var $elm$time$Time$customZone = $elm$time$Time$Zone;
+var $elm$time$Time$Posix = function (a) {
+	return {$: 'Posix', a: a};
+};
+var $elm$time$Time$millisToPosix = $elm$time$Time$Posix;
+var $elm$time$Time$now = _Time_now($elm$time$Time$millisToPosix);
 var $elm$json$Json$Encode$object = function (pairs) {
 	return _Json_wrap(
 		A3(
@@ -5468,22 +5600,28 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, version: 0};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
-		$author$project$Main$outgoingClientCommand(
-			$elm$json$Json$Encode$object(
-				_List_fromArray(
+		A2($elm$core$Task$perform, $author$project$Main$ViewportMeasured, $elm$browser$Browser$Dom$getViewport),
+		A2(
+			$elm$core$List$cons,
+			A2($elm$core$Task$perform, $author$project$Main$Tick, $elm$time$Time$now),
+			A2(
+				$elm$core$List$cons,
+				$author$project$Main$outgoingClientCommand(
+					$elm$json$Json$Encode$object(
+						_List_fromArray(
+							[
+								_Utils_Tuple2(
+								'type',
+								$elm$json$Json$Encode$string('fetchBoardList'))
+							]))),
+				$author$project$Main$isValidBoardCode(model.boardCode) ? _List_fromArray(
 					[
-						_Utils_Tuple2(
-						'type',
-						$elm$json$Json$Encode$string('fetchBoardList'))
-					]))),
-		$author$project$Main$isValidBoardCode(model.boardCode) ? _List_fromArray(
-			[
-				A2($author$project$Main$watchBoardCommand, model.boardCode, model.clientId)
-			]) : _List_Nil);
+						A2($author$project$Main$watchBoardCommand, model.boardCode, model.clientId)
+					]) : _List_Nil)));
 	return _Utils_Tuple2(
 		$author$project$Main$isValidBoardCode(model.boardCode) ? _Utils_update(
 			model,
@@ -5502,12 +5640,630 @@ var $author$project$Main$ReceiveBoardList = function (a) {
 var $author$project$Main$ReceiveSocket = function (a) {
 	return {$: 'ReceiveSocket', a: a};
 };
+var $author$project$Main$ViewportResized = F2(
+	function (a, b) {
+		return {$: 'ViewportResized', a: a, b: b};
+	});
 var $elm$core$Platform$Sub$batch = _Platform_batch;
+var $elm$time$Time$Every = F2(
+	function (a, b) {
+		return {$: 'Every', a: a, b: b};
+	});
+var $elm$time$Time$State = F2(
+	function (taggers, processes) {
+		return {processes: processes, taggers: taggers};
+	});
+var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
+var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
+var $elm$time$Time$init = $elm$core$Task$succeed(
+	A2($elm$time$Time$State, $elm$core$Dict$empty, $elm$core$Dict$empty));
+var $elm$core$Basics$compare = _Utils_compare;
+var $elm$core$Dict$get = F2(
+	function (targetKey, dict) {
+		get:
+		while (true) {
+			if (dict.$ === 'RBEmpty_elm_builtin') {
+				return $elm$core$Maybe$Nothing;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
+				switch (_v1.$) {
+					case 'LT':
+						var $temp$targetKey = targetKey,
+							$temp$dict = left;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+					case 'EQ':
+						return $elm$core$Maybe$Just(value);
+					default:
+						var $temp$targetKey = targetKey,
+							$temp$dict = right;
+						targetKey = $temp$targetKey;
+						dict = $temp$dict;
+						continue get;
+				}
+			}
+		}
+	});
+var $elm$core$Dict$Black = {$: 'Black'};
+var $elm$core$Dict$RBNode_elm_builtin = F5(
+	function (a, b, c, d, e) {
+		return {$: 'RBNode_elm_builtin', a: a, b: b, c: c, d: d, e: e};
+	});
+var $elm$core$Dict$Red = {$: 'Red'};
+var $elm$core$Dict$balance = F5(
+	function (color, key, value, left, right) {
+		if ((right.$ === 'RBNode_elm_builtin') && (right.a.$ === 'Red')) {
+			var _v1 = right.a;
+			var rK = right.b;
+			var rV = right.c;
+			var rLeft = right.d;
+			var rRight = right.e;
+			if ((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) {
+				var _v3 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var lLeft = left.d;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					$elm$core$Dict$Red,
+					key,
+					value,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, lK, lV, lLeft, lRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, rK, rV, rLeft, rRight));
+			} else {
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					color,
+					rK,
+					rV,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, left, rLeft),
+					rRight);
+			}
+		} else {
+			if ((((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) && (left.d.$ === 'RBNode_elm_builtin')) && (left.d.a.$ === 'Red')) {
+				var _v5 = left.a;
+				var lK = left.b;
+				var lV = left.c;
+				var _v6 = left.d;
+				var _v7 = _v6.a;
+				var llK = _v6.b;
+				var llV = _v6.c;
+				var llLeft = _v6.d;
+				var llRight = _v6.e;
+				var lRight = left.e;
+				return A5(
+					$elm$core$Dict$RBNode_elm_builtin,
+					$elm$core$Dict$Red,
+					lK,
+					lV,
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, llK, llV, llLeft, llRight),
+					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, key, value, lRight, right));
+			} else {
+				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
+			}
+		}
+	});
+var $elm$core$Dict$insertHelp = F3(
+	function (key, value, dict) {
+		if (dict.$ === 'RBEmpty_elm_builtin') {
+			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
+		} else {
+			var nColor = dict.a;
+			var nKey = dict.b;
+			var nValue = dict.c;
+			var nLeft = dict.d;
+			var nRight = dict.e;
+			var _v1 = A2($elm$core$Basics$compare, key, nKey);
+			switch (_v1.$) {
+				case 'LT':
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						A3($elm$core$Dict$insertHelp, key, value, nLeft),
+						nRight);
+				case 'EQ':
+					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
+				default:
+					return A5(
+						$elm$core$Dict$balance,
+						nColor,
+						nKey,
+						nValue,
+						nLeft,
+						A3($elm$core$Dict$insertHelp, key, value, nRight));
+			}
+		}
+	});
+var $elm$core$Dict$insert = F3(
+	function (key, value, dict) {
+		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
+		if ((_v0.$ === 'RBNode_elm_builtin') && (_v0.a.$ === 'Red')) {
+			var _v1 = _v0.a;
+			var k = _v0.b;
+			var v = _v0.c;
+			var l = _v0.d;
+			var r = _v0.e;
+			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, k, v, l, r);
+		} else {
+			var x = _v0;
+			return x;
+		}
+	});
+var $elm$time$Time$addMySub = F2(
+	function (_v0, state) {
+		var interval = _v0.a;
+		var tagger = _v0.b;
+		var _v1 = A2($elm$core$Dict$get, interval, state);
+		if (_v1.$ === 'Nothing') {
+			return A3(
+				$elm$core$Dict$insert,
+				interval,
+				_List_fromArray(
+					[tagger]),
+				state);
+		} else {
+			var taggers = _v1.a;
+			return A3(
+				$elm$core$Dict$insert,
+				interval,
+				A2($elm$core$List$cons, tagger, taggers),
+				state);
+		}
+	});
+var $elm$core$Process$kill = _Scheduler_kill;
+var $elm$core$Dict$foldl = F3(
+	function (func, acc, dict) {
+		foldl:
+		while (true) {
+			if (dict.$ === 'RBEmpty_elm_builtin') {
+				return acc;
+			} else {
+				var key = dict.b;
+				var value = dict.c;
+				var left = dict.d;
+				var right = dict.e;
+				var $temp$func = func,
+					$temp$acc = A3(
+					func,
+					key,
+					value,
+					A3($elm$core$Dict$foldl, func, acc, left)),
+					$temp$dict = right;
+				func = $temp$func;
+				acc = $temp$acc;
+				dict = $temp$dict;
+				continue foldl;
+			}
+		}
+	});
+var $elm$core$Dict$merge = F6(
+	function (leftStep, bothStep, rightStep, leftDict, rightDict, initialResult) {
+		var stepState = F3(
+			function (rKey, rValue, _v0) {
+				stepState:
+				while (true) {
+					var list = _v0.a;
+					var result = _v0.b;
+					if (!list.b) {
+						return _Utils_Tuple2(
+							list,
+							A3(rightStep, rKey, rValue, result));
+					} else {
+						var _v2 = list.a;
+						var lKey = _v2.a;
+						var lValue = _v2.b;
+						var rest = list.b;
+						if (_Utils_cmp(lKey, rKey) < 0) {
+							var $temp$rKey = rKey,
+								$temp$rValue = rValue,
+								$temp$_v0 = _Utils_Tuple2(
+								rest,
+								A3(leftStep, lKey, lValue, result));
+							rKey = $temp$rKey;
+							rValue = $temp$rValue;
+							_v0 = $temp$_v0;
+							continue stepState;
+						} else {
+							if (_Utils_cmp(lKey, rKey) > 0) {
+								return _Utils_Tuple2(
+									list,
+									A3(rightStep, rKey, rValue, result));
+							} else {
+								return _Utils_Tuple2(
+									rest,
+									A4(bothStep, lKey, lValue, rValue, result));
+							}
+						}
+					}
+				}
+			});
+		var _v3 = A3(
+			$elm$core$Dict$foldl,
+			stepState,
+			_Utils_Tuple2(
+				$elm$core$Dict$toList(leftDict),
+				initialResult),
+			rightDict);
+		var leftovers = _v3.a;
+		var intermediateResult = _v3.b;
+		return A3(
+			$elm$core$List$foldl,
+			F2(
+				function (_v4, result) {
+					var k = _v4.a;
+					var v = _v4.b;
+					return A3(leftStep, k, v, result);
+				}),
+			intermediateResult,
+			leftovers);
+	});
+var $elm$core$Platform$sendToSelf = _Platform_sendToSelf;
+var $elm$time$Time$setInterval = _Time_setInterval;
+var $elm$core$Process$spawn = _Scheduler_spawn;
+var $elm$time$Time$spawnHelp = F3(
+	function (router, intervals, processes) {
+		if (!intervals.b) {
+			return $elm$core$Task$succeed(processes);
+		} else {
+			var interval = intervals.a;
+			var rest = intervals.b;
+			var spawnTimer = $elm$core$Process$spawn(
+				A2(
+					$elm$time$Time$setInterval,
+					interval,
+					A2($elm$core$Platform$sendToSelf, router, interval)));
+			var spawnRest = function (id) {
+				return A3(
+					$elm$time$Time$spawnHelp,
+					router,
+					rest,
+					A3($elm$core$Dict$insert, interval, id, processes));
+			};
+			return A2($elm$core$Task$andThen, spawnRest, spawnTimer);
+		}
+	});
+var $elm$time$Time$onEffects = F3(
+	function (router, subs, _v0) {
+		var processes = _v0.processes;
+		var rightStep = F3(
+			function (_v6, id, _v7) {
+				var spawns = _v7.a;
+				var existing = _v7.b;
+				var kills = _v7.c;
+				return _Utils_Tuple3(
+					spawns,
+					existing,
+					A2(
+						$elm$core$Task$andThen,
+						function (_v5) {
+							return kills;
+						},
+						$elm$core$Process$kill(id)));
+			});
+		var newTaggers = A3($elm$core$List$foldl, $elm$time$Time$addMySub, $elm$core$Dict$empty, subs);
+		var leftStep = F3(
+			function (interval, taggers, _v4) {
+				var spawns = _v4.a;
+				var existing = _v4.b;
+				var kills = _v4.c;
+				return _Utils_Tuple3(
+					A2($elm$core$List$cons, interval, spawns),
+					existing,
+					kills);
+			});
+		var bothStep = F4(
+			function (interval, taggers, id, _v3) {
+				var spawns = _v3.a;
+				var existing = _v3.b;
+				var kills = _v3.c;
+				return _Utils_Tuple3(
+					spawns,
+					A3($elm$core$Dict$insert, interval, id, existing),
+					kills);
+			});
+		var _v1 = A6(
+			$elm$core$Dict$merge,
+			leftStep,
+			bothStep,
+			rightStep,
+			newTaggers,
+			processes,
+			_Utils_Tuple3(
+				_List_Nil,
+				$elm$core$Dict$empty,
+				$elm$core$Task$succeed(_Utils_Tuple0)));
+		var spawnList = _v1.a;
+		var existingDict = _v1.b;
+		var killTask = _v1.c;
+		return A2(
+			$elm$core$Task$andThen,
+			function (newProcesses) {
+				return $elm$core$Task$succeed(
+					A2($elm$time$Time$State, newTaggers, newProcesses));
+			},
+			A2(
+				$elm$core$Task$andThen,
+				function (_v2) {
+					return A3($elm$time$Time$spawnHelp, router, spawnList, existingDict);
+				},
+				killTask));
+	});
+var $elm$time$Time$onSelfMsg = F3(
+	function (router, interval, state) {
+		var _v0 = A2($elm$core$Dict$get, interval, state.taggers);
+		if (_v0.$ === 'Nothing') {
+			return $elm$core$Task$succeed(state);
+		} else {
+			var taggers = _v0.a;
+			var tellTaggers = function (time) {
+				return $elm$core$Task$sequence(
+					A2(
+						$elm$core$List$map,
+						function (tagger) {
+							return A2(
+								$elm$core$Platform$sendToApp,
+								router,
+								tagger(time));
+						},
+						taggers));
+			};
+			return A2(
+				$elm$core$Task$andThen,
+				function (_v1) {
+					return $elm$core$Task$succeed(state);
+				},
+				A2($elm$core$Task$andThen, tellTaggers, $elm$time$Time$now));
+		}
+	});
+var $elm$core$Basics$composeL = F3(
+	function (g, f, x) {
+		return g(
+			f(x));
+	});
+var $elm$time$Time$subMap = F2(
+	function (f, _v0) {
+		var interval = _v0.a;
+		var tagger = _v0.b;
+		return A2(
+			$elm$time$Time$Every,
+			interval,
+			A2($elm$core$Basics$composeL, f, tagger));
+	});
+_Platform_effectManagers['Time'] = _Platform_createManager($elm$time$Time$init, $elm$time$Time$onEffects, $elm$time$Time$onSelfMsg, 0, $elm$time$Time$subMap);
+var $elm$time$Time$subscription = _Platform_leaf('Time');
+var $elm$time$Time$every = F2(
+	function (interval, tagger) {
+		return $elm$time$Time$subscription(
+			A2($elm$time$Time$Every, interval, tagger));
+	});
 var $author$project$Main$incomingBoardCreated = _Platform_incomingPort('incomingBoardCreated', $elm$json$Json$Decode$string);
 var $elm$json$Json$Decode$value = _Json_decodeValue;
 var $author$project$Main$incomingBoardList = _Platform_incomingPort('incomingBoardList', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingConnectionStatus = _Platform_incomingPort('incomingConnectionStatus', $elm$json$Json$Decode$string);
 var $author$project$Main$incomingSocketMessage = _Platform_incomingPort('incomingSocketMessage', $elm$json$Json$Decode$value);
+var $elm$browser$Browser$Events$Window = {$: 'Window'};
+var $elm$browser$Browser$Events$MySub = F3(
+	function (a, b, c) {
+		return {$: 'MySub', a: a, b: b, c: c};
+	});
+var $elm$browser$Browser$Events$State = F2(
+	function (subs, pids) {
+		return {pids: pids, subs: subs};
+	});
+var $elm$browser$Browser$Events$init = $elm$core$Task$succeed(
+	A2($elm$browser$Browser$Events$State, _List_Nil, $elm$core$Dict$empty));
+var $elm$browser$Browser$Events$nodeToKey = function (node) {
+	if (node.$ === 'Document') {
+		return 'd_';
+	} else {
+		return 'w_';
+	}
+};
+var $elm$browser$Browser$Events$addKey = function (sub) {
+	var node = sub.a;
+	var name = sub.b;
+	return _Utils_Tuple2(
+		_Utils_ap(
+			$elm$browser$Browser$Events$nodeToKey(node),
+			name),
+		sub);
+};
+var $elm$core$Dict$fromList = function (assocs) {
+	return A3(
+		$elm$core$List$foldl,
+		F2(
+			function (_v0, dict) {
+				var key = _v0.a;
+				var value = _v0.b;
+				return A3($elm$core$Dict$insert, key, value, dict);
+			}),
+		$elm$core$Dict$empty,
+		assocs);
+};
+var $elm$browser$Browser$Events$Event = F2(
+	function (key, event) {
+		return {event: event, key: key};
+	});
+var $elm$browser$Browser$Events$spawn = F3(
+	function (router, key, _v0) {
+		var node = _v0.a;
+		var name = _v0.b;
+		var actualNode = function () {
+			if (node.$ === 'Document') {
+				return _Browser_doc;
+			} else {
+				return _Browser_window;
+			}
+		}();
+		return A2(
+			$elm$core$Task$map,
+			function (value) {
+				return _Utils_Tuple2(key, value);
+			},
+			A3(
+				_Browser_on,
+				actualNode,
+				name,
+				function (event) {
+					return A2(
+						$elm$core$Platform$sendToSelf,
+						router,
+						A2($elm$browser$Browser$Events$Event, key, event));
+				}));
+	});
+var $elm$core$Dict$union = F2(
+	function (t1, t2) {
+		return A3($elm$core$Dict$foldl, $elm$core$Dict$insert, t2, t1);
+	});
+var $elm$browser$Browser$Events$onEffects = F3(
+	function (router, subs, state) {
+		var stepRight = F3(
+			function (key, sub, _v6) {
+				var deads = _v6.a;
+				var lives = _v6.b;
+				var news = _v6.c;
+				return _Utils_Tuple3(
+					deads,
+					lives,
+					A2(
+						$elm$core$List$cons,
+						A3($elm$browser$Browser$Events$spawn, router, key, sub),
+						news));
+			});
+		var stepLeft = F3(
+			function (_v4, pid, _v5) {
+				var deads = _v5.a;
+				var lives = _v5.b;
+				var news = _v5.c;
+				return _Utils_Tuple3(
+					A2($elm$core$List$cons, pid, deads),
+					lives,
+					news);
+			});
+		var stepBoth = F4(
+			function (key, pid, _v2, _v3) {
+				var deads = _v3.a;
+				var lives = _v3.b;
+				var news = _v3.c;
+				return _Utils_Tuple3(
+					deads,
+					A3($elm$core$Dict$insert, key, pid, lives),
+					news);
+			});
+		var newSubs = A2($elm$core$List$map, $elm$browser$Browser$Events$addKey, subs);
+		var _v0 = A6(
+			$elm$core$Dict$merge,
+			stepLeft,
+			stepBoth,
+			stepRight,
+			state.pids,
+			$elm$core$Dict$fromList(newSubs),
+			_Utils_Tuple3(_List_Nil, $elm$core$Dict$empty, _List_Nil));
+		var deadPids = _v0.a;
+		var livePids = _v0.b;
+		var makeNewPids = _v0.c;
+		return A2(
+			$elm$core$Task$andThen,
+			function (pids) {
+				return $elm$core$Task$succeed(
+					A2(
+						$elm$browser$Browser$Events$State,
+						newSubs,
+						A2(
+							$elm$core$Dict$union,
+							livePids,
+							$elm$core$Dict$fromList(pids))));
+			},
+			A2(
+				$elm$core$Task$andThen,
+				function (_v1) {
+					return $elm$core$Task$sequence(makeNewPids);
+				},
+				$elm$core$Task$sequence(
+					A2($elm$core$List$map, $elm$core$Process$kill, deadPids))));
+	});
+var $elm$core$List$maybeCons = F3(
+	function (f, mx, xs) {
+		var _v0 = f(mx);
+		if (_v0.$ === 'Just') {
+			var x = _v0.a;
+			return A2($elm$core$List$cons, x, xs);
+		} else {
+			return xs;
+		}
+	});
+var $elm$core$List$filterMap = F2(
+	function (f, xs) {
+		return A3(
+			$elm$core$List$foldr,
+			$elm$core$List$maybeCons(f),
+			_List_Nil,
+			xs);
+	});
+var $elm$browser$Browser$Events$onSelfMsg = F3(
+	function (router, _v0, state) {
+		var key = _v0.key;
+		var event = _v0.event;
+		var toMessage = function (_v2) {
+			var subKey = _v2.a;
+			var _v3 = _v2.b;
+			var node = _v3.a;
+			var name = _v3.b;
+			var decoder = _v3.c;
+			return _Utils_eq(subKey, key) ? A2(_Browser_decodeEvent, decoder, event) : $elm$core$Maybe$Nothing;
+		};
+		var messages = A2($elm$core$List$filterMap, toMessage, state.subs);
+		return A2(
+			$elm$core$Task$andThen,
+			function (_v1) {
+				return $elm$core$Task$succeed(state);
+			},
+			$elm$core$Task$sequence(
+				A2(
+					$elm$core$List$map,
+					$elm$core$Platform$sendToApp(router),
+					messages)));
+	});
+var $elm$browser$Browser$Events$subMap = F2(
+	function (func, _v0) {
+		var node = _v0.a;
+		var name = _v0.b;
+		var decoder = _v0.c;
+		return A3(
+			$elm$browser$Browser$Events$MySub,
+			node,
+			name,
+			A2($elm$json$Json$Decode$map, func, decoder));
+	});
+_Platform_effectManagers['Browser.Events'] = _Platform_createManager($elm$browser$Browser$Events$init, $elm$browser$Browser$Events$onEffects, $elm$browser$Browser$Events$onSelfMsg, 0, $elm$browser$Browser$Events$subMap);
+var $elm$browser$Browser$Events$subscription = _Platform_leaf('Browser.Events');
+var $elm$browser$Browser$Events$on = F3(
+	function (node, name, decoder) {
+		return $elm$browser$Browser$Events$subscription(
+			A3($elm$browser$Browser$Events$MySub, node, name, decoder));
+	});
+var $elm$browser$Browser$Events$onResize = function (func) {
+	return A3(
+		$elm$browser$Browser$Events$on,
+		$elm$browser$Browser$Events$Window,
+		'resize',
+		A2(
+			$elm$json$Json$Decode$field,
+			'target',
+			A3(
+				$elm$json$Json$Decode$map2,
+				func,
+				A2($elm$json$Json$Decode$field, 'innerWidth', $elm$json$Json$Decode$int),
+				A2($elm$json$Json$Decode$field, 'innerHeight', $elm$json$Json$Decode$int))));
+};
 var $author$project$Main$subscriptions = function (_v0) {
 	return $elm$core$Platform$Sub$batch(
 		_List_fromArray(
@@ -5515,49 +6271,32 @@ var $author$project$Main$subscriptions = function (_v0) {
 				$author$project$Main$incomingSocketMessage($author$project$Main$ReceiveSocket),
 				$author$project$Main$incomingConnectionStatus($author$project$Main$ConnectionChanged),
 				$author$project$Main$incomingBoardList($author$project$Main$ReceiveBoardList),
-				$author$project$Main$incomingBoardCreated($author$project$Main$ReceiveBoardCreated)
+				$author$project$Main$incomingBoardCreated($author$project$Main$ReceiveBoardCreated),
+				$elm$browser$Browser$Events$onResize($author$project$Main$ViewportResized),
+				A2($elm$time$Time$every, 250, $author$project$Main$Tick)
 			]));
 };
-var $author$project$Main$applyIncoming = F2(
-	function (incoming, model) {
-		return (_Utils_cmp(incoming.version, model.version) < 1) ? _Utils_update(
-			model,
-			{
-				error: $elm$core$Maybe$Nothing,
-				ignoredStaleVersion: $elm$core$Maybe$Just(incoming.version)
-			}) : _Utils_update(
-			model,
-			{
-				board: $elm$core$Maybe$Just(incoming.board),
-				boardCode: incoming.boardCode,
-				draftBoardCode: incoming.boardCode,
-				error: $elm$core$Maybe$Nothing,
-				ignoredStaleVersion: $elm$core$Maybe$Nothing,
-				replayIndex: $elm$core$Maybe$Nothing,
-				version: incoming.version
-			});
-	});
-var $elm$core$List$any = F2(
-	function (isOkay, list) {
-		any:
-		while (true) {
-			if (!list.b) {
-				return false;
-			} else {
-				var x = list.a;
-				var xs = list.b;
-				if (isOkay(x)) {
-					return true;
-				} else {
-					var $temp$isOkay = isOkay,
-						$temp$list = xs;
-					isOkay = $temp$isOkay;
-					list = $temp$list;
-					continue any;
-				}
-			}
+var $author$project$Main$activeBoard = function (model) {
+	return model.board;
+};
+var $elm$core$Basics$neq = _Utils_notEqual;
+var $author$project$Main$activeLocalGame = function (model) {
+	return (!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) ? $elm$core$Maybe$Nothing : model.localGame;
+};
+var $elm$core$Maybe$andThen = F2(
+	function (callback, maybeValue) {
+		if (maybeValue.$ === 'Just') {
+			var value = maybeValue.a;
+			return callback(value);
+		} else {
+			return $elm$core$Maybe$Nothing;
 		}
 	});
+var $author$project$Board$Types$Active = {$: 'Active'};
+var $author$project$Board$Types$BetweenRoundSession = {$: 'BetweenRoundSession'};
+var $author$project$Board$Types$BetweenRounds = {$: 'BetweenRounds'};
+var $author$project$Board$Types$Occupied = {$: 'Occupied'};
+var $author$project$Board$Types$SessionActive = {$: 'SessionActive'};
 var $elm$core$List$filter = F2(
 	function (isGood, list) {
 		return A3(
@@ -5590,7 +6329,6 @@ var $elm$core$Basics$min = F2(
 	function (x, y) {
 		return (_Utils_cmp(x, y) < 0) ? x : y;
 	});
-var $elm$core$Basics$neq = _Utils_notEqual;
 var $author$project$Main$isLocalTracedMarginSegment = F2(
 	function (from, to) {
 		var verticalSide = _Utils_eq(from.x, to.x) && (((!from.x) || (from.x === 8)) && ((from.y >= 1) && ((from.y <= 11) && ((to.y >= 1) && (to.y <= 11)))));
@@ -5608,15 +6346,6 @@ var $author$project$Main$localSegmentKey = F2(
 		var bk = $author$project$Main$pkLocal(b);
 		var ak = $author$project$Main$pkLocal(a);
 		return (_Utils_cmp(ak, bk) < 0) ? (ak + ('|' + bk)) : (bk + ('|' + ak));
-	});
-var $elm$core$List$member = F2(
-	function (x, xs) {
-		return A2(
-			$elm$core$List$any,
-			function (a) {
-				return _Utils_eq(a, x);
-			},
-			xs);
 	});
 var $author$project$Main$computeLocalLegalMoves = function (lg) {
 	var hasSegment = F2(
@@ -5663,6 +6392,221 @@ var $author$project$Main$computeLocalLegalMoves = function (lg) {
 				},
 				A2($elm$core$List$filter, $author$project$Main$isLocalBoardPoint, candidates))));
 };
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return $elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
+var $author$project$Main$localTurnDeadlineAt = function (lg) {
+	return ((lg.moveTimerSeconds <= 0) || (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing))) ? $elm$core$Maybe$Nothing : A2(
+		$elm$core$Maybe$map,
+		function (startedAtMs) {
+			return startedAtMs + (lg.moveTimerSeconds * 1000);
+		},
+		lg.turnStartedAtMs);
+};
+var $author$project$Main$localGameToBoard = function (lg) {
+	var toP = function (p) {
+		return {x: p.x, y: p.y};
+	};
+	var toM = function (m) {
+		return {
+			bounce: m.bounce,
+			from: toP(m.from),
+			playerId: m.playerId,
+			segment: m.segment,
+			to: toP(m.to)
+		};
+	};
+	var mkSeat = F2(
+		function (color_, name) {
+			return {
+				canBeFreed: false,
+				canBeFreedAt: $elm$core$Maybe$Nothing,
+				color: color_,
+				disconnectedAt: $elm$core$Maybe$Nothing,
+				player: $elm$core$Maybe$Just(
+					{displayName: name, joinedAt: $elm$core$Maybe$Nothing}),
+				state: $author$project$Board$Types$Occupied
+			};
+		});
+	var legalMoves = $author$project$Main$computeLocalLegalMoves(lg);
+	var round = {
+		ball: toP(lg.ball),
+		deadlineAt: $author$project$Main$localTurnDeadlineAt(lg),
+		endReason: lg.endReason,
+		legalMoves: A2($elm$core$List$map, toP, legalMoves),
+		moves: A2($elm$core$List$map, toM, lg.moves),
+		segments: lg.segments,
+		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? 'BetweenRounds' : 'Active',
+		turn: lg.turn,
+		visited: lg.visited,
+		winner: lg.winner
+	};
+	var session = {
+		endReason: lg.endReason,
+		id: $elm$core$Maybe$Nothing,
+		moveCount: $elm$core$List$length(lg.moves),
+		moveTimeLimitSeconds: $elm$core$Maybe$Just(lg.moveTimerSeconds),
+		round: $elm$core$Maybe$Just(round),
+		score: {blue: lg.scoreBlue, red: lg.scoreRed},
+		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? $author$project$Board$Types$BetweenRoundSession : $author$project$Board$Types$Active,
+		turn: $elm$core$Maybe$Just(lg.turn),
+		winner: lg.winner
+	};
+	return {
+		blue: A2(mkSeat, 'blue', lg.blueName),
+		code: 'LOCAL',
+		createdAt: 0,
+		currentSession: $elm$core$Maybe$Just(session),
+		expiresAt: 0,
+		red: A2(mkSeat, 'red', lg.redName),
+		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? $author$project$Board$Types$BetweenRounds : $author$project$Board$Types$SessionActive,
+		updatedAt: 0,
+		version: $elm$core$List$length(lg.moves),
+		waitingList: _List_Nil,
+		watchers: _List_Nil
+	};
+};
+var $elm$core$Basics$composeR = F3(
+	function (f, g, x) {
+		return g(
+			f(x));
+	});
+var $author$project$Main$winnerKeyForBoard = function (board) {
+	var session = board.currentSession;
+	var round = A2(
+		$elm$core$Maybe$andThen,
+		function ($) {
+			return $.round;
+		},
+		session);
+	return A2(
+		$elm$core$Maybe$map,
+		function (winnerId) {
+			return board.code + (':' + (winnerId + (':' + ($elm$core$String$fromInt(board.version) + (':' + ($elm$core$String$fromInt(
+				A2(
+					$elm$core$Maybe$withDefault,
+					0,
+					A2(
+						$elm$core$Maybe$map,
+						A2(
+							$elm$core$Basics$composeR,
+							function ($) {
+								return $.score;
+							},
+							function ($) {
+								return $.blue;
+							}),
+						session))) + (':' + $elm$core$String$fromInt(
+				A2(
+					$elm$core$Maybe$withDefault,
+					0,
+					A2(
+						$elm$core$Maybe$map,
+						A2(
+							$elm$core$Basics$composeR,
+							function ($) {
+								return $.score;
+							},
+							function ($) {
+								return $.red;
+							}),
+						session))))))))));
+		},
+		A2(
+			$elm$core$Maybe$andThen,
+			function ($) {
+				return $.winner;
+			},
+			round));
+};
+var $author$project$Main$currentWinnerKey = function (model) {
+	var _v0 = $author$project$Main$activeBoard(model);
+	if (_v0.$ === 'Just') {
+		var board = _v0.a;
+		return $author$project$Main$winnerKeyForBoard(board);
+	} else {
+		return A2(
+			$elm$core$Maybe$andThen,
+			$author$project$Main$winnerKeyForBoard,
+			A2(
+				$elm$core$Maybe$map,
+				$author$project$Main$localGameToBoard,
+				$author$project$Main$activeLocalGame(model)));
+	}
+};
+var $author$project$Main$normalizeSeatId = function (seatId) {
+	return (seatId === 'p1') ? 'blue' : ((seatId === 'p2') ? 'red' : seatId);
+};
+var $author$project$Main$seatIsVacant = function (seat) {
+	var _v0 = seat.state;
+	if (_v0.$ === 'Vacant') {
+		return true;
+	} else {
+		return false;
+	}
+};
+var $author$project$Main$retainJoinedSeat = F2(
+	function (joinedSeat, board) {
+		var _v0 = A2($elm$core$Maybe$map, $author$project$Main$normalizeSeatId, joinedSeat);
+		_v0$2:
+		while (true) {
+			if (_v0.$ === 'Just') {
+				switch (_v0.a) {
+					case 'blue':
+						return $author$project$Main$seatIsVacant(board.blue) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just('blue');
+					case 'red':
+						return $author$project$Main$seatIsVacant(board.red) ? $elm$core$Maybe$Nothing : $elm$core$Maybe$Just('red');
+					default:
+						break _v0$2;
+				}
+			} else {
+				break _v0$2;
+			}
+		}
+		return $elm$core$Maybe$Nothing;
+	});
+var $author$project$Main$applyIncoming = F2(
+	function (incoming, model) {
+		if (_Utils_cmp(incoming.version, model.version) < 1) {
+			return _Utils_update(
+				model,
+				{
+					error: $elm$core$Maybe$Nothing,
+					ignoredStaleVersion: $elm$core$Maybe$Just(incoming.version)
+				});
+		} else {
+			var nextModel = _Utils_update(
+				model,
+				{
+					board: $elm$core$Maybe$Just(incoming.board),
+					boardCode: incoming.boardCode,
+					draftBoardCode: incoming.boardCode,
+					error: $elm$core$Maybe$Nothing,
+					ignoredStaleVersion: $elm$core$Maybe$Nothing,
+					replayIndex: $elm$core$Maybe$Nothing,
+					version: incoming.version
+				});
+			return _Utils_eq(
+				$author$project$Main$currentWinnerKey(nextModel),
+				model.dismissedWinnerKey) ? _Utils_update(
+				nextModel,
+				{
+					joinedSeat: A2($author$project$Main$retainJoinedSeat, model.joinedSeat, incoming.board)
+				}) : _Utils_update(
+				nextModel,
+				{
+					dismissedWinnerKey: $elm$core$Maybe$Nothing,
+					joinedSeat: A2($author$project$Main$retainJoinedSeat, model.joinedSeat, incoming.board)
+				});
+		}
+	});
 var $elm$core$List$isEmpty = function (xs) {
 	if (!xs.b) {
 		return true;
@@ -5673,8 +6617,16 @@ var $elm$core$List$isEmpty = function (xs) {
 var $author$project$Main$isLocalBoundaryPoint = function (p) {
 	return (!p.x) || ((p.x === 8) || ((p.y === 1) || (p.y === 11)));
 };
-var $author$project$Main$applyLocalMove = F2(
-	function (lg, to) {
+var $author$project$Main$restartLocalTurnClock = F2(
+	function (nowMs, lg) {
+		return _Utils_update(
+			lg,
+			{
+				turnStartedAtMs: (lg.moveTimerSeconds > 0) ? $elm$core$Maybe$Just(nowMs) : $elm$core$Maybe$Nothing
+			});
+	});
+var $author$project$Main$applyLocalMove = F3(
+	function (nowMs, lg, to) {
 		var _v0 = lg.winner;
 		if (_v0.$ === 'Just') {
 			return $elm$core$Result$Err('Round is over — start a new round.');
@@ -5715,6 +6667,7 @@ var $author$project$Main$applyLocalMove = F2(
 					lg,
 					{
 						ball: to,
+						consecutiveTimeouts: 0,
 						moves: nextMoves,
 						segments: _Utils_ap(
 							lg.segments,
@@ -5744,10 +6697,11 @@ var $author$project$Main$applyLocalMove = F2(
 									endReason: $elm$core$Maybe$Just('Round complete'),
 									scoreBlue: (w === 'p1') ? (moved.scoreBlue + 1) : moved.scoreBlue,
 									scoreRed: (w === 'p2') ? (moved.scoreRed + 1) : moved.scoreRed,
+									turnStartedAtMs: $elm$core$Maybe$Nothing,
 									winner: $elm$core$Maybe$Just(w)
 								});
 						} else {
-							return moved;
+							return A2($author$project$Main$restartLocalTurnClock, nowMs, moved);
 						}
 					}());
 			}
@@ -5803,36 +6757,10 @@ var $author$project$Main$boardSummaryDecoder = A6(
 				A2($elm$json$Json$Decode$field, 'moveCount', $elm$json$Json$Decode$int),
 				$elm$json$Json$Decode$succeed(0)
 			])));
-var $elm$core$Maybe$andThen = F2(
-	function (callback, maybeValue) {
-		if (maybeValue.$ === 'Just') {
-			var value = maybeValue.a;
-			return callback(value);
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
-var $elm$core$Basics$composeR = F3(
-	function (f, g, x) {
-		return g(
-			f(x));
-	});
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
 var $author$project$Main$currentMoveCount = function (model) {
-	var _v0 = model.localGame;
+	var _v0 = $author$project$Main$activeBoard(model);
 	if (_v0.$ === 'Just') {
-		var lg = _v0.a;
-		return $elm$core$List$length(lg.moves);
-	} else {
+		var board = _v0.a;
 		return A2(
 			$elm$core$Maybe$withDefault,
 			0,
@@ -5849,14 +6777,68 @@ var $author$project$Main$currentMoveCount = function (model) {
 					function ($) {
 						return $.round;
 					},
-					A2(
-						$elm$core$Maybe$andThen,
-						function ($) {
-							return $.currentSession;
-						},
-						model.board))));
+					board.currentSession)));
+	} else {
+		return A2(
+			$elm$core$Maybe$withDefault,
+			0,
+			A2(
+				$elm$core$Maybe$map,
+				A2(
+					$elm$core$Basics$composeR,
+					function ($) {
+						return $.moves;
+					},
+					$elm$core$List$length),
+				$author$project$Main$activeLocalGame(model)));
 	}
 };
+var $author$project$Main$expireLocalTurnIfNeeded = F2(
+	function (nowMs, lg) {
+		return A2(
+			$elm$core$Maybe$andThen,
+			function (deadlineAt) {
+				if (_Utils_cmp(nowMs, deadlineAt) < 0) {
+					return $elm$core$Maybe$Nothing;
+				} else {
+					if (lg.consecutiveTimeouts >= 1) {
+						return $elm$core$Maybe$Just(
+							_Utils_update(
+								lg,
+								{consecutiveTimeouts: 0, turnStartedAtMs: $elm$core$Maybe$Nothing}));
+					} else {
+						var timedOutPlayer = lg.turn;
+						var nextTurn = (lg.turn === 'p1') ? 'p2' : 'p1';
+						var switched = A2(
+							$author$project$Main$restartLocalTurnClock,
+							nowMs,
+							_Utils_update(
+								lg,
+								{consecutiveTimeouts: 1, turn: nextTurn}));
+						var winner = $elm$core$List$isEmpty(
+							$author$project$Main$computeLocalLegalMoves(switched)) ? $elm$core$Maybe$Just(timedOutPlayer) : $elm$core$Maybe$Nothing;
+						return $elm$core$Maybe$Just(
+							function () {
+								if (winner.$ === 'Just') {
+									var winnerId = winner.a;
+									return _Utils_update(
+										switched,
+										{
+											endReason: $elm$core$Maybe$Just('Round complete'),
+											scoreBlue: (winnerId === 'p1') ? (switched.scoreBlue + 1) : switched.scoreBlue,
+											scoreRed: (winnerId === 'p2') ? (switched.scoreRed + 1) : switched.scoreRed,
+											turnStartedAtMs: $elm$core$Maybe$Nothing,
+											winner: $elm$core$Maybe$Just(winnerId)
+										});
+								} else {
+									return switched;
+								}
+							}());
+					}
+				}
+			},
+			$author$project$Main$localTurnDeadlineAt(lg));
+	});
 var $elm$json$Json$Encode$int = _Json_wrap;
 var $elm$json$Json$Encode$bool = _Json_wrap;
 var $elm$json$Json$Encode$list = F2(
@@ -5959,7 +6941,19 @@ var $author$project$Main$localGameEncoder = function (g) {
 				A2(
 					$elm$core$Maybe$withDefault,
 					$elm$json$Json$Encode$null,
-					A2($elm$core$Maybe$map, $elm$json$Json$Encode$string, g.endReason)))
+					A2($elm$core$Maybe$map, $elm$json$Json$Encode$string, g.endReason))),
+				_Utils_Tuple2(
+				'moveTimerSeconds',
+				$elm$json$Json$Encode$int(g.moveTimerSeconds)),
+				_Utils_Tuple2(
+				'turnStartedAtMs',
+				A2(
+					$elm$core$Maybe$withDefault,
+					$elm$json$Json$Encode$null,
+					A2($elm$core$Maybe$map, $elm$json$Json$Encode$int, g.turnStartedAtMs))),
+				_Utils_Tuple2(
+				'consecutiveTimeouts',
+				$elm$json$Json$Encode$int(g.consecutiveTimeouts))
 			]));
 };
 var $author$project$Main$persistLocalCmd = F2(
@@ -5986,20 +6980,28 @@ var $author$project$Main$persistLocalCmd = F2(
 						$elm$json$Json$Encode$bool(paused))
 					])));
 	});
-var $author$project$Main$restartLocalRound = function (lg) {
-	return _Utils_update(
-		lg,
-		{
-			ball: {x: 4, y: 6},
-			endReason: $elm$core$Maybe$Nothing,
-			moves: _List_Nil,
-			segments: _List_Nil,
-			turn: 'p1',
-			visited: _List_fromArray(
-				['4,6']),
-			winner: $elm$core$Maybe$Nothing
-		});
+var $elm$time$Time$posixToMillis = function (_v0) {
+	var millis = _v0.a;
+	return millis;
 };
+var $author$project$Main$restartLocalRound = F2(
+	function (nowMs, lg) {
+		return _Utils_update(
+			lg,
+			{
+				ball: {x: 4, y: 6},
+				consecutiveTimeouts: 0,
+				endReason: $elm$core$Maybe$Nothing,
+				moves: _List_Nil,
+				segments: _List_Nil,
+				turn: 'p1',
+				turnStartedAtMs: (lg.moveTimerSeconds > 0) ? $elm$core$Maybe$Just(nowMs) : $elm$core$Maybe$Nothing,
+				visited: _List_fromArray(
+					['4,6']),
+				winner: $elm$core$Maybe$Nothing
+			});
+	});
+var $elm$core$Basics$round = _Basics_round;
 var $author$project$Protocol$BoardNotFound = function (a) {
 	return {$: 'BoardNotFound', a: a};
 };
@@ -6057,10 +7059,8 @@ var $author$project$Board$Decode$boardPartial = function (code) {
 		};
 	};
 };
-var $author$project$Board$Types$BetweenRounds = {$: 'BetweenRounds'};
 var $author$project$Board$Types$BoardExpired = {$: 'BoardExpired'};
 var $author$project$Board$Types$OneSeatOccupied = {$: 'OneSeatOccupied'};
-var $author$project$Board$Types$SessionActive = {$: 'SessionActive'};
 var $author$project$Board$Types$SessionEnded = {$: 'SessionEnded'};
 var $author$project$Board$Types$SessionPaused = {$: 'SessionPaused'};
 var $author$project$Board$Types$UnknownBoardState = function (a) {
@@ -6091,6 +7091,7 @@ var $author$project$Board$Decode$boardStateDecoder = A2(
 		}
 	},
 	$elm$json$Json$Decode$string);
+var $elm$json$Json$Decode$map3 = _Json_map3;
 var $author$project$Board$Types$Person = F2(
 	function (displayName, joinedAt) {
 		return {displayName: displayName, joinedAt: joinedAt};
@@ -6106,7 +7107,6 @@ var $author$project$Board$Types$Seat = F6(
 		return {canBeFreed: canBeFreed, canBeFreedAt: canBeFreedAt, color: color, disconnectedAt: disconnectedAt, player: player, state: state};
 	});
 var $author$project$Board$Types$DisconnectedReserved = {$: 'DisconnectedReserved'};
-var $author$project$Board$Types$Occupied = {$: 'Occupied'};
 var $author$project$Board$Types$UnknownSeatState = function (a) {
 	return {$: 'UnknownSeatState', a: a};
 };
@@ -6179,23 +7179,31 @@ var $author$project$Board$Decode$moveDecoder = A6(
 var $author$project$Board$Decode$roundDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	function (r) {
-		return A2(
-			$elm$json$Json$Decode$map,
-			function (er) {
-				return _Utils_update(
-					r,
-					{endReason: er});
-			},
-			A2(
-				$elm$json$Json$Decode$field,
-				'endReason',
-				$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)));
+		return A3(
+			$elm$json$Json$Decode$map2,
+			F2(
+				function (deadlineAt, endReason) {
+					return _Utils_update(
+						r,
+						{deadlineAt: deadlineAt, endReason: endReason});
+				}),
+			$elm$json$Json$Decode$maybe(
+				A2($elm$json$Json$Decode$field, 'deadlineAt', $elm$json$Json$Decode$int)),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2(
+						$elm$json$Json$Decode$field,
+						'endReason',
+						$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+						$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+					])));
 	},
 	A9(
 		$elm$json$Json$Decode$map8,
 		F8(
 			function (state, turn, ball, visited, segments, moves, legalMoves, winner) {
-				return {ball: ball, endReason: $elm$core$Maybe$Nothing, legalMoves: legalMoves, moves: moves, segments: segments, state: state, turn: turn, visited: visited, winner: winner};
+				return {ball: ball, deadlineAt: $elm$core$Maybe$Nothing, endReason: $elm$core$Maybe$Nothing, legalMoves: legalMoves, moves: moves, segments: segments, state: state, turn: turn, visited: visited, winner: winner};
 			}),
 		A2($elm$json$Json$Decode$field, 'state', $elm$json$Json$Decode$string),
 		A2($elm$json$Json$Decode$field, 'turn', $elm$json$Json$Decode$string),
@@ -6249,6 +7257,33 @@ var $author$project$Board$Decode$scoreDecoder = A3(
 	$author$project$Board$Types$Score,
 	A2($elm$json$Json$Decode$field, 'blue', $elm$json$Json$Decode$int),
 	A2($elm$json$Json$Decode$field, 'red', $elm$json$Json$Decode$int));
+var $author$project$Board$Decode$sessionEndReasonDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[
+			A2(
+			$elm$json$Json$Decode$field,
+			'endReason',
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			A2(
+			$elm$json$Json$Decode$at,
+			_List_fromArray(
+				['round', 'endReason']),
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+		]));
+var $author$project$Board$Decode$sessionIdDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[
+			A2(
+			$elm$json$Json$Decode$field,
+			'id',
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			A2(
+			$elm$json$Json$Decode$field,
+			'sessionId',
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+		]));
 var $author$project$Board$Decode$sessionMoveCountDecoder = $elm$json$Json$Decode$oneOf(
 	_List_fromArray(
 		[
@@ -6262,8 +7297,6 @@ var $author$project$Board$Decode$sessionMoveCountDecoder = $elm$json$Json$Decode
 				$elm$json$Json$Decode$list($elm$json$Json$Decode$value))),
 			$elm$json$Json$Decode$succeed(0)
 		]));
-var $author$project$Board$Types$Active = {$: 'Active'};
-var $author$project$Board$Types$BetweenRoundSession = {$: 'BetweenRoundSession'};
 var $author$project$Board$Types$Ended = {$: 'Ended'};
 var $author$project$Board$Types$Paused = {$: 'Paused'};
 var $author$project$Board$Types$UnknownSessionState = function (a) {
@@ -6287,6 +7320,37 @@ var $author$project$Board$Decode$sessionStateDecoder = A2(
 		}
 	},
 	$elm$json$Json$Decode$string);
+var $author$project$Board$Decode$sessionTurnDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[
+			A2(
+			$elm$json$Json$Decode$field,
+			'turn',
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			A2(
+			$elm$json$Json$Decode$map,
+			$elm$core$Maybe$Just,
+			A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['round', 'turn']),
+				$elm$json$Json$Decode$string)),
+			$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+		]));
+var $author$project$Board$Decode$sessionWinnerDecoder = $elm$json$Json$Decode$oneOf(
+	_List_fromArray(
+		[
+			A2(
+			$elm$json$Json$Decode$field,
+			'winner',
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			A2(
+			$elm$json$Json$Decode$at,
+			_List_fromArray(
+				['round', 'winner']),
+			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+			$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+		]));
 var $author$project$Board$Decode$sessionDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	function (base) {
@@ -6306,20 +7370,12 @@ var $author$project$Board$Decode$sessionDecoder = A2(
 			function (id_, state_, score_, turn_, winner_, endReason_, moveCount_, round_) {
 				return {endReason: endReason_, id: id_, moveCount: moveCount_, moveTimeLimitSeconds: $elm$core$Maybe$Nothing, round: round_, score: score_, state: state_, turn: turn_, winner: winner_};
 			}),
-		$elm$json$Json$Decode$maybe(
-			A2($elm$json$Json$Decode$field, 'id', $elm$json$Json$Decode$string)),
+		$author$project$Board$Decode$sessionIdDecoder,
 		A2($elm$json$Json$Decode$field, 'state', $author$project$Board$Decode$sessionStateDecoder),
 		A2($elm$json$Json$Decode$field, 'score', $author$project$Board$Decode$scoreDecoder),
-		$elm$json$Json$Decode$maybe(
-			A2($elm$json$Json$Decode$field, 'turn', $elm$json$Json$Decode$string)),
-		A2(
-			$elm$json$Json$Decode$field,
-			'winner',
-			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
-		A2(
-			$elm$json$Json$Decode$field,
-			'endReason',
-			$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+		$author$project$Board$Decode$sessionTurnDecoder,
+		$author$project$Board$Decode$sessionWinnerDecoder,
+		$author$project$Board$Decode$sessionEndReasonDecoder,
 		$author$project$Board$Decode$sessionMoveCountDecoder,
 		$elm$json$Json$Decode$maybe(
 			A2($elm$json$Json$Decode$field, 'round', $author$project$Board$Decode$roundDecoder))));
@@ -6423,13 +7479,15 @@ var $author$project$Protocol$serverMessageDecoder = A2(
 	$elm$json$Json$Decode$andThen,
 	$author$project$Protocol$decodeByType,
 	A2($elm$json$Json$Decode$field, 'type', $elm$json$Json$Decode$string));
-var $author$project$Main$startLocalGame = F2(
-	function (blueName_, redName_) {
+var $author$project$Main$startLocalGame = F4(
+	function (nowMs, blueName_, redName_, moveTimerSeconds) {
 		return {
 			ball: {x: 4, y: 6},
 			blueName: $elm$core$String$isEmpty(
 				$elm$core$String$trim(blueName_)) ? 'Blue' : $elm$core$String$trim(blueName_),
+			consecutiveTimeouts: 0,
 			endReason: $elm$core$Maybe$Nothing,
+			moveTimerSeconds: $author$project$Main$normalizeMoveTimerSeconds(moveTimerSeconds),
 			moves: _List_Nil,
 			redName: $elm$core$String$isEmpty(
 				$elm$core$String$trim(redName_)) ? 'Red' : $elm$core$String$trim(redName_),
@@ -6437,6 +7495,7 @@ var $author$project$Main$startLocalGame = F2(
 			scoreRed: 0,
 			segments: _List_Nil,
 			turn: 'p1',
+			turnStartedAtMs: (moveTimerSeconds > 0) ? $elm$core$Maybe$Just(nowMs) : $elm$core$Maybe$Nothing,
 			visited: _List_fromArray(
 				['4,6']),
 			winner: $elm$core$Maybe$Nothing
@@ -6465,20 +7524,33 @@ var $author$project$Main$update = F2(
 									{
 										board: $elm$core$Maybe$Nothing,
 										boardCode: A2($author$project$Protocol$boardNotFoundCode, payload, model.boardCode),
-										error: $elm$core$Maybe$Just(payload.message)
+										error: $elm$core$Maybe$Just(payload.message),
+										joinedSeat: $elm$core$Maybe$Nothing
 									}),
 								$elm$core$Platform$Cmd$none);
 						case 'Joined':
+							var maybeSeatId = serverMessage.a;
 							return _Utils_Tuple2(
 								_Utils_update(
 									model,
-									{error: $elm$core$Maybe$Nothing}),
+									{
+										error: $elm$core$Maybe$Nothing,
+										joinedSeat: function () {
+											if (maybeSeatId.$ === 'Just') {
+												var seatId = maybeSeatId.a;
+												return $elm$core$Maybe$Just(
+													$author$project$Main$normalizeSeatId(seatId));
+											} else {
+												return model.joinedSeat;
+											}
+										}()
+									}),
 								$elm$core$Platform$Cmd$none);
 						case 'Left':
 							return _Utils_Tuple2(
 								_Utils_update(
 									model,
-									{error: $elm$core$Maybe$Nothing}),
+									{error: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing}),
 								$elm$core$Platform$Cmd$none);
 						case 'WaitingListJoined':
 							return _Utils_Tuple2(
@@ -6535,6 +7607,87 @@ var $author$project$Main$update = F2(
 						model,
 						{connectionStatus: status}),
 					$elm$core$Platform$Cmd$none);
+			case 'Tick':
+				var now = msg.a;
+				var nowMs = $elm$time$Time$posixToMillis(now);
+				var _v4 = model.localGame;
+				if (_v4.$ === 'Just') {
+					var lg = _v4.a;
+					if (model.localPaused) {
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{currentTimeMs: nowMs}),
+							$elm$core$Platform$Cmd$none);
+					} else {
+						var _v5 = A2($author$project$Main$expireLocalTurnIfNeeded, nowMs, lg);
+						if (_v5.$ === 'Just') {
+							var nextGame = _v5.a;
+							return _Utils_Tuple2(
+								_Utils_update(
+									model,
+									{
+										currentTimeMs: nowMs,
+										localGame: $elm$core$Maybe$Just(nextGame),
+										localPaused: _Utils_eq(nextGame.turnStartedAtMs, $elm$core$Maybe$Nothing) && _Utils_eq(nextGame.winner, $elm$core$Maybe$Nothing)
+									}),
+								A2(
+									$author$project$Main$persistLocalCmd,
+									$elm$core$Maybe$Just(nextGame),
+									_Utils_eq(nextGame.turnStartedAtMs, $elm$core$Maybe$Nothing) && _Utils_eq(nextGame.winner, $elm$core$Maybe$Nothing)));
+						} else {
+							return _Utils_Tuple2(
+								_Utils_update(
+									model,
+									{currentTimeMs: nowMs}),
+								$elm$core$Platform$Cmd$none);
+						}
+					}
+				} else {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{currentTimeMs: nowMs}),
+						$elm$core$Platform$Cmd$none);
+				}
+			case 'ViewportMeasured':
+				var viewport = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							viewportWidth: $elm$core$Basics$round(viewport.viewport.width)
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'ViewportResized':
+				var width = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{viewportWidth: width}),
+					$elm$core$Platform$Cmd$none);
+			case 'DismissWinnerBanner':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							dismissedWinnerKey: $author$project$Main$currentWinnerKey(model)
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'OpenTimerSheet':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{showTimerSheet: true}),
+					$elm$core$Platform$Cmd$none);
+			case 'CloseTimerSheet':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{showTimerSheet: false}),
+					$elm$core$Platform$Cmd$none);
+			case 'IgnoreSheetClick':
+				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 			case 'UpdateBoardCodeInput':
 				var raw = msg.a;
 				return _Utils_Tuple2(
@@ -6550,7 +7703,7 @@ var $author$project$Main$update = F2(
 				return $author$project$Main$isValidBoardCode(boardCode) ? _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{board: $elm$core$Maybe$Nothing, boardCode: boardCode, connectionStatus: 'connecting', draftBoardCode: boardCode, error: $elm$core$Maybe$Nothing, replayIndex: $elm$core$Maybe$Nothing, showLobby: false, version: 0}),
+						{board: $elm$core$Maybe$Nothing, boardCode: boardCode, connectionStatus: 'connecting', dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: boardCode, error: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, replayIndex: $elm$core$Maybe$Nothing, showLobby: false, version: 0}),
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
 							[
@@ -6593,6 +7746,7 @@ var $author$project$Main$update = F2(
 								]))));
 			case 'ClaimSeat':
 				var seatId = msg.a;
+				var serverSeatId = (seatId === 'blue') ? 'p1' : ((seatId === 'red') ? 'p2' : seatId);
 				return _Utils_Tuple2(
 					model,
 					$author$project$Main$outgoingClientCommand(
@@ -6604,7 +7758,7 @@ var $author$project$Main$update = F2(
 									$elm$json$Json$Encode$string('claimSeat')),
 									_Utils_Tuple2(
 									'seatId',
-									$elm$json$Json$Encode$string(seatId)),
+									$elm$json$Json$Encode$string(serverSeatId)),
 									_Utils_Tuple2(
 									'name',
 									$elm$json$Json$Encode$string(model.playerName)),
@@ -6654,7 +7808,9 @@ var $author$project$Main$update = F2(
 								]))));
 			case 'LeaveSeat':
 				return _Utils_Tuple2(
-					model,
+					_Utils_update(
+						model,
+						{joinedSeat: $elm$core$Maybe$Nothing}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -6665,44 +7821,9 @@ var $author$project$Main$update = F2(
 								]))));
 			case 'ClickLegalMove':
 				var point = msg.a;
-				var _v3 = model.localGame;
-				if (_v3.$ === 'Just') {
-					var lg = _v3.a;
-					if (model.localPaused) {
-						return _Utils_Tuple2(
-							_Utils_update(
-								model,
-								{
-									error: $elm$core$Maybe$Just('Resume the game before moving.')
-								}),
-							$elm$core$Platform$Cmd$none);
-					} else {
-						var _v4 = A2($author$project$Main$applyLocalMove, lg, point);
-						if (_v4.$ === 'Ok') {
-							var nextGame = _v4.a;
-							return _Utils_Tuple2(
-								_Utils_update(
-									model,
-									{
-										error: $elm$core$Maybe$Nothing,
-										localGame: $elm$core$Maybe$Just(nextGame)
-									}),
-								A2(
-									$author$project$Main$persistLocalCmd,
-									$elm$core$Maybe$Just(nextGame),
-									false));
-						} else {
-							var reason = _v4.a;
-							return _Utils_Tuple2(
-								_Utils_update(
-									model,
-									{
-										error: $elm$core$Maybe$Just(reason)
-									}),
-								$elm$core$Platform$Cmd$none);
-						}
-					}
-				} else {
+				if (!_Utils_eq(
+					$author$project$Main$activeBoard(model),
+					$elm$core$Maybe$Nothing)) {
 					return _Utils_Tuple2(
 						model,
 						$author$project$Main$outgoingClientCommand(
@@ -6725,16 +7846,80 @@ var $author$project$Main$update = F2(
 													$elm$json$Json$Encode$int(point.y))
 												])))
 									]))));
+				} else {
+					var _v6 = $author$project$Main$activeLocalGame(model);
+					if (_v6.$ === 'Just') {
+						var lg = _v6.a;
+						if (model.localPaused) {
+							return _Utils_Tuple2(
+								_Utils_update(
+									model,
+									{
+										error: $elm$core$Maybe$Just('Resume the game before moving.')
+									}),
+								$elm$core$Platform$Cmd$none);
+						} else {
+							var _v7 = A3($author$project$Main$applyLocalMove, model.currentTimeMs, lg, point);
+							if (_v7.$ === 'Ok') {
+								var nextGame = _v7.a;
+								return _Utils_Tuple2(
+									_Utils_update(
+										model,
+										{
+											dismissedWinnerKey: $elm$core$Maybe$Nothing,
+											error: $elm$core$Maybe$Nothing,
+											localGame: $elm$core$Maybe$Just(nextGame)
+										}),
+									A2(
+										$author$project$Main$persistLocalCmd,
+										$elm$core$Maybe$Just(nextGame),
+										false));
+							} else {
+								var reason = _v7.a;
+								return _Utils_Tuple2(
+									_Utils_update(
+										model,
+										{
+											error: $elm$core$Maybe$Just(reason)
+										}),
+									$elm$core$Platform$Cmd$none);
+							}
+						}
+					} else {
+						return _Utils_Tuple2(
+							model,
+							$author$project$Main$outgoingClientCommand(
+								$elm$json$Json$Encode$object(
+									_List_fromArray(
+										[
+											_Utils_Tuple2(
+											'type',
+											$elm$json$Json$Encode$string('move')),
+											_Utils_Tuple2(
+											'to',
+											$elm$json$Json$Encode$object(
+												_List_fromArray(
+													[
+														_Utils_Tuple2(
+														'x',
+														$elm$json$Json$Encode$int(point.x)),
+														_Utils_Tuple2(
+														'y',
+														$elm$json$Json$Encode$int(point.y))
+													])))
+										]))));
+					}
 				}
 			case 'StartNewRound':
-				var _v5 = model.localGame;
-				if (_v5.$ === 'Just') {
-					var lg = _v5.a;
-					var nextGame = $author$project$Main$restartLocalRound(lg);
+				var _v8 = model.localGame;
+				if (_v8.$ === 'Just') {
+					var lg = _v8.a;
+					var nextGame = A2($author$project$Main$restartLocalRound, model.currentTimeMs, lg);
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{
+								dismissedWinnerKey: $elm$core$Maybe$Nothing,
 								error: $elm$core$Maybe$Nothing,
 								localGame: $elm$core$Maybe$Just(nextGame)
 							}),
@@ -6794,15 +7979,16 @@ var $author$project$Main$update = F2(
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'ReplayStepBack':
+				var currentIndex = A2(
+					$elm$core$Maybe$withDefault,
+					$author$project$Main$currentMoveCount(model),
+					model.replayIndex);
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
 							replayIndex: $elm$core$Maybe$Just(
-								A2(
-									$elm$core$Basics$max,
-									0,
-									$author$project$Main$currentMoveCount(model) - 1))
+								A2($elm$core$Basics$max, 0, currentIndex - 1))
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'ReplayStepForward':
@@ -6822,40 +8008,60 @@ var $author$project$Main$update = F2(
 						{replayIndex: $elm$core$Maybe$Nothing}),
 					$elm$core$Platform$Cmd$none);
 			case 'StartLocalMatch':
-				var game = A2($author$project$Main$startLocalGame, model.localBlueName, model.localRedName);
+				var game = A4($author$project$Main$startLocalGame, model.currentTimeMs, model.localBlueName, model.localRedName, model.onlineMoveTimer);
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
+							dismissedWinnerKey: $elm$core$Maybe$Nothing,
 							error: $elm$core$Maybe$Nothing,
 							localGame: $elm$core$Maybe$Just(game),
 							localPaused: false,
-							replayIndex: $elm$core$Maybe$Nothing
+							replayIndex: $elm$core$Maybe$Nothing,
+							showLobby: false,
+							showTimerSheet: false
 						}),
 					A2(
 						$author$project$Main$persistLocalCmd,
 						$elm$core$Maybe$Just(game),
 						false));
 			case 'ToggleLocalPause':
-				var _v6 = model.localGame;
-				if (_v6.$ === 'Just') {
-					return _Utils_Tuple2(
+				var _v9 = model.localGame;
+				if (_v9.$ === 'Just') {
+					var lg = _v9.a;
+					var nextPaused = !model.localPaused;
+					var nextGame = nextPaused ? _Utils_update(
+						lg,
+						{turnStartedAtMs: $elm$core$Maybe$Nothing}) : A2(
+						$author$project$Main$restartLocalTurnClock,
+						model.currentTimeMs,
 						_Utils_update(
-							model,
-							{localPaused: !model.localPaused}),
-						A2($author$project$Main$persistLocalCmd, model.localGame, !model.localPaused));
-				} else {
-					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
-				}
-			case 'LocalNewRound':
-				var _v7 = model.localGame;
-				if (_v7.$ === 'Just') {
-					var lg = _v7.a;
-					var nextGame = $author$project$Main$restartLocalRound(lg);
+							lg,
+							{consecutiveTimeouts: 0}));
 					return _Utils_Tuple2(
 						_Utils_update(
 							model,
 							{
+								localGame: $elm$core$Maybe$Just(nextGame),
+								localPaused: nextPaused
+							}),
+						A2(
+							$author$project$Main$persistLocalCmd,
+							$elm$core$Maybe$Just(nextGame),
+							nextPaused));
+				} else {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				}
+			case 'LocalNewRound':
+				var _v10 = model.localGame;
+				if (_v10.$ === 'Just') {
+					var lg = _v10.a;
+					var nextGame = A2($author$project$Main$restartLocalRound, model.currentTimeMs, lg);
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								dismissedWinnerKey: $elm$core$Maybe$Nothing,
 								error: $elm$core$Maybe$Nothing,
 								localGame: $elm$core$Maybe$Just(nextGame),
 								localPaused: false
@@ -6871,7 +8077,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{error: $elm$core$Maybe$Nothing, localGame: $elm$core$Maybe$Nothing, localPaused: false}),
+						{dismissedWinnerKey: $elm$core$Maybe$Nothing, error: $elm$core$Maybe$Nothing, localGame: $elm$core$Maybe$Nothing, localPaused: false}),
 					A2($author$project$Main$persistLocalCmd, $elm$core$Maybe$Nothing, false));
 			case 'UpdateLocalBlueName':
 				var raw = msg.a;
@@ -6900,23 +8106,23 @@ var $author$project$Main$update = F2(
 			case 'ReceiveBoardList':
 				var value = msg.a;
 				var rooms = function () {
-					var _v8 = A2(
+					var _v11 = A2(
 						$elm$json$Json$Decode$decodeValue,
 						A2(
 							$elm$json$Json$Decode$field,
 							'rooms',
 							$elm$json$Json$Decode$list($author$project$Main$boardSummaryDecoder)),
 						value);
-					if (_v8.$ === 'Ok') {
-						var list = _v8.a;
+					if (_v11.$ === 'Ok') {
+						var list = _v11.a;
 						return list;
 					} else {
-						var _v9 = A2(
+						var _v12 = A2(
 							$elm$json$Json$Decode$decodeValue,
 							$elm$json$Json$Decode$list($author$project$Main$boardSummaryDecoder),
 							value);
-						if (_v9.$ === 'Ok') {
-							var list = _v9.a;
+						if (_v12.$ === 'Ok') {
+							var list = _v12.a;
 							return list;
 						} else {
 							return _List_Nil;
@@ -6934,7 +8140,7 @@ var $author$project$Main$update = F2(
 				return $author$project$Main$isValidBoardCode(sanitized) ? _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{boardCode: sanitized, connectionStatus: 'connecting', draftBoardCode: sanitized}),
+						{boardCode: sanitized, connectionStatus: 'connecting', dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: sanitized}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -6974,7 +8180,9 @@ var $author$project$Main$update = F2(
 								]))));
 			case 'CreateBoard':
 				return _Utils_Tuple2(
-					model,
+					_Utils_update(
+						model,
+						{showLobby: false, showTimerSheet: false}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -6991,7 +8199,10 @@ var $author$project$Main$update = F2(
 				var seconds = A2(
 					$elm$core$Maybe$withDefault,
 					15,
-					$elm$core$String$toInt(raw));
+					A2(
+						$elm$core$Maybe$map,
+						$author$project$Main$normalizeMoveTimerSeconds,
+						$elm$core$String$toInt(raw)));
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
@@ -7006,6 +8217,24 @@ var $author$project$Main$update = F2(
 									_Utils_Tuple2(
 									'seconds',
 									$elm$json$Json$Encode$int(seconds))
+								]))));
+			case 'SelectOnlineMoveTimer':
+				var seconds = msg.a;
+				var normalized = $author$project$Main$normalizeMoveTimerSeconds(seconds);
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{onlineMoveTimer: normalized, showTimerSheet: false}),
+					$author$project$Main$outgoingClientCommand(
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'type',
+									$elm$json$Json$Encode$string('persistOnlineMoveTimer')),
+									_Utils_Tuple2(
+									'seconds',
+									$elm$json$Json$Encode$int(normalized))
 								]))));
 			case 'ToggleLobby':
 				return _Utils_Tuple2(
@@ -7045,26 +8274,46 @@ var $elm$html$Html$Attributes$stringProperty = F2(
 			$elm$json$Json$Encode$string(string));
 	});
 var $elm$html$Html$Attributes$class = $elm$html$Html$Attributes$stringProperty('className');
-var $mdgriffith$elm_ui$Internal$Model$Fill = function (a) {
-	return {$: 'Fill', a: a};
-};
-var $mdgriffith$elm_ui$Element$fill = $mdgriffith$elm_ui$Internal$Model$Fill(1);
-var $mdgriffith$elm_ui$Internal$Style$classes = {above: 'a', active: 'atv', alignBottom: 'ab', alignCenterX: 'cx', alignCenterY: 'cy', alignContainerBottom: 'acb', alignContainerCenterX: 'accx', alignContainerCenterY: 'accy', alignContainerRight: 'acr', alignLeft: 'al', alignRight: 'ar', alignTop: 'at', alignedHorizontally: 'ah', alignedVertically: 'av', any: 's', behind: 'bh', below: 'b', bold: 'w7', borderDashed: 'bd', borderDotted: 'bdt', borderNone: 'bn', borderSolid: 'bs', capturePointerEvents: 'cpe', clip: 'cp', clipX: 'cpx', clipY: 'cpy', column: 'c', container: 'ctr', contentBottom: 'cb', contentCenterX: 'ccx', contentCenterY: 'ccy', contentLeft: 'cl', contentRight: 'cr', contentTop: 'ct', cursorPointer: 'cptr', cursorText: 'ctxt', focus: 'fcs', focusedWithin: 'focus-within', fullSize: 'fs', grid: 'g', hasBehind: 'hbh', heightContent: 'hc', heightExact: 'he', heightFill: 'hf', heightFillPortion: 'hfp', hover: 'hv', imageContainer: 'ic', inFront: 'fr', inputLabel: 'lbl', inputMultiline: 'iml', inputMultilineFiller: 'imlf', inputMultilineParent: 'imlp', inputMultilineWrapper: 'implw', inputText: 'it', italic: 'i', link: 'lnk', nearby: 'nb', noTextSelection: 'notxt', onLeft: 'ol', onRight: 'or', opaque: 'oq', overflowHidden: 'oh', page: 'pg', paragraph: 'p', passPointerEvents: 'ppe', root: 'ui', row: 'r', scrollbars: 'sb', scrollbarsX: 'sbx', scrollbarsY: 'sby', seButton: 'sbt', single: 'e', sizeByCapital: 'cap', spaceEvenly: 'sev', strike: 'sk', text: 't', textCenter: 'tc', textExtraBold: 'w8', textExtraLight: 'w2', textHeavy: 'w9', textJustify: 'tj', textJustifyAll: 'tja', textLeft: 'tl', textLight: 'w3', textMedium: 'w5', textNormalWeight: 'w4', textRight: 'tr', textSemiBold: 'w6', textThin: 'w1', textUnitalicized: 'tun', transition: 'ts', transparent: 'clr', underline: 'u', widthContent: 'wc', widthExact: 'we', widthFill: 'wf', widthFillPortion: 'wfp', wrapped: 'wrp'};
-var $mdgriffith$elm_ui$Internal$Model$Attr = function (a) {
-	return {$: 'Attr', a: a};
-};
-var $mdgriffith$elm_ui$Internal$Model$htmlClass = function (cls) {
-	return $mdgriffith$elm_ui$Internal$Model$Attr(
-		$elm$html$Html$Attributes$class(cls));
-};
-var $mdgriffith$elm_ui$Internal$Model$OnlyDynamic = F2(
-	function (a, b) {
-		return {$: 'OnlyDynamic', a: a, b: b};
+var $mdgriffith$elm_ui$Internal$Model$Colored = F3(
+	function (a, b, c) {
+		return {$: 'Colored', a: a, b: b, c: c};
 	});
-var $mdgriffith$elm_ui$Internal$Model$StaticRootAndDynamic = F2(
+var $mdgriffith$elm_ui$Internal$Model$StyleClass = F2(
 	function (a, b) {
-		return {$: 'StaticRootAndDynamic', a: a, b: b};
+		return {$: 'StyleClass', a: a, b: b};
 	});
+var $mdgriffith$elm_ui$Internal$Flag$Flag = function (a) {
+	return {$: 'Flag', a: a};
+};
+var $mdgriffith$elm_ui$Internal$Flag$Second = function (a) {
+	return {$: 'Second', a: a};
+};
+var $elm$core$Bitwise$shiftLeftBy = _Bitwise_shiftLeftBy;
+var $mdgriffith$elm_ui$Internal$Flag$flag = function (i) {
+	return (i > 31) ? $mdgriffith$elm_ui$Internal$Flag$Second(1 << (i - 32)) : $mdgriffith$elm_ui$Internal$Flag$Flag(1 << i);
+};
+var $mdgriffith$elm_ui$Internal$Flag$fontColor = $mdgriffith$elm_ui$Internal$Flag$flag(14);
+var $mdgriffith$elm_ui$Internal$Model$floatClass = function (x) {
+	return $elm$core$String$fromInt(
+		$elm$core$Basics$round(x * 255));
+};
+var $mdgriffith$elm_ui$Internal$Model$formatColorClass = function (_v0) {
+	var red = _v0.a;
+	var green = _v0.b;
+	var blue = _v0.c;
+	var alpha = _v0.d;
+	return $mdgriffith$elm_ui$Internal$Model$floatClass(red) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(green) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(blue) + ('-' + $mdgriffith$elm_ui$Internal$Model$floatClass(alpha))))));
+};
+var $mdgriffith$elm_ui$Element$Font$color = function (fontColor) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$fontColor,
+		A3(
+			$mdgriffith$elm_ui$Internal$Model$Colored,
+			'fc-' + $mdgriffith$elm_ui$Internal$Model$formatColorClass(fontColor),
+			'color',
+			fontColor));
+};
 var $mdgriffith$elm_ui$Internal$Model$Unkeyed = function (a) {
 	return {$: 'Unkeyed', a: a};
 };
@@ -7073,6 +8322,7 @@ var $mdgriffith$elm_ui$Internal$Model$asEl = $mdgriffith$elm_ui$Internal$Model$A
 var $mdgriffith$elm_ui$Internal$Model$Generic = {$: 'Generic'};
 var $mdgriffith$elm_ui$Internal$Model$div = $mdgriffith$elm_ui$Internal$Model$Generic;
 var $mdgriffith$elm_ui$Internal$Model$NoNearbyChildren = {$: 'NoNearbyChildren'};
+var $mdgriffith$elm_ui$Internal$Style$classes = {above: 'a', active: 'atv', alignBottom: 'ab', alignCenterX: 'cx', alignCenterY: 'cy', alignContainerBottom: 'acb', alignContainerCenterX: 'accx', alignContainerCenterY: 'accy', alignContainerRight: 'acr', alignLeft: 'al', alignRight: 'ar', alignTop: 'at', alignedHorizontally: 'ah', alignedVertically: 'av', any: 's', behind: 'bh', below: 'b', bold: 'w7', borderDashed: 'bd', borderDotted: 'bdt', borderNone: 'bn', borderSolid: 'bs', capturePointerEvents: 'cpe', clip: 'cp', clipX: 'cpx', clipY: 'cpy', column: 'c', container: 'ctr', contentBottom: 'cb', contentCenterX: 'ccx', contentCenterY: 'ccy', contentLeft: 'cl', contentRight: 'cr', contentTop: 'ct', cursorPointer: 'cptr', cursorText: 'ctxt', focus: 'fcs', focusedWithin: 'focus-within', fullSize: 'fs', grid: 'g', hasBehind: 'hbh', heightContent: 'hc', heightExact: 'he', heightFill: 'hf', heightFillPortion: 'hfp', hover: 'hv', imageContainer: 'ic', inFront: 'fr', inputLabel: 'lbl', inputMultiline: 'iml', inputMultilineFiller: 'imlf', inputMultilineParent: 'imlp', inputMultilineWrapper: 'implw', inputText: 'it', italic: 'i', link: 'lnk', nearby: 'nb', noTextSelection: 'notxt', onLeft: 'ol', onRight: 'or', opaque: 'oq', overflowHidden: 'oh', page: 'pg', paragraph: 'p', passPointerEvents: 'ppe', root: 'ui', row: 'r', scrollbars: 'sb', scrollbarsX: 'sbx', scrollbarsY: 'sby', seButton: 'sbt', single: 'e', sizeByCapital: 'cap', spaceEvenly: 'sev', strike: 'sk', text: 't', textCenter: 'tc', textExtraBold: 'w8', textExtraLight: 'w2', textHeavy: 'w9', textJustify: 'tj', textJustifyAll: 'tja', textLeft: 'tl', textLight: 'w3', textMedium: 'w5', textNormalWeight: 'w4', textRight: 'tr', textSemiBold: 'w6', textThin: 'w1', textUnitalicized: 'tun', transition: 'ts', transparent: 'clr', underline: 'u', widthContent: 'wc', widthExact: 'we', widthFill: 'wf', widthFillPortion: 'wfp', wrapped: 'wrp'};
 var $mdgriffith$elm_ui$Internal$Model$columnClass = $mdgriffith$elm_ui$Internal$Style$classes.any + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.column);
 var $mdgriffith$elm_ui$Internal$Model$gridClass = $mdgriffith$elm_ui$Internal$Style$classes.any + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.grid);
 var $mdgriffith$elm_ui$Internal$Model$pageClass = $mdgriffith$elm_ui$Internal$Style$classes.any + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.page);
@@ -7171,16 +8421,6 @@ var $mdgriffith$elm_ui$Internal$Model$addKeyedChildren = F3(
 	});
 var $mdgriffith$elm_ui$Internal$Model$AsParagraph = {$: 'AsParagraph'};
 var $mdgriffith$elm_ui$Internal$Model$asParagraph = $mdgriffith$elm_ui$Internal$Model$AsParagraph;
-var $mdgriffith$elm_ui$Internal$Flag$Flag = function (a) {
-	return {$: 'Flag', a: a};
-};
-var $mdgriffith$elm_ui$Internal$Flag$Second = function (a) {
-	return {$: 'Second', a: a};
-};
-var $elm$core$Bitwise$shiftLeftBy = _Bitwise_shiftLeftBy;
-var $mdgriffith$elm_ui$Internal$Flag$flag = function (i) {
-	return (i > 31) ? $mdgriffith$elm_ui$Internal$Flag$Second(1 << (i - 32)) : $mdgriffith$elm_ui$Internal$Flag$Flag(1 << i);
-};
 var $mdgriffith$elm_ui$Internal$Flag$alignBottom = $mdgriffith$elm_ui$Internal$Flag$flag(41);
 var $mdgriffith$elm_ui$Internal$Flag$alignRight = $mdgriffith$elm_ui$Internal$Flag$flag(40);
 var $mdgriffith$elm_ui$Internal$Flag$centerX = $mdgriffith$elm_ui$Internal$Flag$flag(42);
@@ -7189,8 +8429,6 @@ var $elm$html$Html$div = _VirtualDom_node('div');
 var $elm$core$Set$Set_elm_builtin = function (a) {
 	return {$: 'Set_elm_builtin', a: a};
 };
-var $elm$core$Dict$RBEmpty_elm_builtin = {$: 'RBEmpty_elm_builtin'};
-var $elm$core$Dict$empty = $elm$core$Dict$RBEmpty_elm_builtin;
 var $elm$core$Set$empty = $elm$core$Set$Set_elm_builtin($elm$core$Dict$empty);
 var $mdgriffith$elm_ui$Internal$Model$lengthClassName = function (x) {
 	switch (x.$) {
@@ -7215,11 +8453,6 @@ var $mdgriffith$elm_ui$Internal$Model$lengthClassName = function (x) {
 var $elm$core$Tuple$second = function (_v0) {
 	var y = _v0.b;
 	return y;
-};
-var $elm$core$Basics$round = _Basics_round;
-var $mdgriffith$elm_ui$Internal$Model$floatClass = function (x) {
-	return $elm$core$String$fromInt(
-		$elm$core$Basics$round(x * 255));
 };
 var $mdgriffith$elm_ui$Internal$Model$transformClass = function (transform) {
 	switch (transform.$) {
@@ -7341,151 +8574,11 @@ var $mdgriffith$elm_ui$Internal$Model$getStyleName = function (style) {
 				$mdgriffith$elm_ui$Internal$Model$transformClass(x));
 	}
 };
-var $elm$core$Dict$Black = {$: 'Black'};
-var $elm$core$Dict$RBNode_elm_builtin = F5(
-	function (a, b, c, d, e) {
-		return {$: 'RBNode_elm_builtin', a: a, b: b, c: c, d: d, e: e};
-	});
-var $elm$core$Dict$Red = {$: 'Red'};
-var $elm$core$Dict$balance = F5(
-	function (color, key, value, left, right) {
-		if ((right.$ === 'RBNode_elm_builtin') && (right.a.$ === 'Red')) {
-			var _v1 = right.a;
-			var rK = right.b;
-			var rV = right.c;
-			var rLeft = right.d;
-			var rRight = right.e;
-			if ((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) {
-				var _v3 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var lLeft = left.d;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					key,
-					value,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, lK, lV, lLeft, lRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, rK, rV, rLeft, rRight));
-			} else {
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					color,
-					rK,
-					rV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, left, rLeft),
-					rRight);
-			}
-		} else {
-			if ((((left.$ === 'RBNode_elm_builtin') && (left.a.$ === 'Red')) && (left.d.$ === 'RBNode_elm_builtin')) && (left.d.a.$ === 'Red')) {
-				var _v5 = left.a;
-				var lK = left.b;
-				var lV = left.c;
-				var _v6 = left.d;
-				var _v7 = _v6.a;
-				var llK = _v6.b;
-				var llV = _v6.c;
-				var llLeft = _v6.d;
-				var llRight = _v6.e;
-				var lRight = left.e;
-				return A5(
-					$elm$core$Dict$RBNode_elm_builtin,
-					$elm$core$Dict$Red,
-					lK,
-					lV,
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, llK, llV, llLeft, llRight),
-					A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, key, value, lRight, right));
-			} else {
-				return A5($elm$core$Dict$RBNode_elm_builtin, color, key, value, left, right);
-			}
-		}
-	});
-var $elm$core$Basics$compare = _Utils_compare;
-var $elm$core$Dict$insertHelp = F3(
-	function (key, value, dict) {
-		if (dict.$ === 'RBEmpty_elm_builtin') {
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Red, key, value, $elm$core$Dict$RBEmpty_elm_builtin, $elm$core$Dict$RBEmpty_elm_builtin);
-		} else {
-			var nColor = dict.a;
-			var nKey = dict.b;
-			var nValue = dict.c;
-			var nLeft = dict.d;
-			var nRight = dict.e;
-			var _v1 = A2($elm$core$Basics$compare, key, nKey);
-			switch (_v1.$) {
-				case 'LT':
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						A3($elm$core$Dict$insertHelp, key, value, nLeft),
-						nRight);
-				case 'EQ':
-					return A5($elm$core$Dict$RBNode_elm_builtin, nColor, nKey, value, nLeft, nRight);
-				default:
-					return A5(
-						$elm$core$Dict$balance,
-						nColor,
-						nKey,
-						nValue,
-						nLeft,
-						A3($elm$core$Dict$insertHelp, key, value, nRight));
-			}
-		}
-	});
-var $elm$core$Dict$insert = F3(
-	function (key, value, dict) {
-		var _v0 = A3($elm$core$Dict$insertHelp, key, value, dict);
-		if ((_v0.$ === 'RBNode_elm_builtin') && (_v0.a.$ === 'Red')) {
-			var _v1 = _v0.a;
-			var k = _v0.b;
-			var v = _v0.c;
-			var l = _v0.d;
-			var r = _v0.e;
-			return A5($elm$core$Dict$RBNode_elm_builtin, $elm$core$Dict$Black, k, v, l, r);
-		} else {
-			var x = _v0;
-			return x;
-		}
-	});
 var $elm$core$Set$insert = F2(
 	function (key, _v0) {
 		var dict = _v0.a;
 		return $elm$core$Set$Set_elm_builtin(
 			A3($elm$core$Dict$insert, key, _Utils_Tuple0, dict));
-	});
-var $elm$core$Dict$get = F2(
-	function (targetKey, dict) {
-		get:
-		while (true) {
-			if (dict.$ === 'RBEmpty_elm_builtin') {
-				return $elm$core$Maybe$Nothing;
-			} else {
-				var key = dict.b;
-				var value = dict.c;
-				var left = dict.d;
-				var right = dict.e;
-				var _v1 = A2($elm$core$Basics$compare, targetKey, key);
-				switch (_v1.$) {
-					case 'LT':
-						var $temp$targetKey = targetKey,
-							$temp$dict = left;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-					case 'EQ':
-						return $elm$core$Maybe$Just(value);
-					default:
-						var $temp$targetKey = targetKey,
-							$temp$dict = right;
-						targetKey = $temp$targetKey;
-						dict = $temp$dict;
-						continue get;
-				}
-			}
-		}
 	});
 var $elm$core$Dict$member = F2(
 	function (key, dict) {
@@ -7521,24 +8614,6 @@ var $mdgriffith$elm_ui$Internal$Model$Style = F2(
 var $mdgriffith$elm_ui$Internal$Style$dot = function (c) {
 	return '.' + c;
 };
-var $elm$core$List$maybeCons = F3(
-	function (f, mx, xs) {
-		var _v0 = f(mx);
-		if (_v0.$ === 'Just') {
-			var x = _v0.a;
-			return A2($elm$core$List$cons, x, xs);
-		} else {
-			return xs;
-		}
-	});
-var $elm$core$List$filterMap = F2(
-	function (f, xs) {
-		return A3(
-			$elm$core$List$foldr,
-			$elm$core$List$maybeCons(f),
-			_List_Nil,
-			xs);
-	});
 var $elm$core$String$fromFloat = _String_fromNumber;
 var $mdgriffith$elm_ui$Internal$Model$formatColor = function (_v0) {
 	var red = _v0.a;
@@ -12568,6 +13643,121 @@ var $mdgriffith$elm_ui$Internal$Model$element = F4(
 				$mdgriffith$elm_ui$Internal$Model$NoNearbyChildren,
 				$elm$core$List$reverse(attributes)));
 	});
+var $mdgriffith$elm_ui$Internal$Model$Height = function (a) {
+	return {$: 'Height', a: a};
+};
+var $mdgriffith$elm_ui$Element$height = $mdgriffith$elm_ui$Internal$Model$Height;
+var $mdgriffith$elm_ui$Internal$Model$Content = {$: 'Content'};
+var $mdgriffith$elm_ui$Element$shrink = $mdgriffith$elm_ui$Internal$Model$Content;
+var $mdgriffith$elm_ui$Internal$Model$Width = function (a) {
+	return {$: 'Width', a: a};
+};
+var $mdgriffith$elm_ui$Element$width = $mdgriffith$elm_ui$Internal$Model$Width;
+var $mdgriffith$elm_ui$Element$el = F2(
+	function (attrs, child) {
+		return A4(
+			$mdgriffith$elm_ui$Internal$Model$element,
+			$mdgriffith$elm_ui$Internal$Model$asEl,
+			$mdgriffith$elm_ui$Internal$Model$div,
+			A2(
+				$elm$core$List$cons,
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink),
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink),
+					attrs)),
+			$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+				_List_fromArray(
+					[child])));
+	});
+var $mdgriffith$elm_ui$Internal$Model$FontFamily = F2(
+	function (a, b) {
+		return {$: 'FontFamily', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Flag$fontFamily = $mdgriffith$elm_ui$Internal$Flag$flag(5);
+var $elm$core$String$words = _String_words;
+var $mdgriffith$elm_ui$Internal$Model$renderFontClassName = F2(
+	function (font, current) {
+		return _Utils_ap(
+			current,
+			function () {
+				switch (font.$) {
+					case 'Serif':
+						return 'serif';
+					case 'SansSerif':
+						return 'sans-serif';
+					case 'Monospace':
+						return 'monospace';
+					case 'Typeface':
+						var name = font.a;
+						return A2(
+							$elm$core$String$join,
+							'-',
+							$elm$core$String$words(
+								$elm$core$String$toLower(name)));
+					case 'ImportFont':
+						var name = font.a;
+						var url = font.b;
+						return A2(
+							$elm$core$String$join,
+							'-',
+							$elm$core$String$words(
+								$elm$core$String$toLower(name)));
+					default:
+						var name = font.a.name;
+						return A2(
+							$elm$core$String$join,
+							'-',
+							$elm$core$String$words(
+								$elm$core$String$toLower(name)));
+				}
+			}());
+	});
+var $mdgriffith$elm_ui$Element$Font$family = function (families) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$fontFamily,
+		A2(
+			$mdgriffith$elm_ui$Internal$Model$FontFamily,
+			A3($elm$core$List$foldl, $mdgriffith$elm_ui$Internal$Model$renderFontClassName, 'ff-', families),
+			families));
+};
+var $mdgriffith$elm_ui$Internal$Model$Fill = function (a) {
+	return {$: 'Fill', a: a};
+};
+var $mdgriffith$elm_ui$Element$fill = $mdgriffith$elm_ui$Internal$Model$Fill(1);
+var $mdgriffith$elm_ui$Internal$Model$InFront = {$: 'InFront'};
+var $mdgriffith$elm_ui$Internal$Model$Nearby = F2(
+	function (a, b) {
+		return {$: 'Nearby', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Model$NoAttribute = {$: 'NoAttribute'};
+var $mdgriffith$elm_ui$Element$createNearby = F2(
+	function (loc, element) {
+		if (element.$ === 'Empty') {
+			return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
+		} else {
+			return A2($mdgriffith$elm_ui$Internal$Model$Nearby, loc, element);
+		}
+	});
+var $mdgriffith$elm_ui$Element$inFront = function (element) {
+	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$InFront, element);
+};
+var $mdgriffith$elm_ui$Internal$Model$Attr = function (a) {
+	return {$: 'Attr', a: a};
+};
+var $mdgriffith$elm_ui$Internal$Model$htmlClass = function (cls) {
+	return $mdgriffith$elm_ui$Internal$Model$Attr(
+		$elm$html$Html$Attributes$class(cls));
+};
+var $mdgriffith$elm_ui$Internal$Model$OnlyDynamic = F2(
+	function (a, b) {
+		return {$: 'OnlyDynamic', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Model$StaticRootAndDynamic = F2(
+	function (a, b) {
+		return {$: 'StaticRootAndDynamic', a: a, b: b};
+	});
 var $mdgriffith$elm_ui$Internal$Model$AllowHover = {$: 'AllowHover'};
 var $mdgriffith$elm_ui$Internal$Model$Layout = {$: 'Layout'};
 var $mdgriffith$elm_ui$Internal$Model$Rgba = F4(
@@ -12708,74 +13898,15 @@ var $mdgriffith$elm_ui$Internal$Model$renderRoot = F3(
 					_List_fromArray(
 						[child]))));
 	});
-var $mdgriffith$elm_ui$Internal$Model$Colored = F3(
-	function (a, b, c) {
-		return {$: 'Colored', a: a, b: b, c: c};
-	});
-var $mdgriffith$elm_ui$Internal$Model$FontFamily = F2(
-	function (a, b) {
-		return {$: 'FontFamily', a: a, b: b};
-	});
 var $mdgriffith$elm_ui$Internal$Model$FontSize = function (a) {
 	return {$: 'FontSize', a: a};
 };
 var $mdgriffith$elm_ui$Internal$Model$SansSerif = {$: 'SansSerif'};
-var $mdgriffith$elm_ui$Internal$Model$StyleClass = F2(
-	function (a, b) {
-		return {$: 'StyleClass', a: a, b: b};
-	});
 var $mdgriffith$elm_ui$Internal$Model$Typeface = function (a) {
 	return {$: 'Typeface', a: a};
 };
 var $mdgriffith$elm_ui$Internal$Flag$bgColor = $mdgriffith$elm_ui$Internal$Flag$flag(8);
-var $mdgriffith$elm_ui$Internal$Flag$fontColor = $mdgriffith$elm_ui$Internal$Flag$flag(14);
-var $mdgriffith$elm_ui$Internal$Flag$fontFamily = $mdgriffith$elm_ui$Internal$Flag$flag(5);
 var $mdgriffith$elm_ui$Internal$Flag$fontSize = $mdgriffith$elm_ui$Internal$Flag$flag(4);
-var $mdgriffith$elm_ui$Internal$Model$formatColorClass = function (_v0) {
-	var red = _v0.a;
-	var green = _v0.b;
-	var blue = _v0.c;
-	var alpha = _v0.d;
-	return $mdgriffith$elm_ui$Internal$Model$floatClass(red) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(green) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(blue) + ('-' + $mdgriffith$elm_ui$Internal$Model$floatClass(alpha))))));
-};
-var $elm$core$String$words = _String_words;
-var $mdgriffith$elm_ui$Internal$Model$renderFontClassName = F2(
-	function (font, current) {
-		return _Utils_ap(
-			current,
-			function () {
-				switch (font.$) {
-					case 'Serif':
-						return 'serif';
-					case 'SansSerif':
-						return 'sans-serif';
-					case 'Monospace':
-						return 'monospace';
-					case 'Typeface':
-						var name = font.a;
-						return A2(
-							$elm$core$String$join,
-							'-',
-							$elm$core$String$words(
-								$elm$core$String$toLower(name)));
-					case 'ImportFont':
-						var name = font.a;
-						var url = font.b;
-						return A2(
-							$elm$core$String$join,
-							'-',
-							$elm$core$String$words(
-								$elm$core$String$toLower(name)));
-					default:
-						var name = font.a.name;
-						return A2(
-							$elm$core$String$join,
-							'-',
-							$elm$core$String$words(
-								$elm$core$String$toLower(name)));
-				}
-			}());
-	});
 var $mdgriffith$elm_ui$Internal$Model$rootStyle = function () {
 	var families = _List_fromArray(
 		[
@@ -12837,6 +13968,14 @@ var $mdgriffith$elm_ui$Element$layoutWith = F3(
 var $mdgriffith$elm_ui$Element$layout = $mdgriffith$elm_ui$Element$layoutWith(
 	{options: _List_Nil});
 var $elm$html$Html$main_ = _VirtualDom_node('main');
+var $mdgriffith$elm_ui$Internal$Model$Empty = {$: 'Empty'};
+var $mdgriffith$elm_ui$Element$none = $mdgriffith$elm_ui$Internal$Model$Empty;
+var $mdgriffith$elm_ui$Element$rgb255 = F3(
+	function (red, green, blue) {
+		return A4($mdgriffith$elm_ui$Internal$Model$Rgba, red / 255, green / 255, blue / 255, 1);
+	});
+var $mdgriffith$elm_ui$Element$Font$sansSerif = $mdgriffith$elm_ui$Internal$Model$SansSerif;
+var $mdgriffith$elm_ui$Element$Font$typeface = $mdgriffith$elm_ui$Internal$Model$Typeface;
 var $mdgriffith$elm_ui$Internal$Model$AlignX = function (a) {
 	return {$: 'AlignX', a: a};
 };
@@ -12844,16 +13983,6 @@ var $mdgriffith$elm_ui$Internal$Model$CenterX = {$: 'CenterX'};
 var $mdgriffith$elm_ui$Element$centerX = $mdgriffith$elm_ui$Internal$Model$AlignX($mdgriffith$elm_ui$Internal$Model$CenterX);
 var $mdgriffith$elm_ui$Internal$Model$AsColumn = {$: 'AsColumn'};
 var $mdgriffith$elm_ui$Internal$Model$asColumn = $mdgriffith$elm_ui$Internal$Model$AsColumn;
-var $mdgriffith$elm_ui$Internal$Model$Height = function (a) {
-	return {$: 'Height', a: a};
-};
-var $mdgriffith$elm_ui$Element$height = $mdgriffith$elm_ui$Internal$Model$Height;
-var $mdgriffith$elm_ui$Internal$Model$Content = {$: 'Content'};
-var $mdgriffith$elm_ui$Element$shrink = $mdgriffith$elm_ui$Internal$Model$Content;
-var $mdgriffith$elm_ui$Internal$Model$Width = function (a) {
-	return {$: 'Width', a: a};
-};
-var $mdgriffith$elm_ui$Element$width = $mdgriffith$elm_ui$Internal$Model$Width;
 var $mdgriffith$elm_ui$Element$column = F2(
 	function (attrs, children) {
 		return A4(
@@ -12872,31 +14001,9 @@ var $mdgriffith$elm_ui$Element$column = F2(
 						attrs))),
 			$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
 	});
-var $mdgriffith$elm_ui$Element$el = F2(
-	function (attrs, child) {
-		return A4(
-			$mdgriffith$elm_ui$Internal$Model$element,
-			$mdgriffith$elm_ui$Internal$Model$asEl,
-			$mdgriffith$elm_ui$Internal$Model$div,
-			A2(
-				$elm$core$List$cons,
-				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink),
-				A2(
-					$elm$core$List$cons,
-					$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink),
-					attrs)),
-			$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-				_List_fromArray(
-					[child])));
-	});
 var $elm$core$Basics$always = F2(
 	function (a, _v0) {
 		return a;
-	});
-var $elm$core$Basics$composeL = F3(
-	function (g, f, x) {
-		return g(
-			f(x));
 	});
 var $mdgriffith$elm_ui$Internal$Model$unstyled = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Unstyled, $elm$core$Basics$always);
 var $mdgriffith$elm_ui$Element$html = $mdgriffith$elm_ui$Internal$Model$unstyled;
@@ -12981,16 +14088,6 @@ var $mdgriffith$elm_ui$Element$Background$color = function (clr) {
 			'background-color',
 			clr));
 };
-var $mdgriffith$elm_ui$Element$Font$color = function (fontColor) {
-	return A2(
-		$mdgriffith$elm_ui$Internal$Model$StyleClass,
-		$mdgriffith$elm_ui$Internal$Flag$fontColor,
-		A3(
-			$mdgriffith$elm_ui$Internal$Model$Colored,
-			'fc-' + $mdgriffith$elm_ui$Internal$Model$formatColorClass(fontColor),
-			'color',
-			fontColor));
-};
 var $mdgriffith$elm_ui$Internal$Model$Button = {$: 'Button'};
 var $mdgriffith$elm_ui$Internal$Model$Describe = function (a) {
 	return {$: 'Describe', a: a};
@@ -13004,7 +14101,6 @@ var $elm$html$Html$Attributes$boolProperty = F2(
 	});
 var $elm$html$Html$Attributes$disabled = $elm$html$Html$Attributes$boolProperty('disabled');
 var $mdgriffith$elm_ui$Element$Input$enter = 'Enter';
-var $mdgriffith$elm_ui$Internal$Model$NoAttribute = {$: 'NoAttribute'};
 var $mdgriffith$elm_ui$Element$Input$hasFocusStyle = function (attr) {
 	if (((attr.$ === 'StyleClass') && (attr.b.$ === 'PseudoSelector')) && (attr.b.a.$ === 'Focus')) {
 		var _v1 = attr.b;
@@ -13144,15 +14240,10 @@ var $mdgriffith$elm_ui$Internal$Flag$hover = $mdgriffith$elm_ui$Internal$Flag$fl
 var $mdgriffith$elm_ui$Internal$Model$AlignY = function (a) {
 	return {$: 'AlignY', a: a};
 };
-var $mdgriffith$elm_ui$Internal$Model$Nearby = F2(
-	function (a, b) {
-		return {$: 'Nearby', a: a, b: b};
-	});
 var $mdgriffith$elm_ui$Internal$Model$TransformComponent = F2(
 	function (a, b) {
 		return {$: 'TransformComponent', a: a, b: b};
 	});
-var $mdgriffith$elm_ui$Internal$Model$Empty = {$: 'Empty'};
 var $mdgriffith$elm_ui$Internal$Model$Text = function (a) {
 	return {$: 'Text', a: a};
 };
@@ -13339,10 +14430,6 @@ var $mdgriffith$elm_ui$Element$padding = function (x) {
 			f,
 			f));
 };
-var $mdgriffith$elm_ui$Element$rgb255 = F3(
-	function (red, green, blue) {
-		return A4($mdgriffith$elm_ui$Internal$Model$Rgba, red / 255, green / 255, blue / 255, 1);
-	});
 var $mdgriffith$elm_ui$Internal$Model$AsRow = {$: 'AsRow'};
 var $mdgriffith$elm_ui$Internal$Model$asRow = $mdgriffith$elm_ui$Internal$Model$AsRow;
 var $mdgriffith$elm_ui$Element$row = F2(
@@ -13521,35 +14608,39 @@ var $author$project$Main$viewBoardListSection = function (model) {
 var $author$project$Main$ToggleLobby = {$: 'ToggleLobby'};
 var $elm$html$Html$Attributes$alt = $elm$html$Html$Attributes$stringProperty('alt');
 var $elm$html$Html$button = _VirtualDom_node('button');
+var $mdgriffith$elm_ui$Internal$Model$CenterY = {$: 'CenterY'};
+var $mdgriffith$elm_ui$Element$centerY = $mdgriffith$elm_ui$Internal$Model$AlignY($mdgriffith$elm_ui$Internal$Model$CenterY);
 var $author$project$Main$derivedOwnSeat = F2(
 	function (model, board) {
-		var redName = A2(
-			$elm$core$Maybe$map,
-			function ($) {
-				return $.displayName;
-			},
-			board.red.player);
-		var blueName = A2(
-			$elm$core$Maybe$map,
-			function ($) {
-				return $.displayName;
-			},
-			board.blue.player);
-		return _Utils_eq(
-			blueName,
-			$elm$core$Maybe$Just(model.playerName)) ? $elm$core$Maybe$Just('blue') : (_Utils_eq(
-			redName,
-			$elm$core$Maybe$Just(model.playerName)) ? $elm$core$Maybe$Just('red') : $elm$core$Maybe$Nothing);
+		var _v0 = A2($author$project$Main$retainJoinedSeat, model.joinedSeat, board);
+		if (_v0.$ === 'Just') {
+			var seatId = _v0.a;
+			return $elm$core$Maybe$Just(seatId);
+		} else {
+			var redName = A2(
+				$elm$core$Maybe$map,
+				function ($) {
+					return $.displayName;
+				},
+				board.red.player);
+			var blueName = A2(
+				$elm$core$Maybe$map,
+				function ($) {
+					return $.displayName;
+				},
+				board.blue.player);
+			return _Utils_eq(
+				blueName,
+				$elm$core$Maybe$Just(model.playerName)) ? $elm$core$Maybe$Just('blue') : (_Utils_eq(
+				redName,
+				$elm$core$Maybe$Just(model.playerName)) ? $elm$core$Maybe$Just('red') : $elm$core$Maybe$Nothing);
+		}
 	});
-var $elm$html$Html$h1 = _VirtualDom_node('h1');
 var $author$project$Main$heroRoleClass = function (roleClass) {
 	return $elm$core$String$isEmpty(roleClass) ? 'hero-board-role' : ('hero-board-role ' + roleClass);
 };
 var $elm$html$Html$img = _VirtualDom_node('img');
-var $author$project$Main$normalizeSeatId = function (seatId) {
-	return (seatId === 'p1') ? 'blue' : ((seatId === 'p2') ? 'red' : seatId);
-};
-var $elm$html$Html$section = _VirtualDom_node('section');
+var $mdgriffith$elm_ui$Element$Font$semiBold = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$fontWeight, $mdgriffith$elm_ui$Internal$Style$classes.textSemiBold);
 var $elm$html$Html$span = _VirtualDom_node('span');
 var $elm$html$Html$Attributes$src = function (url) {
 	return A2(
@@ -13561,25 +14652,51 @@ var $author$project$Main$turnColorLabel = function (t) {
 	return ((t === 'blue') || (t === 'p1')) ? 'Blue' : (((t === 'red') || (t === 'p2')) ? 'Red' : t);
 };
 var $elm$html$Html$Attributes$type_ = $elm$html$Html$Attributes$stringProperty('type');
-var $author$project$Main$seatIsVacant = function (seat) {
-	var _v0 = seat.state;
-	if (_v0.$ === 'Vacant') {
-		return true;
-	} else {
-		return false;
-	}
-};
 var $author$project$Main$waitingStatusTextForBoard = function (board) {
 	var redVacant = $author$project$Main$seatIsVacant(board.red);
 	var blueVacant = $author$project$Main$seatIsVacant(board.blue);
 	return (blueVacant && redVacant) ? 'Board open - choose Blue or Red.' : (blueVacant ? 'Waiting for a Blue player.' : (redVacant ? 'Waiting for a Red player.' : 'Waiting for the next session.'));
 };
-var $author$project$Main$viewHeaderHtml = F2(
-	function (model, hasGame) {
-		var heroStatus = function () {
-			var _v0 = model.localGame;
-			if (_v0.$ === 'Just') {
-				var lg = _v0.a;
+var $author$project$Main$viewGameHeader = function (model) {
+	var heroStatus = function () {
+		var _v0 = $author$project$Main$activeBoard(model);
+		if (_v0.$ === 'Just') {
+			var board = _v0.a;
+			var turn = A2(
+				$elm$core$Maybe$withDefault,
+				'',
+				A2(
+					$elm$core$Maybe$map,
+					function ($) {
+						return $.turn;
+					},
+					A2(
+						$elm$core$Maybe$andThen,
+						function ($) {
+							return $.round;
+						},
+						board.currentSession)));
+			var ownSeat = A2($author$project$Main$derivedOwnSeat, model, board);
+			return {
+				boardCode: board.code,
+				roleClass: A2(
+					$elm$core$Maybe$withDefault,
+					'',
+					A2($elm$core$Maybe$map, $author$project$Main$normalizeSeatId, ownSeat)),
+				roleText: function () {
+					if (ownSeat.$ === 'Just') {
+						var seatId = ownSeat.a;
+						return 'You are ' + $author$project$Main$turnColorLabel(seatId);
+					} else {
+						return 'Watching';
+					}
+				}(),
+				turnText: $elm$core$String$isEmpty(turn) ? $author$project$Main$waitingStatusTextForBoard(board) : ('Turn: ' + $author$project$Main$turnColorLabel(turn))
+			};
+		} else {
+			var _v2 = $author$project$Main$activeLocalGame(model);
+			if (_v2.$ === 'Just') {
+				var lg = _v2.a;
 				return {
 					boardCode: 'LOCAL',
 					roleClass: $author$project$Main$normalizeSeatId(lg.turn),
@@ -13587,39 +14704,243 @@ var $author$project$Main$viewHeaderHtml = F2(
 					turnText: model.localPaused ? 'Paused' : ((!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? 'Round complete' : ('Turn: ' + $author$project$Main$turnColorLabel(lg.turn)))
 				};
 			} else {
-				var _v1 = model.board;
-				if (_v1.$ === 'Just') {
-					var board = _v1.a;
-					var turn = A2(
+				return {boardCode: '', roleClass: '', roleText: '', turnText: ''};
+			}
+		}
+	}();
+	return A2(
+		$mdgriffith$elm_ui$Element$el,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$htmlAttribute(
+				$elm$html$Html$Attributes$class('hero')),
+				$mdgriffith$elm_ui$Element$inFront(
+				A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+					A2(
+						$mdgriffith$elm_ui$Element$row,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$spacing(9),
+								$mdgriffith$elm_ui$Element$centerX,
+								$mdgriffith$elm_ui$Element$centerY,
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								$elm$html$Html$Attributes$class('hero-game-status'))
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$htmlAttribute(
+										$elm$html$Html$Attributes$class('hero-board-code')),
+										$mdgriffith$elm_ui$Element$Font$size(16),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 247, 255, 248)),
+										$mdgriffith$elm_ui$Element$Font$bold
+									]),
+								$mdgriffith$elm_ui$Element$text(heroStatus.boardCode)),
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$htmlAttribute(
+										$elm$html$Html$Attributes$class(
+											$author$project$Main$heroRoleClass(heroStatus.roleClass)))
+									]),
+								A2(
+									$mdgriffith$elm_ui$Element$row,
+									_List_fromArray(
+										[
+											$mdgriffith$elm_ui$Element$spacing(6),
+											$mdgriffith$elm_ui$Element$centerY
+										]),
+									_Utils_ap(
+										$elm$core$String$isEmpty(heroStatus.roleClass) ? _List_Nil : _List_fromArray(
+											[
+												A2(
+												$mdgriffith$elm_ui$Element$el,
+												_List_fromArray(
+													[
+														$mdgriffith$elm_ui$Element$htmlAttribute(
+														$elm$html$Html$Attributes$class('hero-role-dot ' + heroStatus.roleClass))
+													]),
+												$mdgriffith$elm_ui$Element$none)
+											]),
+										_List_fromArray(
+											[
+												A2(
+												$mdgriffith$elm_ui$Element$el,
+												_List_fromArray(
+													[
+														$mdgriffith$elm_ui$Element$Font$size(13),
+														$mdgriffith$elm_ui$Element$Font$color(
+														A3($mdgriffith$elm_ui$Element$rgb255, 240, 248, 244)),
+														$mdgriffith$elm_ui$Element$Font$semiBold
+													]),
+												$mdgriffith$elm_ui$Element$text(heroStatus.roleText))
+											])))),
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$htmlAttribute(
+										$elm$html$Html$Attributes$class('hero-turn-state')),
+										$mdgriffith$elm_ui$Element$Font$size(13),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 213, 230, 217)),
+										$mdgriffith$elm_ui$Element$Font$semiBold
+									]),
+								$mdgriffith$elm_ui$Element$text(heroStatus.turnText))
+							]))))
+			]),
+		A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$centerY
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$spacing(9),
+							$mdgriffith$elm_ui$Element$centerY,
+							$mdgriffith$elm_ui$Element$htmlAttribute(
+							$elm$html$Html$Attributes$class('hero-brand'))
+						]),
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$html(
+							A2(
+								$elm$html$Html$img,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('hero-icon'),
+										$elm$html$Html$Attributes$src('/icon.svg'),
+										$elm$html$Html$Attributes$alt('')
+									]),
+								_List_Nil)),
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$class('hero-title')),
+									$mdgriffith$elm_ui$Element$Font$size(15),
+									$mdgriffith$elm_ui$Element$Font$color(
+									A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+									$mdgriffith$elm_ui$Element$Font$bold
+								]),
+							$mdgriffith$elm_ui$Element$text('Traceball Arena'))
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$alignRight,
+							$mdgriffith$elm_ui$Element$spacing(7),
+							$mdgriffith$elm_ui$Element$centerY,
+							$mdgriffith$elm_ui$Element$htmlAttribute(
+							$elm$html$Html$Attributes$class('hero-actions'))
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$mdgriffith$elm_ui$Element$Input$button,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$class('hero-lobby-btn')),
+									$mdgriffith$elm_ui$Element$Font$size(13),
+									$mdgriffith$elm_ui$Element$Font$color(
+									A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+									$mdgriffith$elm_ui$Element$Font$semiBold
+								]),
+							{
+								label: $mdgriffith$elm_ui$Element$text('Lobby'),
+								onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+							}),
+							$mdgriffith$elm_ui$Element$html(
+							A2(
+								$elm$html$Html$button,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$type_('button'),
+										$elm$html$Html$Attributes$class('app-menu-button'),
+										A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												A2($elm$html$Html$Attributes$attribute, 'aria-hidden', 'true')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('☰')
+											]))
+									])))
+						]))
+				])));
+};
+var $elm$html$Html$h1 = _VirtualDom_node('h1');
+var $elm$html$Html$section = _VirtualDom_node('section');
+var $author$project$Main$viewHeaderHtml = F2(
+	function (model, hasGame) {
+		var heroStatus = function () {
+			var _v0 = $author$project$Main$activeBoard(model);
+			if (_v0.$ === 'Just') {
+				var board = _v0.a;
+				var turn = A2(
+					$elm$core$Maybe$withDefault,
+					'',
+					A2(
+						$elm$core$Maybe$map,
+						function ($) {
+							return $.turn;
+						},
+						A2(
+							$elm$core$Maybe$andThen,
+							function ($) {
+								return $.round;
+							},
+							board.currentSession)));
+				var ownSeat = A2($author$project$Main$derivedOwnSeat, model, board);
+				return {
+					boardCode: board.code,
+					roleClass: A2(
 						$elm$core$Maybe$withDefault,
 						'',
-						A2(
-							$elm$core$Maybe$map,
-							function ($) {
-								return $.turn;
-							},
-							A2(
-								$elm$core$Maybe$andThen,
-								function ($) {
-									return $.round;
-								},
-								board.currentSession)));
-					var ownSeat = A2($author$project$Main$derivedOwnSeat, model, board);
+						A2($elm$core$Maybe$map, $author$project$Main$normalizeSeatId, ownSeat)),
+					roleText: function () {
+						if (ownSeat.$ === 'Just') {
+							var seatId = ownSeat.a;
+							return 'You are ' + $author$project$Main$turnColorLabel(seatId);
+						} else {
+							return 'Watching';
+						}
+					}(),
+					turnText: $elm$core$String$isEmpty(turn) ? $author$project$Main$waitingStatusTextForBoard(board) : ('Turn: ' + $author$project$Main$turnColorLabel(turn))
+				};
+			} else {
+				var _v2 = $author$project$Main$activeLocalGame(model);
+				if (_v2.$ === 'Just') {
+					var lg = _v2.a;
 					return {
-						boardCode: board.code,
-						roleClass: A2(
-							$elm$core$Maybe$withDefault,
-							'',
-							A2($elm$core$Maybe$map, $author$project$Main$normalizeSeatId, ownSeat)),
-						roleText: function () {
-							if (ownSeat.$ === 'Just') {
-								var seatId = ownSeat.a;
-								return 'You are ' + $author$project$Main$turnColorLabel(seatId);
-							} else {
-								return 'Watching';
-							}
-						}(),
-						turnText: $elm$core$String$isEmpty(turn) ? $author$project$Main$waitingStatusTextForBoard(board) : ('Turn: ' + $author$project$Main$turnColorLabel(turn))
+						boardCode: 'LOCAL',
+						roleClass: $author$project$Main$normalizeSeatId(lg.turn),
+						roleText: 'You are ' + $author$project$Main$turnColorLabel(lg.turn),
+						turnText: model.localPaused ? 'Paused' : ((!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? 'Round complete' : ('Turn: ' + $author$project$Main$turnColorLabel(lg.turn)))
 					};
 				} else {
 					return {boardCode: '', roleClass: '', roleText: '', turnText: ''};
@@ -13723,8 +15044,18 @@ var $author$project$Main$viewHeaderHtml = F2(
 									$elm$html$Html$Attributes$class(
 									$author$project$Main$heroRoleClass(heroStatus.roleClass))
 								]),
-							_List_fromArray(
+							$elm$core$String$isEmpty(heroStatus.roleClass) ? _List_fromArray(
 								[
+									$elm$html$Html$text(heroStatus.roleText)
+								]) : _List_fromArray(
+								[
+									A2(
+									$elm$html$Html$span,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class('hero-role-dot ' + heroStatus.roleClass)
+										]),
+									_List_Nil),
 									$elm$html$Html$text(heroStatus.roleText)
 								])),
 							A2(
@@ -13785,6 +15116,17 @@ var $author$project$Main$viewHeaderHtml = F2(
 var $author$project$Main$SetLobbyTab = function (a) {
 	return {$: 'SetLobbyTab', a: a};
 };
+var $mdgriffith$elm_ui$Internal$Flag$borderColor = $mdgriffith$elm_ui$Internal$Flag$flag(28);
+var $mdgriffith$elm_ui$Element$Border$color = function (clr) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$borderColor,
+		A3(
+			$mdgriffith$elm_ui$Internal$Model$Colored,
+			'bc-' + $mdgriffith$elm_ui$Internal$Model$formatColorClass(clr),
+			'border-color',
+			clr));
+};
 var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
 var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $author$project$Main$gradientTabButton = F3(
@@ -13816,6 +15158,25 @@ var $author$project$Main$gradientTabButton = F3(
 				onPress: $elm$core$Maybe$Just(onPress)
 			});
 	});
+var $mdgriffith$elm_ui$Internal$Model$Paragraph = {$: 'Paragraph'};
+var $mdgriffith$elm_ui$Element$paragraph = F2(
+	function (attrs, children) {
+		return A4(
+			$mdgriffith$elm_ui$Internal$Model$element,
+			$mdgriffith$elm_ui$Internal$Model$asParagraph,
+			$mdgriffith$elm_ui$Internal$Model$div,
+			A2(
+				$elm$core$List$cons,
+				$mdgriffith$elm_ui$Internal$Model$Describe($mdgriffith$elm_ui$Internal$Model$Paragraph),
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					A2(
+						$elm$core$List$cons,
+						$mdgriffith$elm_ui$Element$spacing(5),
+						attrs))),
+			$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
+	});
 var $author$project$Main$LeaveLocalGame = {$: 'LeaveLocalGame'};
 var $author$project$Main$StartLocalMatch = {$: 'StartLocalMatch'};
 var $author$project$Main$UpdateLocalBlueName = function (a) {
@@ -13824,22 +15185,44 @@ var $author$project$Main$UpdateLocalBlueName = function (a) {
 var $author$project$Main$UpdateLocalRedName = function (a) {
 	return {$: 'UpdateLocalRedName', a: a};
 };
-var $mdgriffith$elm_ui$Internal$Flag$borderColor = $mdgriffith$elm_ui$Internal$Flag$flag(28);
-var $mdgriffith$elm_ui$Element$Border$color = function (clr) {
+var $mdgriffith$elm_ui$Internal$Model$BorderWidth = F5(
+	function (a, b, c, d, e) {
+		return {$: 'BorderWidth', a: a, b: b, c: c, d: d, e: e};
+	});
+var $mdgriffith$elm_ui$Element$Border$width = function (v) {
 	return A2(
 		$mdgriffith$elm_ui$Internal$Model$StyleClass,
-		$mdgriffith$elm_ui$Internal$Flag$borderColor,
-		A3(
-			$mdgriffith$elm_ui$Internal$Model$Colored,
-			'bc-' + $mdgriffith$elm_ui$Internal$Model$formatColorClass(clr),
-			'border-color',
-			clr));
+		$mdgriffith$elm_ui$Internal$Flag$borderWidth,
+		A5(
+			$mdgriffith$elm_ui$Internal$Model$BorderWidth,
+			'b-' + $elm$core$String$fromInt(v),
+			v,
+			v,
+			v,
+			v));
 };
+var $author$project$Main$formFieldAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+		A2($mdgriffith$elm_ui$Element$paddingXY, 14, 14),
+		$mdgriffith$elm_ui$Element$Border$width(1),
+		$mdgriffith$elm_ui$Element$Border$rounded(14),
+		$mdgriffith$elm_ui$Element$Border$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 92, 132, 99)),
+		$mdgriffith$elm_ui$Element$Background$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 31, 72, 41, 226)),
+		$mdgriffith$elm_ui$Element$Font$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 242, 255, 245))
+	]);
+var $author$project$Main$formPlaceholderAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$Font$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 228, 244, 232, 138))
+	]);
 var $mdgriffith$elm_ui$Element$Input$HiddenLabel = function (a) {
 	return {$: 'HiddenLabel', a: a};
 };
 var $mdgriffith$elm_ui$Element$Input$labelHidden = $mdgriffith$elm_ui$Element$Input$HiddenLabel;
-var $mdgriffith$elm_ui$Element$none = $mdgriffith$elm_ui$Internal$Model$Empty;
 var $mdgriffith$elm_ui$Element$Input$Placeholder = F2(
 	function (a, b) {
 		return {$: 'Placeholder', a: a, b: b};
@@ -13932,14 +15315,6 @@ var $mdgriffith$elm_ui$Element$Input$autofill = A2(
 	$mdgriffith$elm_ui$Internal$Model$Attr,
 	$elm$html$Html$Attributes$attribute('autocomplete'));
 var $mdgriffith$elm_ui$Internal$Model$Behind = {$: 'Behind'};
-var $mdgriffith$elm_ui$Element$createNearby = F2(
-	function (loc, element) {
-		if (element.$ === 'Empty') {
-			return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
-		} else {
-			return A2($mdgriffith$elm_ui$Internal$Model$Nearby, loc, element);
-		}
-	});
 var $mdgriffith$elm_ui$Element$behindContent = function (element) {
 	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$Behind, element);
 };
@@ -13987,22 +15362,6 @@ var $mdgriffith$elm_ui$Element$rgb = F3(
 var $mdgriffith$elm_ui$Element$Input$darkGrey = A3($mdgriffith$elm_ui$Element$rgb, 186 / 255, 189 / 255, 182 / 255);
 var $mdgriffith$elm_ui$Element$Input$defaultTextPadding = A2($mdgriffith$elm_ui$Element$paddingXY, 12, 12);
 var $mdgriffith$elm_ui$Element$Input$white = A3($mdgriffith$elm_ui$Element$rgb, 1, 1, 1);
-var $mdgriffith$elm_ui$Internal$Model$BorderWidth = F5(
-	function (a, b, c, d, e) {
-		return {$: 'BorderWidth', a: a, b: b, c: c, d: d, e: e};
-	});
-var $mdgriffith$elm_ui$Element$Border$width = function (v) {
-	return A2(
-		$mdgriffith$elm_ui$Internal$Model$StyleClass,
-		$mdgriffith$elm_ui$Internal$Flag$borderWidth,
-		A5(
-			$mdgriffith$elm_ui$Internal$Model$BorderWidth,
-			'b-' + $elm$core$String$fromInt(v),
-			v,
-			v,
-			v,
-			v));
-};
 var $mdgriffith$elm_ui$Element$Input$defaultTextBoxStyle = _List_fromArray(
 	[
 		$mdgriffith$elm_ui$Element$Input$defaultTextPadding,
@@ -14042,10 +15401,6 @@ var $mdgriffith$elm_ui$Element$Input$hiddenLabelAttribute = function (label) {
 	} else {
 		return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
 	}
-};
-var $mdgriffith$elm_ui$Internal$Model$InFront = {$: 'InFront'};
-var $mdgriffith$elm_ui$Element$inFront = function (element) {
-	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$InFront, element);
 };
 var $mdgriffith$elm_ui$Element$Input$isConstrained = function (len) {
 	isConstrained:
@@ -14723,6 +16078,13 @@ var $mdgriffith$elm_ui$Element$Input$text = $mdgriffith$elm_ui$Element$Input$tex
 		spellchecked: false,
 		type_: $mdgriffith$elm_ui$Element$Input$TextInputNode('text')
 	});
+var $author$project$Main$OpenTimerSheet = {$: 'OpenTimerSheet'};
+var $author$project$Main$moveTimerLabel = function (seconds) {
+	return (seconds <= 0) ? 'Off' : ($elm$core$String$fromInt(seconds) + ' seconds');
+};
+var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
+	return {$: 'UpdateOnlineMoveTimer', a: a};
+};
 var $elm$html$Html$option = _VirtualDom_node('option');
 var $elm$html$Html$select = _VirtualDom_node('select');
 var $elm$html$Html$Attributes$selected = $elm$html$Html$Attributes$boolProperty('selected');
@@ -14739,7 +16101,8 @@ var $author$project$Main$viewTimerSelect = function (current) {
 					A2($elm$html$Html$Attributes$style, 'padding', '12px 14px'),
 					A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
 					A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
-					A2($elm$html$Html$Attributes$style, 'width', '100%')
+					A2($elm$html$Html$Attributes$style, 'width', '100%'),
+					$elm$html$Html$Events$onInput($author$project$Main$UpdateOnlineMoveTimer)
 				]),
 			A2(
 				$elm$core$List$map,
@@ -14759,8 +16122,68 @@ var $author$project$Main$viewTimerSelect = function (current) {
 								(!s) ? 'Off' : ($elm$core$String$fromInt(s) + ' seconds'))
 							]));
 				},
+				$author$project$Main$timerOptions)));
+};
+var $author$project$Main$viewTimerControl = function (model) {
+	return (model.viewportWidth <= 640) ? A2(
+		$mdgriffith$elm_ui$Element$Input$button,
+		_Utils_ap(
+			$author$project$Main$formFieldAttrs,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 14, 12),
+					$mdgriffith$elm_ui$Element$Font$size(14)
+				])),
+		{
+			label: A2(
+				$mdgriffith$elm_ui$Element$row,
 				_List_fromArray(
-					[0, 5, 10, 15, 30, 60]))));
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$centerY
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$column,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$spacing(2)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$Font$size(11),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 185, 212, 191)),
+										$mdgriffith$elm_ui$Element$Font$semiBold
+									]),
+								$mdgriffith$elm_ui$Element$text('Selected timer')),
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[$mdgriffith$elm_ui$Element$Font$bold]),
+								$mdgriffith$elm_ui$Element$text(
+									$author$project$Main$moveTimerLabel(model.onlineMoveTimer)))
+							])),
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$alignRight,
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
+								$mdgriffith$elm_ui$Element$Font$bold,
+								$mdgriffith$elm_ui$Element$Font$size(12)
+							]),
+						$mdgriffith$elm_ui$Element$text('Change'))
+					])),
+			onPress: $elm$core$Maybe$Just($author$project$Main$OpenTimerSheet)
+		}) : $author$project$Main$viewTimerSelect(model.onlineMoveTimer);
 };
 var $author$project$Main$viewLocalLobbyContent = function (model) {
 	return A2(
@@ -14776,7 +16199,95 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 				var _v0 = model.localGame;
 				if (_v0.$ === 'Just') {
 					var lg = _v0.a;
-					return A2(
+					return (model.viewportWidth <= 640) ? A2(
+						$mdgriffith$elm_ui$Element$column,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$Background$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+								$mdgriffith$elm_ui$Element$Border$rounded(18),
+								$mdgriffith$elm_ui$Element$Border$width(1),
+								$mdgriffith$elm_ui$Element$Border$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+								$mdgriffith$elm_ui$Element$padding(14),
+								$mdgriffith$elm_ui$Element$spacing(12)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$column,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$spacing(4)
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$bold,
+												$mdgriffith$elm_ui$Element$Font$size(15),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+											]),
+										$mdgriffith$elm_ui$Element$text('Paused local game')),
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$size(13),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A3($mdgriffith$elm_ui$Element$rgb255, 199, 220, 204))
+											]),
+										$mdgriffith$elm_ui$Element$text(lg.blueName + (' vs ' + lg.redName)))
+									])),
+								A2(
+								$mdgriffith$elm_ui$Element$Input$button,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$htmlAttribute(
+										A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)')),
+										$mdgriffith$elm_ui$Element$Border$rounded(16),
+										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
+										$mdgriffith$elm_ui$Element$Font$bold,
+										$mdgriffith$elm_ui$Element$Font$size(14),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10))
+									]),
+								{
+									label: A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[$mdgriffith$elm_ui$Element$centerX]),
+										$mdgriffith$elm_ui$Element$text('Resume saved game')),
+									onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+								}),
+								A2(
+								$mdgriffith$elm_ui$Element$Input$button,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$Background$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 56, 70, 57)),
+										$mdgriffith$elm_ui$Element$Border$rounded(16),
+										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
+										$mdgriffith$elm_ui$Element$Font$size(14),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 240, 245, 241))
+									]),
+								{
+									label: A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[$mdgriffith$elm_ui$Element$centerX]),
+										$mdgriffith$elm_ui$Element$text('Discard')),
+									onPress: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame)
+								})
+							])) : A2(
 						$mdgriffith$elm_ui$Element$row,
 						_List_fromArray(
 							[
@@ -14864,57 +16375,27 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 			}(),
 				A2(
 				$mdgriffith$elm_ui$Element$Input$text,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$Background$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
-						$mdgriffith$elm_ui$Element$Border$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 10)),
-						$mdgriffith$elm_ui$Element$Border$rounded(10),
-						$mdgriffith$elm_ui$Element$Font$color(
-						A3($mdgriffith$elm_ui$Element$rgb255, 230, 255, 230)),
-						$mdgriffith$elm_ui$Element$padding(14),
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
-					]),
+				$author$project$Main$formFieldAttrs,
 				{
 					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Blue'),
 					onChange: $author$project$Main$UpdateLocalBlueName,
 					placeholder: $elm$core$Maybe$Just(
 						A2(
 							$mdgriffith$elm_ui$Element$Input$placeholder,
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$Font$color(
-									A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 30))
-								]),
+							$author$project$Main$formPlaceholderAttrs,
 							$mdgriffith$elm_ui$Element$text('Blue'))),
 					text: model.localBlueName
 				}),
 				A2(
 				$mdgriffith$elm_ui$Element$Input$text,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$Background$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
-						$mdgriffith$elm_ui$Element$Border$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 10)),
-						$mdgriffith$elm_ui$Element$Border$rounded(10),
-						$mdgriffith$elm_ui$Element$Font$color(
-						A3($mdgriffith$elm_ui$Element$rgb255, 230, 255, 230)),
-						$mdgriffith$elm_ui$Element$padding(14),
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
-					]),
+				$author$project$Main$formFieldAttrs,
 				{
 					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Red'),
 					onChange: $author$project$Main$UpdateLocalRedName,
 					placeholder: $elm$core$Maybe$Just(
 						A2(
 							$mdgriffith$elm_ui$Element$Input$placeholder,
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$Font$color(
-									A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 30))
-								]),
+							$author$project$Main$formPlaceholderAttrs,
 							$mdgriffith$elm_ui$Element$text('Red'))),
 					text: model.localRedName
 				}),
@@ -14941,7 +16422,7 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 							[
 								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 							]),
-						$author$project$Main$viewTimerSelect(model.onlineMoveTimer))
+						$author$project$Main$viewTimerControl(model))
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$Input$button,
@@ -14975,6 +16456,17 @@ var $author$project$Main$UpdateBoardCodeInput = function (a) {
 var $author$project$Main$UpdatePlayerName = function (a) {
 	return {$: 'UpdatePlayerName', a: a};
 };
+var $author$project$Main$formSubpanelAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+		$mdgriffith$elm_ui$Element$Background$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 17, 53, 27, 214)),
+		$mdgriffith$elm_ui$Element$Border$rounded(18),
+		$mdgriffith$elm_ui$Element$Border$width(1),
+		$mdgriffith$elm_ui$Element$Border$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+		$mdgriffith$elm_ui$Element$padding(14)
+	]);
 var $author$project$Main$viewOnlineLobbyContent = function (model) {
 	return A2(
 		$mdgriffith$elm_ui$Element$column,
@@ -15004,43 +16496,26 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 						$mdgriffith$elm_ui$Element$text('Your name')),
 						A2(
 						$mdgriffith$elm_ui$Element$Input$text,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Background$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
-								$mdgriffith$elm_ui$Element$Border$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 10)),
-								$mdgriffith$elm_ui$Element$Border$rounded(10),
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 230, 255, 230)),
-								$mdgriffith$elm_ui$Element$padding(14)
-							]),
+						$author$project$Main$formFieldAttrs,
 						{
 							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Your name'),
 							onChange: $author$project$Main$UpdatePlayerName,
 							placeholder: $elm$core$Maybe$Just(
 								A2(
 									$mdgriffith$elm_ui$Element$Input$placeholder,
-									_List_fromArray(
-										[
-											$mdgriffith$elm_ui$Element$Font$color(
-											A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 35))
-										]),
+									$author$project$Main$formPlaceholderAttrs,
 									$mdgriffith$elm_ui$Element$text('Your name'))),
 							text: model.playerName
 						})
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$column,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$Background$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 25)),
-						$mdgriffith$elm_ui$Element$Border$rounded(10),
-						$mdgriffith$elm_ui$Element$padding(14),
-						$mdgriffith$elm_ui$Element$spacing(10)
-					]),
+				_Utils_ap(
+					$author$project$Main$formSubpanelAttrs,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$spacing(10)
+						])),
 				_List_fromArray(
 					[
 						A2(
@@ -15053,28 +16528,14 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 						$mdgriffith$elm_ui$Element$text('Open board as watcher')),
 						A2(
 						$mdgriffith$elm_ui$Element$Input$text,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Background$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
-								$mdgriffith$elm_ui$Element$Border$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 10)),
-								$mdgriffith$elm_ui$Element$Border$rounded(10),
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 230, 255, 230)),
-								$mdgriffith$elm_ui$Element$padding(14)
-							]),
+						$author$project$Main$formFieldAttrs,
 						{
 							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Board code'),
 							onChange: $author$project$Main$UpdateBoardCodeInput,
 							placeholder: $elm$core$Maybe$Just(
 								A2(
 									$mdgriffith$elm_ui$Element$Input$placeholder,
-									_List_fromArray(
-										[
-											$mdgriffith$elm_ui$Element$Font$color(
-											A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 30))
-										]),
+									$author$project$Main$formPlaceholderAttrs,
 									$mdgriffith$elm_ui$Element$text('Board code'))),
 							text: model.draftBoardCode
 						}),
@@ -15124,11 +16585,11 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 						})
 					])),
 				A2(
-				$mdgriffith$elm_ui$Element$row,
+				$mdgriffith$elm_ui$Element$column,
 				_List_fromArray(
 					[
 						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$spacing(10)
+						$mdgriffith$elm_ui$Element$spacing(6)
 					]),
 				_List_fromArray(
 					[
@@ -15146,7 +16607,7 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 							[
 								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 							]),
-						$author$project$Main$viewTimerSelect(model.onlineMoveTimer))
+						$author$project$Main$viewTimerControl(model))
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$el,
@@ -15183,8 +16644,11 @@ var $author$project$Main$viewLobbyCard = function (model) {
 			[
 				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 				$mdgriffith$elm_ui$Element$Background$color(
-				A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 35)),
-				$mdgriffith$elm_ui$Element$Border$rounded(14),
+				A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+				$mdgriffith$elm_ui$Element$Border$width(1),
+				$mdgriffith$elm_ui$Element$Border$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+				$mdgriffith$elm_ui$Element$Border$rounded(24),
 				$mdgriffith$elm_ui$Element$padding(20),
 				$mdgriffith$elm_ui$Element$spacing(16)
 			]),
@@ -15200,22 +16664,30 @@ var $author$project$Main$viewLobbyCard = function (model) {
 				$mdgriffith$elm_ui$Element$text(
 					model.localLobbyTab ? 'Local same-screen PvP' : 'Online game')),
 				A2(
-				$mdgriffith$elm_ui$Element$el,
+				$mdgriffith$elm_ui$Element$paragraph,
 				_List_fromArray(
 					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 						$mdgriffith$elm_ui$Element$Font$size(13),
 						$mdgriffith$elm_ui$Element$Font$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100))
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100)),
+						$mdgriffith$elm_ui$Element$spacing(4)
 					]),
-				$mdgriffith$elm_ui$Element$text(
-					model.localLobbyTab ? 'Players face each other and play on this device. The pitch stays fixed for local play.' : 'Open a board as watcher, then choose an open seat when you are ready to play.')),
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$text(
+						model.localLobbyTab ? 'Players face each other and play on this device. The pitch stays fixed for local play.' : 'Open a board as watcher, then choose an open seat when you are ready to play.')
+					])),
 				A2(
 				$mdgriffith$elm_ui$Element$row,
 				_List_fromArray(
 					[
 						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 						$mdgriffith$elm_ui$Element$Background$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
+						A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
 						$mdgriffith$elm_ui$Element$Border$rounded(28),
 						$mdgriffith$elm_ui$Element$padding(4),
 						$mdgriffith$elm_ui$Element$spacing(0)
@@ -15238,68 +16710,6 @@ var $author$project$Main$viewLobbyCard = function (model) {
 };
 var $author$project$Main$LocalNewRound = {$: 'LocalNewRound'};
 var $author$project$Main$ToggleLocalPause = {$: 'ToggleLocalPause'};
-var $author$project$Main$localGameToBoard = function (lg) {
-	var toP = function (p) {
-		return {x: p.x, y: p.y};
-	};
-	var toM = function (m) {
-		return {
-			bounce: m.bounce,
-			from: toP(m.from),
-			playerId: m.playerId,
-			segment: m.segment,
-			to: toP(m.to)
-		};
-	};
-	var mkSeat = F2(
-		function (color_, name) {
-			return {
-				canBeFreed: false,
-				canBeFreedAt: $elm$core$Maybe$Nothing,
-				color: color_,
-				disconnectedAt: $elm$core$Maybe$Nothing,
-				player: $elm$core$Maybe$Just(
-					{displayName: name, joinedAt: $elm$core$Maybe$Nothing}),
-				state: $author$project$Board$Types$Occupied
-			};
-		});
-	var legalMoves = $author$project$Main$computeLocalLegalMoves(lg);
-	var round = {
-		ball: toP(lg.ball),
-		endReason: lg.endReason,
-		legalMoves: A2($elm$core$List$map, toP, legalMoves),
-		moves: A2($elm$core$List$map, toM, lg.moves),
-		segments: lg.segments,
-		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? 'BetweenRounds' : 'Active',
-		turn: lg.turn,
-		visited: lg.visited,
-		winner: lg.winner
-	};
-	var session = {
-		endReason: lg.endReason,
-		id: $elm$core$Maybe$Nothing,
-		moveCount: $elm$core$List$length(lg.moves),
-		moveTimeLimitSeconds: $elm$core$Maybe$Nothing,
-		round: $elm$core$Maybe$Just(round),
-		score: {blue: lg.scoreBlue, red: lg.scoreRed},
-		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? $author$project$Board$Types$BetweenRoundSession : $author$project$Board$Types$Active,
-		turn: $elm$core$Maybe$Just(lg.turn),
-		winner: lg.winner
-	};
-	return {
-		blue: A2(mkSeat, 'blue', lg.blueName),
-		code: 'LOCAL',
-		createdAt: 0,
-		currentSession: $elm$core$Maybe$Just(session),
-		expiresAt: 0,
-		red: A2(mkSeat, 'red', lg.redName),
-		state: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? $author$project$Board$Types$BetweenRounds : $author$project$Board$Types$SessionActive,
-		updatedAt: 0,
-		version: $elm$core$List$length(lg.moves),
-		waitingList: _List_Nil,
-		watchers: _List_Nil
-	};
-};
 var $author$project$Main$positiveMaybe = function (value) {
 	return (value > 0) ? $elm$core$Maybe$Just(value) : $elm$core$Maybe$Nothing;
 };
@@ -15346,7 +16756,15 @@ var $author$project$Main$localStatusText = F4(
 			return name + ' wins. Round complete.';
 		} else {
 			return model.localPaused ? ('Game paused. ' + (A2($author$project$Main$turnOwnerName, board, turn) + ' to move when resumed.')) : (A2($author$project$Main$turnOwnerName, board, turn) + ('\'s turn' + $author$project$Main$timerSentence(
-				$author$project$Main$positiveMaybe(model.onlineMoveTimer))));
+				A2(
+					$elm$core$Maybe$andThen,
+					$author$project$Main$positiveMaybe,
+					A2(
+						$elm$core$Maybe$andThen,
+						function ($) {
+							return $.moveTimeLimitSeconds;
+						},
+						board.currentSession)))));
 		}
 	});
 var $author$project$Main$localTurnIndicatorText = F4(
@@ -15358,11 +16776,17 @@ var $author$project$Main$localTurnIndicatorText = F4(
 			return model.localPaused ? 'Game paused' : ($author$project$Main$turnColorLabel(turn) + ' to move');
 		}
 	});
+var $author$project$Main$replayShowsWinner = F2(
+	function (replayIndex, moveCount) {
+		if (replayIndex.$ === 'Nothing') {
+			return true;
+		} else {
+			var index = replayIndex.a;
+			return _Utils_cmp(index, moveCount) > -1;
+		}
+	});
 var $author$project$Main$ClaimSeat = function (a) {
 	return {$: 'ClaimSeat', a: a};
-};
-var $author$project$Main$ClickLegalMove = function (a) {
-	return {$: 'ClickLegalMove', a: a};
 };
 var $elm$html$Html$aside = _VirtualDom_node('aside');
 var $elm$html$Html$Attributes$classList = function (classes) {
@@ -15378,6 +16802,9 @@ var $elm$html$Html$Attributes$classList = function (classes) {
 var $elm$html$Html$h2 = _VirtualDom_node('h2');
 var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
+var $author$project$Main$ClickLegalMove = function (a) {
+	return {$: 'ClickLegalMove', a: a};
+};
 var $author$project$Board$View$allBoardPoints = _Utils_ap(
 	A2(
 		$elm$core$List$concatMap,
@@ -15404,9 +16831,7 @@ var $elm$svg$Svg$trustedNode = _VirtualDom_nodeNS('http://www.w3.org/2000/svg');
 var $elm$svg$Svg$circle = $elm$svg$Svg$trustedNode('circle');
 var $elm$svg$Svg$Attributes$cx = _VirtualDom_attribute('cx');
 var $elm$svg$Svg$Attributes$cy = _VirtualDom_attribute('cy');
-var $elm$svg$Svg$Attributes$dominantBaseline = _VirtualDom_attribute('dominant-baseline');
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
-var $elm$svg$Svg$Attributes$fontSize = _VirtualDom_attribute('font-size');
 var $elm$svg$Svg$g = $elm$svg$Svg$trustedNode('g');
 var $elm$svg$Svg$Attributes$height = _VirtualDom_attribute('height');
 var $elm$svg$Svg$Attributes$id = _VirtualDom_attribute('id');
@@ -15458,9 +16883,132 @@ var $author$project$Board$View$stepY = 67;
 var $author$project$Board$View$sy = function (y) {
 	return $author$project$Board$View$flt($author$project$Board$View$bm + (y * $author$project$Board$View$stepY));
 };
-var $elm$svg$Svg$text = $elm$virtual_dom$VirtualDom$text;
-var $elm$svg$Svg$Attributes$textAnchor = _VirtualDom_attribute('text-anchor');
-var $elm$svg$Svg$text_ = $elm$svg$Svg$trustedNode('text');
+var $elm$core$List$takeReverse = F3(
+	function (n, list, kept) {
+		takeReverse:
+		while (true) {
+			if (n <= 0) {
+				return kept;
+			} else {
+				if (!list.b) {
+					return kept;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs,
+						$temp$kept = A2($elm$core$List$cons, x, kept);
+					n = $temp$n;
+					list = $temp$list;
+					kept = $temp$kept;
+					continue takeReverse;
+				}
+			}
+		}
+	});
+var $elm$core$List$takeTailRec = F2(
+	function (n, list) {
+		return $elm$core$List$reverse(
+			A3($elm$core$List$takeReverse, n, list, _List_Nil));
+	});
+var $elm$core$List$takeFast = F3(
+	function (ctr, n, list) {
+		if (n <= 0) {
+			return _List_Nil;
+		} else {
+			var _v0 = _Utils_Tuple2(n, list);
+			_v0$1:
+			while (true) {
+				_v0$5:
+				while (true) {
+					if (!_v0.b.b) {
+						return list;
+					} else {
+						if (_v0.b.b.b) {
+							switch (_v0.a) {
+								case 1:
+									break _v0$1;
+								case 2:
+									var _v2 = _v0.b;
+									var x = _v2.a;
+									var _v3 = _v2.b;
+									var y = _v3.a;
+									return _List_fromArray(
+										[x, y]);
+								case 3:
+									if (_v0.b.b.b.b) {
+										var _v4 = _v0.b;
+										var x = _v4.a;
+										var _v5 = _v4.b;
+										var y = _v5.a;
+										var _v6 = _v5.b;
+										var z = _v6.a;
+										return _List_fromArray(
+											[x, y, z]);
+									} else {
+										break _v0$5;
+									}
+								default:
+									if (_v0.b.b.b.b && _v0.b.b.b.b.b) {
+										var _v7 = _v0.b;
+										var x = _v7.a;
+										var _v8 = _v7.b;
+										var y = _v8.a;
+										var _v9 = _v8.b;
+										var z = _v9.a;
+										var _v10 = _v9.b;
+										var w = _v10.a;
+										var tl = _v10.b;
+										return (ctr > 1000) ? A2(
+											$elm$core$List$cons,
+											x,
+											A2(
+												$elm$core$List$cons,
+												y,
+												A2(
+													$elm$core$List$cons,
+													z,
+													A2(
+														$elm$core$List$cons,
+														w,
+														A2($elm$core$List$takeTailRec, n - 4, tl))))) : A2(
+											$elm$core$List$cons,
+											x,
+											A2(
+												$elm$core$List$cons,
+												y,
+												A2(
+													$elm$core$List$cons,
+													z,
+													A2(
+														$elm$core$List$cons,
+														w,
+														A3($elm$core$List$takeFast, ctr + 1, n - 4, tl)))));
+									} else {
+										break _v0$5;
+									}
+							}
+						} else {
+							if (_v0.a === 1) {
+								break _v0$1;
+							} else {
+								break _v0$5;
+							}
+						}
+					}
+				}
+				return list;
+			}
+			var _v1 = _v0.b;
+			var x = _v1.a;
+			return _List_fromArray(
+				[x]);
+		}
+	});
+var $elm$core$List$take = F2(
+	function (n, list) {
+		return A3($elm$core$List$takeFast, 0, n, list);
+	});
 var $elm$svg$Svg$Attributes$viewBox = _VirtualDom_attribute('viewBox');
 var $elm$core$Basics$pow = _Basics_pow;
 var $elm$core$Basics$sqrt = _Basics_sqrt;
@@ -15781,9 +17329,114 @@ var $author$project$Board$View$viewPostCap = F2(
 				]),
 			_List_Nil);
 	});
+var $elm$core$Basics$sin = _Basics_sin;
+var $author$project$Board$View$pseudoSigned = F2(
+	function (seed, index) {
+		var angle = (seed * 29) + (index * 19);
+		return $elm$core$Basics$sin(angle);
+	});
+var $author$project$Board$View$pseudoUnit = F2(
+	function (seed, index) {
+		var angle = (seed * 31) + (index * 17);
+		return $elm$core$Basics$abs(
+			$elm$core$Basics$sin(angle));
+	});
+var $author$project$Board$View$buildBurstPieces = function (burst) {
+	return A2(
+		$elm$core$List$map,
+		function (index) {
+			var unitY = A2($author$project$Board$View$pseudoUnit, burst.seed, (index * 5) + 1);
+			var unitX = A2($author$project$Board$View$pseudoSigned, burst.seed, index * 5);
+			var unitSize = A2($author$project$Board$View$pseudoUnit, burst.seed, (index * 5) + 2);
+			var widthPx = 8 + $elm$core$Basics$round(unitSize * 8);
+			var unitRot = A2($author$project$Board$View$pseudoSigned, burst.seed, (index * 5) + 3);
+			var unitDelay = A2($author$project$Board$View$pseudoUnit, burst.seed, (index * 5) + 4);
+			var rotation = $elm$core$String$fromInt(
+				$elm$core$Basics$round(unitRot * 34));
+			var heightPx = 7 + $elm$core$Basics$round((1 - (unitSize / 2)) * 9);
+			var dyMagnitude = (56 + $elm$core$Basics$round(unitY * 86)) + (index * 8);
+			var dyPx = burst.targetTop ? dyMagnitude : (-dyMagnitude);
+			var dxPx = $elm$core$Basics$round(unitX * (30 + (index * 10)));
+			var duration = $elm$core$String$fromInt(
+				(1180 + $elm$core$Basics$round(unitY * 640)) + (index * 45)) + 'ms';
+			var drift = $elm$core$String$fromInt(
+				$elm$core$Basics$round(unitRot * 42)) + 'deg';
+			var delay = $elm$core$String$fromInt(
+				burst.delayBase + $elm$core$Basics$round(unitDelay * 150)) + 'ms';
+			return {
+				delay: delay,
+				drift: drift,
+				duration: duration,
+				dx: $elm$core$String$fromInt(dxPx) + 'px',
+				dy: $elm$core$String$fromInt(dyPx) + 'px',
+				height: $elm$core$String$fromInt(heightPx),
+				rotation: rotation,
+				width: $elm$core$String$fromInt(widthPx),
+				x: burst.x,
+				y: burst.y
+			};
+		},
+		A2($elm$core$List$range, 0, 9));
+};
+var $elm$svg$Svg$Attributes$class = _VirtualDom_attribute('class');
+var $elm$core$Basics$modBy = _Basics_modBy;
+var $elm$svg$Svg$Attributes$transform = _VirtualDom_attribute('transform');
 var $elm$svg$Svg$Attributes$width = _VirtualDom_attribute('width');
 var $elm$svg$Svg$Attributes$x = _VirtualDom_attribute('x');
 var $elm$svg$Svg$Attributes$y = _VirtualDom_attribute('y');
+var $author$project$Board$View$viewWinnerConfetti = F2(
+	function (version, winnerId) {
+		var winnerColor = $author$project$Board$View$playerHex(winnerId);
+		var targetTop = $author$project$Board$View$toSeatColor(winnerId) === 'red';
+		var gateY = targetTop ? 150 : 760;
+		var gateSeed = targetTop ? (version + 17) : (version + 43);
+		var burstCenters = A2(
+			$elm$core$List$map,
+			function (index) {
+				var unitY = A2($author$project$Board$View$pseudoUnit, gateSeed, (index * 3) + 1);
+				var unitX = A2($author$project$Board$View$pseudoUnit, gateSeed, index * 3);
+				return {
+					delayBase: index * 500,
+					seed: gateSeed + (index * 11),
+					targetTop: targetTop,
+					x: $elm$core$Basics$round(310 + (unitX * 110)),
+					y: targetTop ? $elm$core$Basics$round((gateY - 42) + (unitY * 18)) : $elm$core$Basics$round((gateY + 42) - (unitY * 18))
+				};
+			},
+			A2($elm$core$List$range, 0, 2));
+		var pieces = A2($elm$core$List$concatMap, $author$project$Board$View$buildBurstPieces, burstCenters);
+		return A2(
+			$elm$svg$Svg$g,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$class('elm-confetti')
+				]),
+			A2(
+				$elm$core$List$indexedMap,
+				F2(
+					function (index, piece) {
+						return A2(
+							$elm$svg$Svg$rect,
+							_List_fromArray(
+								[
+									$elm$svg$Svg$Attributes$class('elm-confetti-piece'),
+									$elm$svg$Svg$Attributes$x(
+									$elm$core$String$fromInt(piece.x)),
+									$elm$svg$Svg$Attributes$y(
+									$elm$core$String$fromInt(piece.y)),
+									$elm$svg$Svg$Attributes$width(piece.width),
+									$elm$svg$Svg$Attributes$height(piece.height),
+									$elm$svg$Svg$Attributes$rx('3'),
+									$elm$svg$Svg$Attributes$fill(
+									(!A2($elm$core$Basics$modBy, 2, index)) ? winnerColor : '#ffe784'),
+									$elm$svg$Svg$Attributes$transform(
+									'rotate(' + (piece.rotation + (' ' + ($elm$core$String$fromInt(piece.x) + (' ' + ($elm$core$String$fromInt(piece.y) + ')')))))),
+									$elm$svg$Svg$Attributes$style('--elm-confetti-dx: ' + (piece.dx + (';' + ('--elm-confetti-dy: ' + (piece.dy + (';' + ('--elm-confetti-rot: ' + (piece.drift + (';' + ('animation-delay: ' + (piece.delay + (';' + ('animation-duration: ' + (piece.duration + ';'))))))))))))))
+								]),
+							_List_Nil);
+					}),
+				pieces));
+	});
 var $author$project$Board$View$viewBoard = F4(
 	function (onMove, ownSeat, replayIndex, board) {
 		var session = board.currentSession;
@@ -15793,7 +17446,7 @@ var $author$project$Board$View$viewBoard = F4(
 				return $.round;
 			},
 			session);
-		var turn = A2(
+		var turn = _Utils_eq(replayIndex, $elm$core$Maybe$Nothing) ? A2(
 			$elm$core$Maybe$withDefault,
 			'',
 			A2(
@@ -15801,14 +17454,17 @@ var $author$project$Board$View$viewBoard = F4(
 				function ($) {
 					return $.turn;
 				},
-				round));
-		var winner = A2(
-			$elm$core$Maybe$andThen,
-			function ($) {
-				return $.winner;
-			},
-			round);
-		var moves = A2(
+				round)) : '';
+		var legalMoves = _Utils_eq(replayIndex, $elm$core$Maybe$Nothing) ? A2(
+			$elm$core$Maybe$withDefault,
+			_List_Nil,
+			A2(
+				$elm$core$Maybe$map,
+				function ($) {
+					return $.legalMoves;
+				},
+				round)) : _List_Nil;
+		var allMoves = A2(
 			$elm$core$Maybe$withDefault,
 			_List_Nil,
 			A2(
@@ -15817,37 +17473,43 @@ var $author$project$Board$View$viewBoard = F4(
 					return $.moves;
 				},
 				round));
-		var legalMoves = A2(
+		var replayCount = A2(
 			$elm$core$Maybe$withDefault,
-			_List_Nil,
-			A2(
-				$elm$core$Maybe$map,
-				function ($) {
-					return $.legalMoves;
-				},
-				round));
-		var interactive = A2($author$project$Board$View$isOwnTurnCheck, ownSeat, turn) && (_Utils_eq(winner, $elm$core$Maybe$Nothing) && _Utils_eq(replayIndex, $elm$core$Maybe$Nothing));
-		var ball = A2(
-			$elm$core$Maybe$withDefault,
-			{x: 4, y: 6},
-			A2(
-				$elm$core$Maybe$map,
-				function ($) {
-					return $.ball;
-				},
-				round));
+			$elm$core$List$length(allMoves),
+			replayIndex);
+		var moves = A2($elm$core$List$take, replayCount, allMoves);
+		var ball = function () {
+			var _v1 = $elm$core$List$head(
+				$elm$core$List$reverse(moves));
+			if (_v1.$ === 'Just') {
+				var lastMove = _v1.a;
+				return lastMove.to;
+			} else {
+				return {x: 4, y: 6};
+			}
+		}();
 		var visited = A2(
-			$elm$core$Maybe$withDefault,
-			_List_fromArray(
-				[
-					$author$project$Board$View$pk(ball)
-				]),
+			$elm$core$List$cons,
+			'4,6',
 			A2(
-				$elm$core$Maybe$map,
-				function ($) {
-					return $.visited;
-				},
-				round));
+				$elm$core$List$map,
+				A2(
+					$elm$core$Basics$composeR,
+					function ($) {
+						return $.to;
+					},
+					$author$project$Board$View$pk),
+				moves));
+		var replayAtEnd = _Utils_cmp(
+			replayCount,
+			$elm$core$List$length(allMoves)) > -1;
+		var winner = (_Utils_eq(replayIndex, $elm$core$Maybe$Nothing) || replayAtEnd) ? A2(
+			$elm$core$Maybe$andThen,
+			function ($) {
+				return $.winner;
+			},
+			round) : $elm$core$Maybe$Nothing;
+		var interactive = A2($author$project$Board$View$isOwnTurnCheck, ownSeat, turn) && (_Utils_eq(winner, $elm$core$Maybe$Nothing) && _Utils_eq(replayIndex, $elm$core$Maybe$Nothing));
 		return A2(
 			$elm$svg$Svg$svg,
 			_List_fromArray(
@@ -16111,6 +17773,14 @@ var $author$project$Board$View$viewBoard = F4(
 					$elm$svg$Svg$g,
 					_List_Nil,
 					A2($elm$core$List$map, $author$project$Board$View$viewMoveSegment, moves)),
+					function () {
+					if (winner.$ === 'Just') {
+						var winnerId = winner.a;
+						return A2($author$project$Board$View$viewWinnerConfetti, board.version, winnerId);
+					} else {
+						return A2($elm$svg$Svg$g, _List_Nil, _List_Nil);
+					}
+				}(),
 					A2(
 					$elm$svg$Svg$g,
 					_List_Nil,
@@ -16121,41 +17791,6 @@ var $author$project$Board$View$viewBoard = F4(
 						$elm$core$List$map,
 						$author$project$Board$View$viewLegalPreview(turn),
 						legalMoves) : _List_Nil)),
-					A2(
-					$elm$svg$Svg$g,
-					_List_Nil,
-					_List_fromArray(
-						[
-							A2(
-							$elm$svg$Svg$circle,
-							_List_fromArray(
-								[
-									$elm$svg$Svg$Attributes$cx(
-									$author$project$Board$View$sx(ball.x)),
-									$elm$svg$Svg$Attributes$cy(
-									$author$project$Board$View$sy(ball.y)),
-									$elm$svg$Svg$Attributes$r('26'),
-									$elm$svg$Svg$Attributes$fill('rgba(0,0,0,0.22)')
-								]),
-							_List_Nil),
-							A2(
-							$elm$svg$Svg$text_,
-							_List_fromArray(
-								[
-									$elm$svg$Svg$Attributes$x(
-									$author$project$Board$View$sx(ball.x)),
-									$elm$svg$Svg$Attributes$y(
-									$author$project$Board$View$sy(ball.y)),
-									$elm$svg$Svg$Attributes$textAnchor('middle'),
-									$elm$svg$Svg$Attributes$dominantBaseline('middle'),
-									$elm$svg$Svg$Attributes$fontSize('38'),
-									$elm$svg$Svg$Attributes$style('user-select:none;pointer-events:none')
-								]),
-							_List_fromArray(
-								[
-									$elm$svg$Svg$text('⚽')
-								]))
-						])),
 					A2(
 					$elm$svg$Svg$g,
 					_List_Nil,
@@ -16341,21 +17976,153 @@ var $author$project$Main$viewPauseOverlayHtml = function (overlay) {
 					]))
 			]));
 };
+var $author$project$Main$DismissWinnerBanner = {$: 'DismissWinnerBanner'};
+var $author$project$Main$viewWinnerOverlayHtml = F3(
+	function (isCompactLayout, winnerName, onNewRound) {
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$classList(
+					_List_fromArray(
+						[
+							_Utils_Tuple2('winner-overlay', true),
+							_Utils_Tuple2('winner-overlay-mobile', isCompactLayout)
+						])),
+					A2($elm$html$Html$Attributes$attribute, 'aria-live', 'polite')
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('winner-card')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$button,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$type_('button'),
+									$elm$html$Html$Attributes$classList(
+									_List_fromArray(
+										[
+											_Utils_Tuple2('winner-close', true),
+											_Utils_Tuple2(
+											'hidden',
+											_Utils_eq(onNewRound, $elm$core$Maybe$Nothing) && (!isCompactLayout))
+										])),
+									A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Close winner banner'),
+									$elm$html$Html$Events$onClick($author$project$Main$DismissWinnerBanner)
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('×')
+								])),
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('winner-kicker')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('Winner')
+								])),
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('winner-name')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(winnerName)
+								])),
+							isCompactLayout ? $elm$html$Html$text('') : A2(
+							$elm$html$Html$button,
+							_Utils_ap(
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$type_('button'),
+										$elm$html$Html$Attributes$class('winner-new-round')
+									]),
+								$author$project$Main$onClickAttributes(onNewRound)),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('New Round')
+								]))
+						]))
+				]));
+	});
+var $author$project$Main$viewBoardStageHtml = F7(
+	function (showWinnerOverlay, config, blueName, redName, blueScore, redScore, winnerName) {
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$classList(
+					_List_fromArray(
+						[
+							_Utils_Tuple2('board-stage', true),
+							_Utils_Tuple2('paused', config.isPaused),
+							_Utils_Tuple2('mobile-hero-board', config.isCompactLayout)
+						]))
+				]),
+			_Utils_ap(
+				_List_fromArray(
+					[
+						A4($author$project$Board$View$viewBoard, $author$project$Main$ClickLegalMove, config.ownSeat, config.replayIndex, config.board),
+						A4($author$project$Main$viewBoardBadgeHtml, 'top', 'red', redName, redScore),
+						A4($author$project$Main$viewBoardBadgeHtml, 'bottom', 'blue', blueName, blueScore)
+					]),
+				_Utils_ap(
+					function () {
+						var _v0 = config.pauseOverlay;
+						if (_v0.$ === 'Just') {
+							var overlay = _v0.a;
+							return _List_fromArray(
+								[
+									$author$project$Main$viewPauseOverlayHtml(overlay)
+								]);
+						} else {
+							return _List_Nil;
+						}
+					}(),
+					function () {
+						if (showWinnerOverlay && config.showWinnerOverlay) {
+							if (winnerName.$ === 'Just') {
+								var name = winnerName.a;
+								return _List_fromArray(
+									[
+										A3($author$project$Main$viewWinnerOverlayHtml, config.isCompactLayout, name, config.newRoundAction)
+									]);
+							} else {
+								return _List_Nil;
+							}
+						} else {
+							return _List_Nil;
+						}
+					}())));
+	});
 var $author$project$Main$ReplayStepBack = {$: 'ReplayStepBack'};
 var $author$project$Main$ReplayStepForward = {$: 'ReplayStepForward'};
 var $author$project$Main$ReplayToLive = {$: 'ReplayToLive'};
 var $author$project$Main$ReplayToStart = {$: 'ReplayToStart'};
-var $elm$html$Html$input = _VirtualDom_node('input');
-var $elm$html$Html$Attributes$max = $elm$html$Html$Attributes$stringProperty('max');
-var $elm$html$Html$Attributes$min = $elm$html$Html$Attributes$stringProperty('min');
-var $author$project$Main$viewTextButtonHtml = F2(
-	function (onPress, label) {
+var $author$project$Main$viewReplayButton = F3(
+	function (enabled, onPress, label) {
 		return A2(
 			$elm$html$Html$button,
-			A2(
-				$elm$core$List$cons,
-				$elm$html$Html$Attributes$type_('button'),
-				$author$project$Main$onClickAttributes(onPress)),
+			_Utils_ap(
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$type_('button'),
+						$elm$html$Html$Attributes$disabled(!enabled)
+					]),
+				$author$project$Main$onClickAttributes(
+					enabled ? onPress : $elm$core$Maybe$Nothing)),
 			_List_fromArray(
 				[
 					$elm$html$Html$text(label)
@@ -16363,8 +18130,10 @@ var $author$project$Main$viewTextButtonHtml = F2(
 	});
 var $author$project$Main$viewReplayHtml = F2(
 	function (replayIndex, moveCount) {
+		var isLive = _Utils_eq(replayIndex, $elm$core$Maybe$Nothing);
 		var currentIndex = A2($elm$core$Maybe$withDefault, moveCount, replayIndex);
-		var label = (!moveCount) ? 'Replay appears once moves are made.' : ('Move ' + ($elm$core$String$fromInt(currentIndex) + (' of ' + $elm$core$String$fromInt(moveCount))));
+		var label = (!moveCount) ? 'Replay appears once moves are made.' : ('Move ' + ($elm$core$String$fromInt(currentIndex) + (' of ' + ($elm$core$String$fromInt(moveCount) + (isLive ? ' - live board' : '')))));
+		var replayProgress = (moveCount <= 0) ? '0%' : ($elm$core$String$fromFloat((currentIndex / moveCount) * 100) + '%');
 		return A2(
 			$elm$html$Html$div,
 			_List_fromArray(
@@ -16388,36 +18157,45 @@ var $author$project$Main$viewReplayHtml = F2(
 						]),
 					_List_fromArray(
 						[
-							A2(
-							$author$project$Main$viewTextButtonHtml,
+							A3(
+							$author$project$Main$viewReplayButton,
+							moveCount > 0,
 							$elm$core$Maybe$Just($author$project$Main$ReplayToStart),
 							'Start'),
-							A2(
-							$author$project$Main$viewTextButtonHtml,
+							A3(
+							$author$project$Main$viewReplayButton,
+							moveCount > 0,
 							$elm$core$Maybe$Just($author$project$Main$ReplayStepBack),
 							'‹'),
-							A2(
-							$author$project$Main$viewTextButtonHtml,
+							A3(
+							$author$project$Main$viewReplayButton,
+							moveCount > 0,
 							$elm$core$Maybe$Just($author$project$Main$ReplayStepForward),
 							'›'),
-							A2(
-							$author$project$Main$viewTextButtonHtml,
+							A3(
+							$author$project$Main$viewReplayButton,
+							moveCount > 0,
 							$elm$core$Maybe$Just($author$project$Main$ReplayToLive),
 							'End')
 						])),
 					A2(
-					$elm$html$Html$input,
+					$elm$html$Html$div,
 					_List_fromArray(
 						[
-							$elm$html$Html$Attributes$id('replayRange'),
-							$elm$html$Html$Attributes$type_('range'),
-							$elm$html$Html$Attributes$min('0'),
-							$elm$html$Html$Attributes$max(
-							$elm$core$String$fromInt(moveCount)),
-							$elm$html$Html$Attributes$value(
-							$elm$core$String$fromInt(currentIndex))
+							$elm$html$Html$Attributes$class('replay-progress'),
+							A2($elm$html$Html$Attributes$attribute, 'aria-hidden', 'true')
 						]),
-					_List_Nil),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('replay-progress-fill'),
+									A2($elm$html$Html$Attributes$style, 'width', replayProgress)
+								]),
+							_List_Nil)
+						])),
 					A2(
 					$elm$html$Html$p,
 					_List_fromArray(
@@ -16498,96 +18276,50 @@ var $author$project$Main$viewSquareIconButtonHtml = F4(
 						]))
 				]));
 	});
-var $author$project$Main$viewTimerPillHtml = function (timerSecs) {
-	if (timerSecs.$ === 'Just') {
-		var secs = timerSecs.a;
-		return A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					$elm$html$Html$Attributes$class('elm-timer-display')
-				]),
-			_List_fromArray(
-				[
+var $author$project$Main$viewTimerPillHtml = F2(
+	function (timerSecs, timerRemainingSecs) {
+		if (timerSecs.$ === 'Just') {
+			var secs = timerSecs.a;
+			return A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('elm-timer-display')
+					]),
+				A2(
+					$elm$core$List$cons,
 					$elm$html$Html$text(
-					'Timer: ' + ($elm$core$String$fromInt(secs) + 's'))
-				]));
-	} else {
-		return $elm$html$Html$text('');
-	}
-};
-var $author$project$Main$viewWinnerOverlayHtml = F2(
-	function (winnerName, onNewRound) {
-		return A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					$elm$html$Html$Attributes$class('winner-overlay'),
-					A2($elm$html$Html$Attributes$attribute, 'aria-live', 'polite')
-				]),
-			_List_fromArray(
-				[
-					A2(
-					$elm$html$Html$div,
-					_List_fromArray(
-						[
-							$elm$html$Html$Attributes$class('winner-card')
-						]),
-					_List_fromArray(
-						[
-							A2(
-							$elm$html$Html$button,
-							_List_fromArray(
+						'Timer: ' + ($elm$core$String$fromInt(secs) + 's')),
+					function () {
+						if (timerRemainingSecs.$ === 'Just') {
+							var remainingSecs = timerRemainingSecs.a;
+							return _List_fromArray(
 								[
-									$elm$html$Html$Attributes$type_('button'),
-									$elm$html$Html$Attributes$class('winner-close'),
-									A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Close winner banner')
-								]),
-							_List_fromArray(
-								[
-									$elm$html$Html$text('×')
-								])),
-							A2(
-							$elm$html$Html$div,
-							_List_fromArray(
-								[
-									$elm$html$Html$Attributes$class('winner-kicker')
-								]),
-							_List_fromArray(
-								[
-									$elm$html$Html$text('Winner')
-								])),
-							A2(
-							$elm$html$Html$div,
-							_List_fromArray(
-								[
-									$elm$html$Html$Attributes$class('winner-name')
-								]),
-							_List_fromArray(
-								[
-									$elm$html$Html$text(winnerName)
-								])),
-							A2(
-							$elm$html$Html$button,
-							_Utils_ap(
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$type_('button'),
-										$elm$html$Html$Attributes$class('winner-new-round')
-									]),
-								$author$project$Main$onClickAttributes(onNewRound)),
-							_List_fromArray(
-								[
-									$elm$html$Html$text('New Round')
-								]))
-						]))
-				]));
+									A2(
+									$elm$html$Html$span,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class('elm-timer-countdown')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text(
+											$elm$core$String$fromInt(remainingSecs) + 's left')
+										]))
+								]);
+						} else {
+							return _List_Nil;
+						}
+					}()));
+		} else {
+			return $elm$html$Html$text('');
+		}
 	});
 var $author$project$Main$winnerDisplayName = F2(
 	function (board, winnerId) {
 		return A2($author$project$Main$turnOwnerName, board, winnerId);
 	});
-var $author$project$Main$viewBoardScreenHtml = function (config) {
+var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 	var session = config.board.currentSession;
 	var round = A2(
 		$elm$core$Maybe$andThen,
@@ -16595,7 +18327,7 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 			return $.round;
 		},
 		session);
-	var winnerName = A2(
+	var winnerName = config.showWinnerOverlay ? A2(
 		$elm$core$Maybe$map,
 		$author$project$Main$winnerDisplayName(config.board),
 		A2(
@@ -16603,7 +18335,7 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 			function ($) {
 				return $.winner;
 			},
-			round));
+			round)) : $elm$core$Maybe$Nothing;
 	var redScore = A2(
 		$elm$core$Maybe$withDefault,
 		0,
@@ -16678,7 +18410,7 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 							[
 								$elm$html$Html$text(config.statusText)
 							])),
-						$author$project$Main$viewTimerPillHtml(config.timerSecs),
+						A2($author$project$Main$viewTimerPillHtml, config.timerSecs, config.timerRemainingSecs),
 						A2(
 						$elm$html$Html$div,
 						_List_fromArray(
@@ -16729,48 +18461,7 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 								config.leaveAction,
 								'Leave / forfeit')
 							])),
-						A2(
-						$elm$html$Html$div,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$classList(
-								_List_fromArray(
-									[
-										_Utils_Tuple2('board-stage', true),
-										_Utils_Tuple2('paused', config.isPaused)
-									]))
-							]),
-						_Utils_ap(
-							_List_fromArray(
-								[
-									A4($author$project$Board$View$viewBoard, $author$project$Main$ClickLegalMove, config.ownSeat, config.replayIndex, config.board),
-									A4($author$project$Main$viewBoardBadgeHtml, 'top', 'red', redName, redScore),
-									A4($author$project$Main$viewBoardBadgeHtml, 'bottom', 'blue', blueName, blueScore)
-								]),
-							_Utils_ap(
-								function () {
-									var _v0 = config.pauseOverlay;
-									if (_v0.$ === 'Just') {
-										var overlay = _v0.a;
-										return _List_fromArray(
-											[
-												$author$project$Main$viewPauseOverlayHtml(overlay)
-											]);
-									} else {
-										return _List_Nil;
-									}
-								}(),
-								function () {
-									if (winnerName.$ === 'Just') {
-										var name = winnerName.a;
-										return _List_fromArray(
-											[
-												A2($author$project$Main$viewWinnerOverlayHtml, name, config.newRoundAction)
-											]);
-									} else {
-										return _List_Nil;
-									}
-								}()))),
+						A7($author$project$Main$viewBoardStageHtml, true, config, blueName, redName, blueScore, redScore, winnerName),
 						A2($author$project$Main$viewReplayHtml, config.replayIndex, config.moveCount)
 					])),
 				A2(
@@ -16946,7 +18637,7 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 								}(),
 								_List_fromArray(
 									[
-										(config.showJoinBlue || (config.showJoinRed || (!_Utils_eq(config.leaveAction, $elm$core$Maybe$Nothing)))) ? A2(
+										(config.showSeatActions && (config.showJoinBlue || (config.showJoinRed || (!_Utils_eq(config.leaveAction, $elm$core$Maybe$Nothing))))) ? A2(
 										$elm$html$Html$div,
 										_List_fromArray(
 											[
@@ -16979,9 +18670,884 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 					]))
 			]));
 };
+var $mdgriffith$elm_ui$Element$fillPortion = $mdgriffith$elm_ui$Internal$Model$Fill;
+var $author$project$Main$mobileCard = function (children) {
+	return A2(
+		$mdgriffith$elm_ui$Element$column,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$spacing(8),
+				$mdgriffith$elm_ui$Element$padding(10),
+				$mdgriffith$elm_ui$Element$Border$rounded(22),
+				$mdgriffith$elm_ui$Element$Border$width(1),
+				$mdgriffith$elm_ui$Element$Border$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 110, 130, 112)),
+				$mdgriffith$elm_ui$Element$Background$color(
+				A4($mdgriffith$elm_ui$Element$rgba255, 2, 29, 10, 214)),
+				$mdgriffith$elm_ui$Element$Font$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+				$mdgriffith$elm_ui$Element$Font$size(13)
+			]),
+		children);
+};
+var $mdgriffith$elm_ui$Internal$Model$Px = function (a) {
+	return {$: 'Px', a: a};
+};
+var $mdgriffith$elm_ui$Element$px = $mdgriffith$elm_ui$Internal$Model$Px;
+var $author$project$Main$viewMobileReplayButton = F4(
+	function (enabled, onPress, icon, label) {
+		return A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 0, 8),
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 70, 92, 74)),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 28, 54, 31)),
+					$mdgriffith$elm_ui$Element$Font$color(
+					enabled ? A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246) : A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 120)),
+					$mdgriffith$elm_ui$Element$Font$size(16),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$attribute, 'aria-label', label))
+				]),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+					$mdgriffith$elm_ui$Element$text(icon)),
+				onPress: enabled ? onPress : $elm$core$Maybe$Nothing
+			});
+	});
+var $author$project$Main$viewMobileReplayCard = F2(
+	function (replayIndex, moveCount) {
+		var currentIndex = A2($elm$core$Maybe$withDefault, moveCount, replayIndex);
+		var label = (!moveCount) ? 'Replay appears once moves are made.' : ('Move ' + ($elm$core$String$fromInt(currentIndex) + (' of ' + ($elm$core$String$fromInt(moveCount) + (_Utils_eq(replayIndex, $elm$core$Maybe$Nothing) ? ' - live board' : '')))));
+		var progress = (moveCount <= 0) ? 0 : $elm$core$Basics$round((currentIndex / moveCount) * 100);
+		return $author$project$Main$mobileCard(
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$size(15),
+							$mdgriffith$elm_ui$Element$Font$bold,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+						]),
+					$mdgriffith$elm_ui$Element$text('Replay')),
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(8)
+						]),
+					_List_fromArray(
+						[
+							A4(
+							$author$project$Main$viewMobileReplayButton,
+							moveCount > 0,
+							$elm$core$Maybe$Just($author$project$Main$ReplayToStart),
+							'⏮',
+							'Start'),
+							A4(
+							$author$project$Main$viewMobileReplayButton,
+							moveCount > 0,
+							$elm$core$Maybe$Just($author$project$Main$ReplayStepBack),
+							'◀',
+							'Back'),
+							A4(
+							$author$project$Main$viewMobileReplayButton,
+							moveCount > 0,
+							$elm$core$Maybe$Just($author$project$Main$ReplayStepForward),
+							'▶',
+							'Next'),
+							A4(
+							$author$project$Main$viewMobileReplayButton,
+							moveCount > 0,
+							$elm$core$Maybe$Just($author$project$Main$ReplayToLive),
+							'⏭',
+							'Live')
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$height(
+							$mdgriffith$elm_ui$Element$px(8)),
+							$mdgriffith$elm_ui$Element$Border$rounded(999),
+							$mdgriffith$elm_ui$Element$Background$color(
+							A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 28)),
+							$mdgriffith$elm_ui$Element$clip
+						]),
+					A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width(
+								$mdgriffith$elm_ui$Element$fillPortion(progress)),
+								$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$Border$rounded(999),
+								$mdgriffith$elm_ui$Element$Background$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 24, 221, 79))
+							]),
+						$mdgriffith$elm_ui$Element$none)),
+					A2(
+					$mdgriffith$elm_ui$Element$paragraph,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$Font$size(13),
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 200, 220, 200)),
+							$mdgriffith$elm_ui$Element$Font$bold
+						]),
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$text(label)
+						]))
+				]));
+	});
+var $mdgriffith$elm_ui$Internal$Flag$letterSpacing = $mdgriffith$elm_ui$Internal$Flag$flag(16);
+var $mdgriffith$elm_ui$Element$Font$letterSpacing = function (offset) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$letterSpacing,
+		A3(
+			$mdgriffith$elm_ui$Internal$Model$Single,
+			'ls-' + $mdgriffith$elm_ui$Internal$Model$floatClass(offset),
+			'letter-spacing',
+			$elm$core$String$fromFloat(offset) + 'px'));
+};
+var $author$project$Main$viewMobileActionButton = F4(
+	function (isDanger, msg, icon, label) {
+		return A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 0, 10),
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					isDanger ? A3($mdgriffith$elm_ui$Element$rgb255, 219, 80, 73) : A3($mdgriffith$elm_ui$Element$rgb255, 70, 92, 74)),
+					$mdgriffith$elm_ui$Element$Background$color(
+					isDanger ? A3($mdgriffith$elm_ui$Element$rgb255, 86, 24, 20) : A3($mdgriffith$elm_ui$Element$rgb255, 28, 54, 31)),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 248, 241, 238)),
+					$mdgriffith$elm_ui$Element$Font$size(16),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$attribute, 'aria-label', label))
+				]),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+					$mdgriffith$elm_ui$Element$text(icon)),
+				onPress: $elm$core$Maybe$Just(msg)
+			});
+	});
+var $author$project$Main$viewMobilePrimaryActionButton = F3(
+	function (msg, icon, label) {
+		return A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 0, 10),
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 246, 185, 43)),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 50, 29, 0)),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$Font$size(16),
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$attribute, 'aria-label', label))
+				]),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+					$mdgriffith$elm_ui$Element$text(icon)),
+				onPress: $elm$core$Maybe$Just(msg)
+			});
+	});
+var $mdgriffith$elm_ui$Element$clipX = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$overflow, $mdgriffith$elm_ui$Internal$Style$classes.clipX);
+var $author$project$Main$viewMobileEllipsisText = F3(
+	function (alignEnd, size, label) {
+		return A2(
+			$mdgriffith$elm_ui$Element$el,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$clipX,
+					$mdgriffith$elm_ui$Element$Font$size(size),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 232, 245, 236)),
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2(
+						$elm$html$Html$Attributes$style,
+						'text-align',
+						alignEnd ? 'right' : 'left')),
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$style, 'overflow', 'hidden')),
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$style, 'text-overflow', 'ellipsis')),
+					$mdgriffith$elm_ui$Element$htmlAttribute(
+					A2($elm$html$Html$Attributes$style, 'white-space', 'nowrap'))
+				]),
+			$mdgriffith$elm_ui$Element$text(label));
+	});
+var $author$project$Main$viewMobileScorePill = F3(
+	function (color, name, score) {
+		var scoreRow = (color === 'blue') ? A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$alignRight,
+							$mdgriffith$elm_ui$Element$Font$size(32),
+							$mdgriffith$elm_ui$Element$Font$bold,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 255, 255, 255))
+						]),
+					$mdgriffith$elm_ui$Element$text(
+						$elm$core$String$fromInt(score)))
+				])) : A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$size(32),
+							$mdgriffith$elm_ui$Element$Font$bold,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 255, 255, 255))
+						]),
+					$mdgriffith$elm_ui$Element$text(
+						$elm$core$String$fromInt(score)))
+				]));
+		var nameRow = (color === 'blue') ? A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$spacing(7),
+					$mdgriffith$elm_ui$Element$centerY
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$alignRight
+						]),
+					A3($author$project$Main$viewMobileEllipsisText, true, 12, name)),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$size(12),
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 11, 124, 255))
+						]),
+					$mdgriffith$elm_ui$Element$text('●'))
+				])) : A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$spacing(7),
+					$mdgriffith$elm_ui$Element$centerY
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$size(12),
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 255, 59, 48))
+						]),
+					$mdgriffith$elm_ui$Element$text('●')),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+						]),
+					A3($author$project$Main$viewMobileEllipsisText, false, 12, name))
+				]));
+		return A2(
+			$mdgriffith$elm_ui$Element$column,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$height(
+					$mdgriffith$elm_ui$Element$px(92)),
+					$mdgriffith$elm_ui$Element$spacing(4),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 10, 9),
+					$mdgriffith$elm_ui$Element$Border$rounded(18),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 15, 42, 22)),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					(color === 'blue') ? A3($mdgriffith$elm_ui$Element$rgb255, 34, 90, 160) : A3($mdgriffith$elm_ui$Element$rgb255, 142, 49, 45)),
+					$mdgriffith$elm_ui$Element$clip
+				]),
+			_List_fromArray(
+				[nameRow, scoreRow]));
+	});
+var $author$project$Main$viewMobileTimerChip = F2(
+	function (timerSecs, timerRemainingSecs) {
+		if (timerSecs.$ === 'Just') {
+			var secs = timerSecs.a;
+			return A2(
+				$mdgriffith$elm_ui$Element$row,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$spacing(8),
+						A2($mdgriffith$elm_ui$Element$paddingXY, 10, 6),
+						$mdgriffith$elm_ui$Element$Border$rounded(999),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 150)),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 20)),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 240, 255, 244)),
+						$mdgriffith$elm_ui$Element$Font$size(12),
+						$mdgriffith$elm_ui$Element$Font$bold
+					]),
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Element$text(
+						'Timer: ' + ($elm$core$String$fromInt(secs) + 's')),
+					function () {
+						if (timerRemainingSecs.$ === 'Just') {
+							var remainingSecs = timerRemainingSecs.a;
+							return _List_fromArray(
+								[
+									A2(
+									$mdgriffith$elm_ui$Element$el,
+									_List_fromArray(
+										[
+											$mdgriffith$elm_ui$Element$Font$color(
+											A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174))
+										]),
+									$mdgriffith$elm_ui$Element$text(
+										$elm$core$String$fromInt(remainingSecs) + 's left'))
+								]);
+						} else {
+							return _List_Nil;
+						}
+					}()));
+		} else {
+			return $mdgriffith$elm_ui$Element$none;
+		}
+	});
+var $mdgriffith$elm_ui$Internal$Model$Padding = F5(
+	function (a, b, c, d, e) {
+		return {$: 'Padding', a: a, b: b, c: c, d: d, e: e};
+	});
+var $mdgriffith$elm_ui$Internal$Model$Spaced = F3(
+	function (a, b, c) {
+		return {$: 'Spaced', a: a, b: b, c: c};
+	});
+var $mdgriffith$elm_ui$Internal$Model$extractSpacingAndPadding = function (attrs) {
+	return A3(
+		$elm$core$List$foldr,
+		F2(
+			function (attr, _v0) {
+				var pad = _v0.a;
+				var spacing = _v0.b;
+				return _Utils_Tuple2(
+					function () {
+						if (pad.$ === 'Just') {
+							var x = pad.a;
+							return pad;
+						} else {
+							if ((attr.$ === 'StyleClass') && (attr.b.$ === 'PaddingStyle')) {
+								var _v3 = attr.b;
+								var name = _v3.a;
+								var t = _v3.b;
+								var r = _v3.c;
+								var b = _v3.d;
+								var l = _v3.e;
+								return $elm$core$Maybe$Just(
+									A5($mdgriffith$elm_ui$Internal$Model$Padding, name, t, r, b, l));
+							} else {
+								return $elm$core$Maybe$Nothing;
+							}
+						}
+					}(),
+					function () {
+						if (spacing.$ === 'Just') {
+							var x = spacing.a;
+							return spacing;
+						} else {
+							if ((attr.$ === 'StyleClass') && (attr.b.$ === 'SpacingStyle')) {
+								var _v6 = attr.b;
+								var name = _v6.a;
+								var x = _v6.b;
+								var y = _v6.c;
+								return $elm$core$Maybe$Just(
+									A3($mdgriffith$elm_ui$Internal$Model$Spaced, name, x, y));
+							} else {
+								return $elm$core$Maybe$Nothing;
+							}
+						}
+					}());
+			}),
+		_Utils_Tuple2($elm$core$Maybe$Nothing, $elm$core$Maybe$Nothing),
+		attrs);
+};
+var $mdgriffith$elm_ui$Element$wrappedRow = F2(
+	function (attrs, children) {
+		var _v0 = $mdgriffith$elm_ui$Internal$Model$extractSpacingAndPadding(attrs);
+		var padded = _v0.a;
+		var spaced = _v0.b;
+		if (spaced.$ === 'Nothing') {
+			return A4(
+				$mdgriffith$elm_ui$Internal$Model$element,
+				$mdgriffith$elm_ui$Internal$Model$asRow,
+				$mdgriffith$elm_ui$Internal$Model$div,
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.contentLeft + (' ' + ($mdgriffith$elm_ui$Internal$Style$classes.contentCenterY + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.wrapped)))),
+					A2(
+						$elm$core$List$cons,
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink),
+							attrs))),
+				$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
+		} else {
+			var _v2 = spaced.a;
+			var spaceName = _v2.a;
+			var x = _v2.b;
+			var y = _v2.c;
+			var newPadding = function () {
+				if (padded.$ === 'Just') {
+					var _v5 = padded.a;
+					var name = _v5.a;
+					var t = _v5.b;
+					var r = _v5.c;
+					var b = _v5.d;
+					var l = _v5.e;
+					if ((_Utils_cmp(r, x / 2) > -1) && (_Utils_cmp(b, y / 2) > -1)) {
+						var newTop = t - (y / 2);
+						var newRight = r - (x / 2);
+						var newLeft = l - (x / 2);
+						var newBottom = b - (y / 2);
+						return $elm$core$Maybe$Just(
+							A2(
+								$mdgriffith$elm_ui$Internal$Model$StyleClass,
+								$mdgriffith$elm_ui$Internal$Flag$padding,
+								A5(
+									$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+									A4($mdgriffith$elm_ui$Internal$Model$paddingNameFloat, newTop, newRight, newBottom, newLeft),
+									newTop,
+									newRight,
+									newBottom,
+									newLeft)));
+					} else {
+						return $elm$core$Maybe$Nothing;
+					}
+				} else {
+					return $elm$core$Maybe$Nothing;
+				}
+			}();
+			if (newPadding.$ === 'Just') {
+				var pad = newPadding.a;
+				return A4(
+					$mdgriffith$elm_ui$Internal$Model$element,
+					$mdgriffith$elm_ui$Internal$Model$asRow,
+					$mdgriffith$elm_ui$Internal$Model$div,
+					A2(
+						$elm$core$List$cons,
+						$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.contentLeft + (' ' + ($mdgriffith$elm_ui$Internal$Style$classes.contentCenterY + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.wrapped)))),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink),
+							A2(
+								$elm$core$List$cons,
+								$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink),
+								_Utils_ap(
+									attrs,
+									_List_fromArray(
+										[pad]))))),
+					$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
+			} else {
+				var halfY = -(y / 2);
+				var halfX = -(x / 2);
+				return A4(
+					$mdgriffith$elm_ui$Internal$Model$element,
+					$mdgriffith$elm_ui$Internal$Model$asEl,
+					$mdgriffith$elm_ui$Internal$Model$div,
+					attrs,
+					$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+						_List_fromArray(
+							[
+								A4(
+								$mdgriffith$elm_ui$Internal$Model$element,
+								$mdgriffith$elm_ui$Internal$Model$asRow,
+								$mdgriffith$elm_ui$Internal$Model$div,
+								A2(
+									$elm$core$List$cons,
+									$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.contentLeft + (' ' + ($mdgriffith$elm_ui$Internal$Style$classes.contentCenterY + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.wrapped)))),
+									A2(
+										$elm$core$List$cons,
+										$mdgriffith$elm_ui$Internal$Model$Attr(
+											A2(
+												$elm$html$Html$Attributes$style,
+												'margin',
+												$elm$core$String$fromFloat(halfY) + ('px' + (' ' + ($elm$core$String$fromFloat(halfX) + 'px'))))),
+										A2(
+											$elm$core$List$cons,
+											$mdgriffith$elm_ui$Internal$Model$Attr(
+												A2(
+													$elm$html$Html$Attributes$style,
+													'width',
+													'calc(100% + ' + ($elm$core$String$fromInt(x) + 'px)'))),
+											A2(
+												$elm$core$List$cons,
+												$mdgriffith$elm_ui$Internal$Model$Attr(
+													A2(
+														$elm$html$Html$Attributes$style,
+														'height',
+														'calc(100% + ' + ($elm$core$String$fromInt(y) + 'px)'))),
+												A2(
+													$elm$core$List$cons,
+													A2(
+														$mdgriffith$elm_ui$Internal$Model$StyleClass,
+														$mdgriffith$elm_ui$Internal$Flag$spacing,
+														A3($mdgriffith$elm_ui$Internal$Model$SpacingStyle, spaceName, x, y)),
+													_List_Nil))))),
+								$mdgriffith$elm_ui$Internal$Model$Unkeyed(children))
+							])));
+			}
+		}
+	});
+var $author$project$Main$viewMobileTopCard = F6(
+	function (config, statusBanner, blueName, redName, blueScore, redScore) {
+		return (!_Utils_eq(config.newRoundAction, $elm$core$Maybe$Nothing)) ? $author$project$Main$mobileCard(
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$centerY
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$Font$color(
+									A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 170)),
+									$mdgriffith$elm_ui$Element$Font$size(11),
+									$mdgriffith$elm_ui$Element$Font$semiBold
+								]),
+							$mdgriffith$elm_ui$Element$text(config.matchSubtitle)),
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$alignRight,
+									$mdgriffith$elm_ui$Element$Font$color(
+									A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
+									$mdgriffith$elm_ui$Element$Font$size(11),
+									$mdgriffith$elm_ui$Element$Font$bold,
+									$mdgriffith$elm_ui$Element$Font$letterSpacing(1)
+								]),
+							$mdgriffith$elm_ui$Element$text('ROUND COMPLETE'))
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(8),
+							$mdgriffith$elm_ui$Element$centerY
+						]),
+					_List_fromArray(
+						[
+							A3($author$project$Main$viewMobileScorePill, 'blue', blueName, blueScore),
+							A3($author$project$Main$viewMobileScorePill, 'red', redName, redScore)
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(10)
+						]),
+					A2(
+						$elm$core$List$filterMap,
+						$elm$core$Basics$identity,
+						_List_fromArray(
+							[
+								A2(
+								$elm$core$Maybe$map,
+								function (msg) {
+									return A3($author$project$Main$viewMobilePrimaryActionButton, msg, '▶', 'Continue');
+								},
+								config.newRoundAction),
+								A2(
+								$elm$core$Maybe$map,
+								function (msg) {
+									return A4($author$project$Main$viewMobileActionButton, true, msg, '✕', 'Leave');
+								},
+								config.leaveAction)
+							])))
+				])) : $author$project$Main$mobileCard(
+			_List_fromArray(
+				[
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$centerY
+						]),
+					_List_fromArray(
+						[
+							A2($author$project$Main$viewMobileTimerChip, config.timerSecs, config.timerRemainingSecs),
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$alignRight,
+									$mdgriffith$elm_ui$Element$Font$color(
+									A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 170)),
+									$mdgriffith$elm_ui$Element$Font$size(11),
+									$mdgriffith$elm_ui$Element$Font$semiBold
+								]),
+							$mdgriffith$elm_ui$Element$text(config.matchSubtitle))
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							A2($mdgriffith$elm_ui$Element$paddingXY, 12, 10),
+							$mdgriffith$elm_ui$Element$Border$rounded(18),
+							$mdgriffith$elm_ui$Element$Background$color(
+							config.turnIndicatorIsRed ? A3($mdgriffith$elm_ui$Element$rgb255, 83, 29, 26) : A3($mdgriffith$elm_ui$Element$rgb255, 17, 54, 76)),
+							$mdgriffith$elm_ui$Element$Border$width(1),
+							$mdgriffith$elm_ui$Element$Border$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 76, 106, 118)),
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 245, 249, 244)),
+							$mdgriffith$elm_ui$Element$Font$size(15),
+							$mdgriffith$elm_ui$Element$Font$bold
+						]),
+					A2(
+						$mdgriffith$elm_ui$Element$paragraph,
+						_List_Nil,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$text(statusBanner)
+							]))),
+					A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(8),
+							$mdgriffith$elm_ui$Element$centerY
+						]),
+					_List_fromArray(
+						[
+							A3($author$project$Main$viewMobileScorePill, 'blue', blueName, blueScore),
+							A3($author$project$Main$viewMobileScorePill, 'red', redName, redScore)
+						])),
+					A2(
+					$mdgriffith$elm_ui$Element$wrappedRow,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(10)
+						]),
+					A2(
+						$elm$core$List$filterMap,
+						$elm$core$Basics$identity,
+						_List_fromArray(
+							[
+								(config.showSeatActions && config.showJoinBlue) ? $elm$core$Maybe$Just(
+								A4(
+									$author$project$Main$viewMobileActionButton,
+									false,
+									$author$project$Main$ClaimSeat('blue'),
+									'●',
+									'Join Blue')) : $elm$core$Maybe$Nothing,
+								(config.showSeatActions && config.showJoinRed) ? $elm$core$Maybe$Just(
+								A4(
+									$author$project$Main$viewMobileActionButton,
+									false,
+									$author$project$Main$ClaimSeat('red'),
+									'●',
+									'Join Red')) : $elm$core$Maybe$Nothing,
+								A2(
+								$elm$core$Maybe$map,
+								function (msg) {
+									return A4(
+										$author$project$Main$viewMobileActionButton,
+										false,
+										msg,
+										config.isPaused ? '▶' : '⏸',
+										config.isPaused ? 'Resume' : 'Pause');
+								},
+								config.pauseAction),
+								A2(
+								$elm$core$Maybe$map,
+								function (msg) {
+									return A4($author$project$Main$viewMobileActionButton, true, msg, '✕', 'Leave');
+								},
+								config.leaveAction)
+							])))
+				]));
+	});
+var $author$project$Main$viewMobileBoardScreen = function (config) {
+	var session = config.board.currentSession;
+	var round = A2(
+		$elm$core$Maybe$andThen,
+		function ($) {
+			return $.round;
+		},
+		session);
+	var winnerName = config.showWinnerOverlay ? A2(
+		$elm$core$Maybe$map,
+		$author$project$Main$winnerDisplayName(config.board),
+		A2(
+			$elm$core$Maybe$andThen,
+			function ($) {
+				return $.winner;
+			},
+			round)) : $elm$core$Maybe$Nothing;
+	var statusBanner = function () {
+		if (winnerName.$ === 'Just') {
+			var name = winnerName.a;
+			return name + ' wins the round';
+		} else {
+			return config.turnIndicatorText;
+		}
+	}();
+	var redScore = A2(
+		$elm$core$Maybe$withDefault,
+		0,
+		A2(
+			$elm$core$Maybe$map,
+			A2(
+				$elm$core$Basics$composeR,
+				function ($) {
+					return $.score;
+				},
+				function ($) {
+					return $.red;
+				}),
+			session));
+	var redName = A2(
+		$elm$core$Maybe$withDefault,
+		'Red',
+		A2(
+			$elm$core$Maybe$map,
+			function ($) {
+				return $.displayName;
+			},
+			config.board.red.player));
+	var blueScore = A2(
+		$elm$core$Maybe$withDefault,
+		0,
+		A2(
+			$elm$core$Maybe$map,
+			A2(
+				$elm$core$Basics$composeR,
+				function ($) {
+					return $.score;
+				},
+				function ($) {
+					return $.blue;
+				}),
+			session));
+	var blueName = A2(
+		$elm$core$Maybe$withDefault,
+		'Blue',
+		A2(
+			$elm$core$Maybe$map,
+			function ($) {
+				return $.displayName;
+			},
+			config.board.blue.player));
+	return A2(
+		$mdgriffith$elm_ui$Element$column,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$spacing(12)
+			]),
+		_List_fromArray(
+			[
+				A6($author$project$Main$viewMobileTopCard, config, statusBanner, blueName, redName, blueScore, redScore),
+				A2(
+				$mdgriffith$elm_ui$Element$el,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$centerX
+					]),
+				$mdgriffith$elm_ui$Element$html(
+					A7($author$project$Main$viewBoardStageHtml, true, config, blueName, redName, blueScore, redScore, winnerName))),
+				A2($author$project$Main$viewMobileReplayCard, config.replayIndex, config.moveCount)
+			]));
+};
+var $author$project$Main$viewBoardScreenHtml = function (config) {
+	return config.isCompactLayout ? A2(
+		$mdgriffith$elm_ui$Element$layout,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+			]),
+		$author$project$Main$viewMobileBoardScreen(config)) : $author$project$Main$viewDesktopBoardScreenHtml(config);
+};
 var $author$project$Main$viewLocalGameHtml = F2(
 	function (model, lg) {
-		var timerSecs = $author$project$Main$positiveMaybe(model.onlineMoveTimer);
+		var timerSecs = $author$project$Main$positiveMaybe(lg.moveTimerSeconds);
 		var board = $author$project$Main$localGameToBoard(lg);
 		var pauseOverlay = model.localPaused ? $elm$core$Maybe$Just(
 			{
@@ -16992,24 +19558,33 @@ var $author$project$Main$viewLocalGameHtml = F2(
 				turnText: A2($author$project$Main$turnOwnerName, board, lg.turn) + ' to move when resumed.'
 			}) : $elm$core$Maybe$Nothing;
 		var winnerName = A2(
+			$author$project$Main$replayShowsWinner,
+			model.replayIndex,
+			$elm$core$List$length(lg.moves)) ? A2(
 			$elm$core$Maybe$map,
 			$author$project$Main$winnerDisplayName(board),
-			lg.winner);
+			lg.winner) : $elm$core$Maybe$Nothing;
 		return $author$project$Main$viewBoardScreenHtml(
 			{
 				board: board,
+				isCompactLayout: model.viewportWidth <= 640,
 				isPaused: model.localPaused,
 				leaveAction: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame),
-				matchSubtitle: 'Local game',
+				matchSubtitle: 'Board LOCAL',
 				moveCount: $elm$core$List$length(lg.moves),
-				newRoundAction: (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing)) ? $elm$core$Maybe$Just($author$project$Main$LocalNewRound) : $elm$core$Maybe$Nothing,
+				newRoundAction: (!_Utils_eq(winnerName, $elm$core$Maybe$Nothing)) ? $elm$core$Maybe$Just($author$project$Main$LocalNewRound) : $elm$core$Maybe$Nothing,
 				ownSeat: $elm$core$Maybe$Just(lg.turn),
 				pauseAction: $elm$core$Maybe$Just($author$project$Main$ToggleLocalPause),
 				pauseOverlay: pauseOverlay,
-				replayIndex: $elm$core$Maybe$Nothing,
+				replayIndex: model.replayIndex,
 				showJoinBlue: false,
 				showJoinRed: false,
+				showSeatActions: false,
+				showWinnerOverlay: !_Utils_eq(
+					$author$project$Main$winnerKeyForBoard(board),
+					model.dismissedWinnerKey),
 				statusText: A4($author$project$Main$localStatusText, model, board, lg.turn, winnerName),
+				timerRemainingSecs: $elm$core$Maybe$Nothing,
 				timerSecs: timerSecs,
 				turnIndicatorIsRed: $author$project$Main$normalizeSeatId(lg.turn) === 'red',
 				turnIndicatorText: A4($author$project$Main$localTurnIndicatorText, model, board, lg.turn, winnerName)
@@ -17025,7 +19600,10 @@ var $author$project$Main$viewMainTabs = function (model) {
 			[
 				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 				$mdgriffith$elm_ui$Element$Background$color(
-				A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 50)),
+				A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+				$mdgriffith$elm_ui$Element$Border$width(1),
+				$mdgriffith$elm_ui$Element$Border$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
 				$mdgriffith$elm_ui$Element$Border$rounded(28),
 				$mdgriffith$elm_ui$Element$padding(4),
 				$mdgriffith$elm_ui$Element$spacing(0)
@@ -17034,7 +19612,7 @@ var $author$project$Main$viewMainTabs = function (model) {
 			[
 				A3(
 				$author$project$Main$gradientTabButton,
-				'Game',
+				'Setup',
 				model.mainTab === 'game',
 				$author$project$Main$SetMainTab('game')),
 				A3(
@@ -17044,8 +19622,284 @@ var $author$project$Main$viewMainTabs = function (model) {
 				$author$project$Main$SetMainTab('boards'))
 			]));
 };
+var $author$project$Main$viewMobileGameHeader = A2(
+	$mdgriffith$elm_ui$Element$row,
+	_List_fromArray(
+		[
+			$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+			$mdgriffith$elm_ui$Element$centerY,
+			A2($mdgriffith$elm_ui$Element$paddingXY, 10, 8),
+			$mdgriffith$elm_ui$Element$spacing(8),
+			$mdgriffith$elm_ui$Element$Border$rounded(22),
+			$mdgriffith$elm_ui$Element$Border$width(1),
+			$mdgriffith$elm_ui$Element$Border$color(
+			A4($mdgriffith$elm_ui$Element$rgba255, 115, 176, 132, 60)),
+			$mdgriffith$elm_ui$Element$Background$color(
+			A4($mdgriffith$elm_ui$Element$rgba255, 1, 22, 8, 240)),
+			$mdgriffith$elm_ui$Element$Font$color(
+			A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width(
+					$mdgriffith$elm_ui$Element$px(42)),
+					$mdgriffith$elm_ui$Element$height(
+					$mdgriffith$elm_ui$Element$px(42)),
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 64, 88, 69)),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 10, 36, 18)),
+					$mdgriffith$elm_ui$Element$Font$size(22),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+				]),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$centerX,
+							$mdgriffith$elm_ui$Element$centerY,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+							$mdgriffith$elm_ui$Element$htmlAttribute(
+							A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open lobby'))
+						]),
+					$mdgriffith$elm_ui$Element$text('←')),
+				onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+			}),
+			A2(
+			$mdgriffith$elm_ui$Element$el,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$centerX,
+					$mdgriffith$elm_ui$Element$Font$size(16),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+				]),
+			$mdgriffith$elm_ui$Element$text('Game')),
+			A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width(
+					$mdgriffith$elm_ui$Element$px(42)),
+					$mdgriffith$elm_ui$Element$height(
+					$mdgriffith$elm_ui$Element$px(42)),
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 64, 88, 69)),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 10, 36, 18)),
+					$mdgriffith$elm_ui$Element$Font$size(20),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+				]),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$centerX,
+							$mdgriffith$elm_ui$Element$centerY,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+							$mdgriffith$elm_ui$Element$htmlAttribute(
+							A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'))
+						]),
+					$mdgriffith$elm_ui$Element$text('☰')),
+				onPress: $elm$core$Maybe$Nothing
+			})
+		]));
+var $author$project$Main$viewMobileLobbyHeader = A2(
+	$mdgriffith$elm_ui$Element$row,
+	_List_fromArray(
+		[
+			$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+			$mdgriffith$elm_ui$Element$centerY,
+			A2($mdgriffith$elm_ui$Element$paddingXY, 10, 8),
+			$mdgriffith$elm_ui$Element$spacing(10),
+			$mdgriffith$elm_ui$Element$Border$rounded(22),
+			$mdgriffith$elm_ui$Element$Border$width(1),
+			$mdgriffith$elm_ui$Element$Border$color(
+			A4($mdgriffith$elm_ui$Element$rgba255, 115, 176, 132, 60)),
+			$mdgriffith$elm_ui$Element$Background$color(
+			A4($mdgriffith$elm_ui$Element$rgba255, 1, 22, 8, 240))
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$mdgriffith$elm_ui$Element$row,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$spacing(10),
+					$mdgriffith$elm_ui$Element$centerY
+				]),
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$html(
+					A2(
+						$elm$html$Html$img,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('hero-icon'),
+								$elm$html$Html$Attributes$src('/icon.svg'),
+								$elm$html$Html$Attributes$alt('')
+							]),
+						_List_Nil)),
+					A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$size(17),
+							$mdgriffith$elm_ui$Element$Font$bold,
+							$mdgriffith$elm_ui$Element$Font$color(
+							A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+						]),
+					$mdgriffith$elm_ui$Element$text('Traceball Arena'))
+				])),
+			A2(
+			$mdgriffith$elm_ui$Element$el,
+			_List_fromArray(
+				[$mdgriffith$elm_ui$Element$alignRight]),
+			A2(
+				$mdgriffith$elm_ui$Element$Input$button,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width(
+						$mdgriffith$elm_ui$Element$px(42)),
+						$mdgriffith$elm_ui$Element$height(
+						$mdgriffith$elm_ui$Element$px(42)),
+						$mdgriffith$elm_ui$Element$Border$rounded(16),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 64, 88, 69)),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 10, 36, 18)),
+						$mdgriffith$elm_ui$Element$Font$size(20),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+					]),
+				{
+					label: A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$centerX,
+								$mdgriffith$elm_ui$Element$centerY,
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'))
+							]),
+						$mdgriffith$elm_ui$Element$text('☰')),
+					onPress: $elm$core$Maybe$Nothing
+				}))
+		]));
+var $author$project$Main$viewMobileOpenGameStrip = A2(
+	$mdgriffith$elm_ui$Element$row,
+	_List_fromArray(
+		[
+			$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+			$mdgriffith$elm_ui$Element$spacing(10),
+			$mdgriffith$elm_ui$Element$centerY,
+			A2($mdgriffith$elm_ui$Element$paddingXY, 12, 10),
+			$mdgriffith$elm_ui$Element$Border$rounded(18),
+			$mdgriffith$elm_ui$Element$Border$width(1),
+			$mdgriffith$elm_ui$Element$Border$color(
+			A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+			$mdgriffith$elm_ui$Element$Background$color(
+			A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22))
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$mdgriffith$elm_ui$Element$el,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+					$mdgriffith$elm_ui$Element$Font$size(13),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 210, 230, 212)),
+					$mdgriffith$elm_ui$Element$Font$semiBold
+				]),
+			$mdgriffith$elm_ui$Element$text('Game in progress')),
+			A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_List_fromArray(
+				[
+					A2($mdgriffith$elm_ui$Element$paddingXY, 12, 8),
+					$mdgriffith$elm_ui$Element$Border$rounded(14),
+					$mdgriffith$elm_ui$Element$Background$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 33, 194, 216)),
+					$mdgriffith$elm_ui$Element$Border$width(1),
+					$mdgriffith$elm_ui$Element$Border$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 98, 232, 248)),
+					$mdgriffith$elm_ui$Element$Font$color(
+					A3($mdgriffith$elm_ui$Element$rgb255, 6, 22, 10)),
+					$mdgriffith$elm_ui$Element$Font$bold,
+					$mdgriffith$elm_ui$Element$Font$size(13)
+				]),
+			{
+				label: $mdgriffith$elm_ui$Element$text('Open Game'),
+				onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+			})
+		]));
+var $author$project$Main$viewMobileApp = F4(
+	function (model, hasGame, lobbyLayout, gameView) {
+		return A2(
+			$mdgriffith$elm_ui$Element$column,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+				]),
+			_List_fromArray(
+				[
+					(hasGame && (!model.showLobby)) ? $author$project$Main$viewMobileGameHeader : $author$project$Main$viewMobileLobbyHeader,
+					(hasGame && (!model.showLobby)) ? gameView : A2(
+					$mdgriffith$elm_ui$Element$column,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$spacing(8)
+						]),
+					_List_fromArray(
+						[
+							hasGame ? $author$project$Main$viewMobileOpenGameStrip : $mdgriffith$elm_ui$Element$none,
+							lobbyLayout
+						]))
+				]));
+	});
 var $author$project$Main$LeaveSeat = {$: 'LeaveSeat'};
 var $author$project$Main$StartNewRound = {$: 'StartNewRound'};
+var $author$project$Main$activeTimerRemainingSeconds = F2(
+	function (nowMs, board) {
+		return (nowMs <= 0) ? $elm$core$Maybe$Nothing : A2(
+			$elm$core$Maybe$map,
+			function (deadlineAt) {
+				return A2($elm$core$Basics$max, 0, (((deadlineAt - nowMs) + 999) / 1000) | 0);
+			},
+			A2(
+				$elm$core$Maybe$andThen,
+				function ($) {
+					return $.deadlineAt;
+				},
+				A2(
+					$elm$core$Maybe$andThen,
+					function ($) {
+						return $.round;
+					},
+					board.currentSession)));
+	});
 var $author$project$Main$seatMatchesTurn = F2(
 	function (ownSeat, turn) {
 		if (ownSeat.$ === 'Just') {
@@ -17125,6 +19979,9 @@ var $author$project$Main$viewOnlineGameHtml = F2(
 				},
 				round));
 		var winnerName = A2(
+			$author$project$Main$replayShowsWinner,
+			model.replayIndex,
+			$author$project$Main$currentMoveCount(model)) ? A2(
 			$elm$core$Maybe$map,
 			$author$project$Main$winnerDisplayName(board),
 			A2(
@@ -17132,11 +19989,12 @@ var $author$project$Main$viewOnlineGameHtml = F2(
 				function ($) {
 					return $.winner;
 				},
-				round));
+				round)) : $elm$core$Maybe$Nothing;
 		var ownSeat = A2($author$project$Main$derivedOwnSeat, model, board);
 		return $author$project$Main$viewBoardScreenHtml(
 			{
 				board: board,
+				isCompactLayout: model.viewportWidth <= 640,
 				isPaused: _Utils_eq(board.state, $author$project$Board$Types$SessionPaused),
 				leaveAction: A2(
 					$elm$core$Maybe$map,
@@ -17153,7 +20011,12 @@ var $author$project$Main$viewOnlineGameHtml = F2(
 				replayIndex: model.replayIndex,
 				showJoinBlue: _Utils_eq(ownSeat, $elm$core$Maybe$Nothing) && $author$project$Main$seatIsVacant(board.blue),
 				showJoinRed: _Utils_eq(ownSeat, $elm$core$Maybe$Nothing) && $author$project$Main$seatIsVacant(board.red),
+				showSeatActions: true,
+				showWinnerOverlay: !_Utils_eq(
+					$author$project$Main$winnerKeyForBoard(board),
+					model.dismissedWinnerKey),
 				statusText: A4($author$project$Main$onlineStatusText, board, ownSeat, turn, winnerName),
+				timerRemainingSecs: A2($author$project$Main$activeTimerRemainingSeconds, model.currentTimeMs, board),
 				timerSecs: A2(
 					$elm$core$Maybe$andThen,
 					$author$project$Main$positiveMaybe,
@@ -17193,8 +20056,33 @@ var $author$project$Main$viewApp = function (model) {
 					$author$project$Main$viewMainTabs(model),
 					(model.mainTab === 'boards') ? $author$project$Main$viewBoardListSection(model) : $author$project$Main$viewLobbyCard(model)
 				])));
+	var isMobile = model.viewportWidth <= 640;
 	var hasGame = (!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing));
-	return A2(
+	var gameView = A2(
+		$mdgriffith$elm_ui$Element$el,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$centerX,
+				A2($mdgriffith$elm_ui$Element$paddingXY, 10, 10)
+			]),
+		$mdgriffith$elm_ui$Element$html(
+			function () {
+				var _v0 = $author$project$Main$activeBoard(model);
+				if (_v0.$ === 'Just') {
+					var board = _v0.a;
+					return A2($author$project$Main$viewOnlineGameHtml, model, board);
+				} else {
+					var _v1 = $author$project$Main$activeLocalGame(model);
+					if (_v1.$ === 'Just') {
+						var lg = _v1.a;
+						return A2($author$project$Main$viewLocalGameHtml, model, lg);
+					} else {
+						return $elm$html$Html$text('');
+					}
+				}
+			}()));
+	return isMobile ? A4($author$project$Main$viewMobileApp, model, hasGame, lobbyLayout, gameView) : A2(
 		$mdgriffith$elm_ui$Element$column,
 		_List_fromArray(
 			[
@@ -17202,43 +20090,235 @@ var $author$project$Main$viewApp = function (model) {
 			]),
 		_List_fromArray(
 			[
+				hasGame ? $author$project$Main$viewGameHeader(model) : A2(
+				$mdgriffith$elm_ui$Element$el,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+					]),
 				$mdgriffith$elm_ui$Element$html(
-				A2($author$project$Main$viewHeaderHtml, model, hasGame)),
+					A2($author$project$Main$viewHeaderHtml, model, false))),
 				hasGame ? A2(
 				$mdgriffith$elm_ui$Element$column,
 				_List_fromArray(
 					[
 						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 					]),
-				_List_fromArray(
-					[
-						lobbyLayout,
-						A2(
-						$mdgriffith$elm_ui$Element$el,
+				model.showLobby ? _List_fromArray(
+					[lobbyLayout, gameView]) : _List_fromArray(
+					[gameView])) : lobbyLayout
+			]));
+};
+var $author$project$Main$CloseTimerSheet = {$: 'CloseTimerSheet'};
+var $author$project$Main$IgnoreSheetClick = {$: 'IgnoreSheetClick'};
+var $author$project$Main$SelectOnlineMoveTimer = function (a) {
+	return {$: 'SelectOnlineMoveTimer', a: a};
+};
+var $author$project$Main$viewTimerSheetOption = F2(
+	function (current, optionSeconds) {
+		var isSelected = _Utils_eq(current, optionSeconds);
+		var borderColor = isSelected ? 'rgba(23, 210, 230, 0.58)' : 'rgba(255,255,255,0.10)';
+		var backgroundColor = isSelected ? 'linear-gradient(135deg, rgba(39, 192, 80, 0.34), rgba(29, 160, 234, 0.34))' : 'rgba(5, 26, 10, 0.66)';
+		return A2(
+			$elm$html$Html$button,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$type_('button'),
+					A2($elm$html$Html$Attributes$style, 'width', '100%'),
+					A2($elm$html$Html$Attributes$style, 'display', 'flex'),
+					A2($elm$html$Html$Attributes$style, 'align-items', 'center'),
+					A2($elm$html$Html$Attributes$style, 'justify-content', 'space-between'),
+					A2($elm$html$Html$Attributes$style, 'gap', '12px'),
+					A2($elm$html$Html$Attributes$style, 'margin-top', '10px'),
+					A2($elm$html$Html$Attributes$style, 'padding', '16px 16px'),
+					A2($elm$html$Html$Attributes$style, 'border-radius', '20px'),
+					A2($elm$html$Html$Attributes$style, 'border', '1px solid ' + borderColor),
+					A2($elm$html$Html$Attributes$style, 'background', backgroundColor),
+					A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)'),
+					A2($elm$html$Html$Attributes$style, 'font-size', '15px'),
+					A2($elm$html$Html$Attributes$style, 'font-weight', '800'),
+					$elm$html$Html$Events$onClick(
+					$author$project$Main$SelectOnlineMoveTimer(optionSeconds))
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$span,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text(
+							$author$project$Main$moveTimerLabel(optionSeconds))
+						])),
+					A2(
+					$elm$html$Html$span,
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$Attributes$style,
+							'color',
+							isSelected ? 'rgb(23, 210, 230)' : 'rgba(255,255,255,0.34)')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(
+							isSelected ? 'Selected' : '')
+						]))
+				]));
+	});
+var $author$project$Main$viewTimerBottomSheet = function (current) {
+	return $mdgriffith$elm_ui$Element$html(
+		A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					A2($elm$html$Html$Attributes$style, 'position', 'fixed'),
+					A2($elm$html$Html$Attributes$style, 'inset', '0'),
+					A2($elm$html$Html$Attributes$style, 'display', 'flex'),
+					A2($elm$html$Html$Attributes$style, 'align-items', 'flex-end'),
+					A2($elm$html$Html$Attributes$style, 'justify-content', 'center'),
+					A2($elm$html$Html$Attributes$style, 'padding', '0'),
+					A2($elm$html$Html$Attributes$style, 'background', 'rgba(2, 10, 4, 0.44)'),
+					A2($elm$html$Html$Attributes$style, 'backdrop-filter', 'blur(14px)'),
+					A2($elm$html$Html$Attributes$style, 'z-index', '70'),
+					$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							A2($elm$html$Html$Attributes$style, 'width', 'min(100%, 420px)'),
+							A2($elm$html$Html$Attributes$style, 'max-height', 'min(82vh, 560px)'),
+							A2($elm$html$Html$Attributes$style, 'overflow-y', 'auto'),
+							A2($elm$html$Html$Attributes$style, 'border-top', '1px solid rgba(141, 255, 174, 0.22)'),
+							A2($elm$html$Html$Attributes$style, 'border-left', '1px solid rgb(72, 106, 82)'),
+							A2($elm$html$Html$Attributes$style, 'border-right', '1px solid rgb(72, 106, 82)'),
+							A2($elm$html$Html$Attributes$style, 'border-radius', '28px 28px 0 0'),
+							A2($elm$html$Html$Attributes$style, 'padding', '10px 16px calc(18px + env(safe-area-inset-bottom, 0px))'),
+							A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(180deg, rgba(23, 57, 31, 0.99), rgba(10, 35, 18, 0.99))'),
+							A2($elm$html$Html$Attributes$style, 'box-shadow', '0 -18px 54px rgba(0, 0, 0, 0.42)'),
+							A2(
+							$elm$html$Html$Events$stopPropagationOn,
+							'click',
+							$elm$json$Json$Decode$succeed(
+								_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
+						]),
+					_Utils_ap(
 						_List_fromArray(
 							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$centerX,
-								A2($mdgriffith$elm_ui$Element$paddingXY, 10, 10)
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'width', '44px'),
+										A2($elm$html$Html$Attributes$style, 'height', '5px'),
+										A2($elm$html$Html$Attributes$style, 'margin', '2px auto 14px'),
+										A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
+										A2($elm$html$Html$Attributes$style, 'background', 'rgba(244, 255, 246, 0.34)')
+									]),
+								_List_Nil),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'font-size', '11px'),
+										A2($elm$html$Html$Attributes$style, 'font-weight', '800'),
+										A2($elm$html$Html$Attributes$style, 'letter-spacing', '0.14em'),
+										A2($elm$html$Html$Attributes$style, 'text-transform', 'uppercase'),
+										A2($elm$html$Html$Attributes$style, 'color', 'rgb(141, 255, 174)')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Move timer')
+									])),
+								A2(
+								$elm$html$Html$h3,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'margin', '8px 0 4px'),
+										A2($elm$html$Html$Attributes$style, 'font-size', '21px'),
+										A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Choose turn duration')
+									])),
+								A2(
+								$elm$html$Html$p,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'margin', '0 0 14px'),
+										A2($elm$html$Html$Attributes$style, 'font-size', '13px'),
+										A2($elm$html$Html$Attributes$style, 'line-height', '1.45'),
+										A2($elm$html$Html$Attributes$style, 'color', 'rgb(199, 220, 204)')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('The timer applies when you create or start the next game.')
+									])),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										A2($elm$html$Html$Attributes$style, 'display', 'inline-flex'),
+										A2($elm$html$Html$Attributes$style, 'align-items', 'center'),
+										A2($elm$html$Html$Attributes$style, 'gap', '8px'),
+										A2($elm$html$Html$Attributes$style, 'margin-bottom', '8px'),
+										A2($elm$html$Html$Attributes$style, 'padding', '7px 10px'),
+										A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
+										A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.22)'),
+										A2($elm$html$Html$Attributes$style, 'background', 'rgba(8, 24, 12, 0.42)'),
+										A2($elm$html$Html$Attributes$style, 'font-size', '12px'),
+										A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
+										A2($elm$html$Html$Attributes$style, 'color', 'rgb(218, 236, 222)')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Current'),
+										A2(
+										$elm$html$Html$span,
+										_List_fromArray(
+											[
+												A2($elm$html$Html$Attributes$style, 'color', 'rgb(23, 210, 230)')
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text(
+												$author$project$Main$moveTimerLabel(current))
+											]))
+									]))
 							]),
-						$mdgriffith$elm_ui$Element$html(
-							function () {
-								var _v0 = model.localGame;
-								if (_v0.$ === 'Just') {
-									var lg = _v0.a;
-									return A2($author$project$Main$viewLocalGameHtml, model, lg);
-								} else {
-									var _v1 = model.board;
-									if (_v1.$ === 'Just') {
-										var board = _v1.a;
-										return A2($author$project$Main$viewOnlineGameHtml, model, board);
-									} else {
-										return $elm$html$Html$text('');
-									}
-								}
-							}()))
-					])) : lobbyLayout
-			]));
+						_Utils_ap(
+							A2(
+								$elm$core$List$map,
+								$author$project$Main$viewTimerSheetOption(current),
+								$author$project$Main$timerOptions),
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$button,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$type_('button'),
+											A2($elm$html$Html$Attributes$style, 'width', '100%'),
+											A2($elm$html$Html$Attributes$style, 'margin-top', '12px'),
+											A2($elm$html$Html$Attributes$style, 'padding', '14px 14px'),
+											A2($elm$html$Html$Attributes$style, 'border-radius', '18px'),
+											A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.14)'),
+											A2($elm$html$Html$Attributes$style, 'background', 'rgba(255,255,255,0.06)'),
+											A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)'),
+											A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
+											A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
+											$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('Cancel')
+										]))
+								]))))
+				])));
 };
 var $author$project$Main$view = function (model) {
 	var hasGame = (!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing));
@@ -17262,9 +20342,25 @@ var $author$project$Main$view = function (model) {
 				$mdgriffith$elm_ui$Element$layout,
 				_List_fromArray(
 					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246)),
+						$mdgriffith$elm_ui$Element$Font$family(
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$typeface('system-ui'),
+								$mdgriffith$elm_ui$Element$Font$sansSerif
+							]))
 					]),
-				$author$project$Main$viewApp(model))
+				A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$inFront(
+							(model.showTimerSheet && (model.viewportWidth <= 640)) ? $author$project$Main$viewTimerBottomSheet(model.onlineMoveTimer) : $mdgriffith$elm_ui$Element$none)
+						]),
+					$author$project$Main$viewApp(model)))
 			]));
 };
 var $author$project$Main$main = $elm$browser$Browser$element(

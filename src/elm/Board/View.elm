@@ -111,23 +111,49 @@ viewBoard onMove ownSeat replayIndex board =
         round =
             session |> Maybe.andThen .round
 
-        ball =
-            round |> Maybe.map .ball |> Maybe.withDefault { x = 4, y = 6 }
-
-        legalMoves =
-            round |> Maybe.map .legalMoves |> Maybe.withDefault []
-
-        moves =
+        allMoves =
             round |> Maybe.map .moves |> Maybe.withDefault []
 
+        replayCount =
+            replayIndex |> Maybe.withDefault (List.length allMoves)
+
+        replayAtEnd =
+            replayCount >= List.length allMoves
+
+        moves =
+            List.take replayCount allMoves
+
+        ball =
+            case List.reverse moves |> List.head of
+                Just lastMove ->
+                    lastMove.to
+
+                Nothing ->
+                    { x = 4, y = 6 }
+
+        legalMoves =
+            if replayIndex == Nothing then
+                round |> Maybe.map .legalMoves |> Maybe.withDefault []
+
+            else
+                []
+
         turn =
-            round |> Maybe.map .turn |> Maybe.withDefault ""
+            if replayIndex == Nothing then
+                round |> Maybe.map .turn |> Maybe.withDefault ""
+
+            else
+                ""
 
         winner =
-            round |> Maybe.andThen .winner
+            if replayIndex == Nothing || replayAtEnd then
+                round |> Maybe.andThen .winner
+
+            else
+                Nothing
 
         visited =
-            round |> Maybe.map .visited |> Maybe.withDefault [ pk ball ]
+            "4,6" :: List.map (.to >> pk) moves
 
         interactive =
             isOwnTurnCheck ownSeat turn && winner == Nothing && replayIndex == Nothing
@@ -207,6 +233,14 @@ viewBoard onMove ownSeat replayIndex board =
         -- Traced move segments
         , S.g [] (List.map viewMoveSegment moves)
 
+        -- Winner confetti over the scoring gate
+        , case winner of
+            Just winnerId ->
+                viewWinnerConfetti board.version winnerId
+
+            Nothing ->
+                S.g [] []
+
         -- Legal move targets
         , S.g [] <|
             if interactive then
@@ -217,26 +251,6 @@ viewBoard onMove ownSeat replayIndex board =
 
             else
                 []
-
-        -- Ball
-        , S.g []
-            [ S.circle
-                [ SA.cx (sx ball.x)
-                , SA.cy (sy ball.y)
-                , SA.r "26"
-                , SA.fill "rgba(0,0,0,0.22)"
-                ]
-                []
-            , S.text_
-                [ SA.x (sx ball.x)
-                , SA.y (sy ball.y)
-                , SA.textAnchor "middle"
-                , SA.dominantBaseline "middle"
-                , SA.fontSize "38"
-                , SA.style "user-select:none;pointer-events:none"
-                ]
-                [ S.text "⚽" ]
-            ]
 
         -- Ball
         , S.g []
@@ -528,3 +542,180 @@ viewLegalPreview _ pt =
         , SA.strokeWidth "1"
         ]
         []
+
+
+viewWinnerConfetti : Int -> String -> S.Svg msg
+viewWinnerConfetti version winnerId =
+    let
+        winnerColor =
+            playerHex winnerId
+
+        targetTop =
+            toSeatColor winnerId == "red"
+
+        gateY =
+            if targetTop then
+                150
+
+            else
+                760
+
+        gateSeed =
+            if targetTop then
+                version + 17
+
+            else
+                version + 43
+
+        burstCenters =
+            List.range 0 2
+                |> List.map
+                    (\index ->
+                        let
+                            unitX =
+                                pseudoUnit gateSeed (index * 3)
+
+                            unitY =
+                                pseudoUnit gateSeed (index * 3 + 1)
+                        in
+                        { x = round (310 + unitX * 110)
+                        , y =
+                            if targetTop then
+                                round (toFloat gateY - 42 + unitY * 18)
+
+                            else
+                                round (toFloat gateY + 42 - unitY * 18)
+                        , seed = gateSeed + index * 11
+                        , delayBase = index * 500
+                        , targetTop = targetTop
+                        }
+                    )
+
+        pieces =
+            burstCenters
+                |> List.concatMap buildBurstPieces
+    in
+    S.g [ SA.class "elm-confetti" ]
+        (List.indexedMap
+            (\index piece ->
+                S.rect
+                    [ SA.class "elm-confetti-piece"
+                    , SA.x (String.fromInt piece.x)
+                    , SA.y (String.fromInt piece.y)
+                    , SA.width piece.width
+                    , SA.height piece.height
+                    , SA.rx "3"
+                    , SA.fill
+                        (if modBy 2 index == 0 then
+                            winnerColor
+
+                         else
+                            "#ffe784"
+                        )
+                    , SA.transform ("rotate(" ++ piece.rotation ++ " " ++ String.fromInt piece.x ++ " " ++ String.fromInt piece.y ++ ")")
+                    , SA.style
+                        ("--elm-confetti-dx: "
+                            ++ piece.dx
+                            ++ ";"
+                            ++ "--elm-confetti-dy: "
+                            ++ piece.dy
+                            ++ ";"
+                            ++ "--elm-confetti-rot: "
+                            ++ piece.drift
+                            ++ ";"
+                            ++ "animation-delay: "
+                            ++ piece.delay
+                            ++ ";"
+                            ++ "animation-duration: "
+                            ++ piece.duration
+                            ++ ";"
+                        )
+                    ]
+                    []
+            )
+            pieces
+        )
+
+
+buildBurstPieces : { x : Int, y : Int, seed : Int, delayBase : Int, targetTop : Bool } -> List { x : Int, y : Int, width : String, height : String, rotation : String, dx : String, dy : String, drift : String, delay : String, duration : String }
+buildBurstPieces burst =
+    List.range 0 9
+        |> List.map
+            (\index ->
+                let
+                    unitX =
+                        pseudoSigned burst.seed (index * 5)
+
+                    unitY =
+                        pseudoUnit burst.seed (index * 5 + 1)
+
+                    unitSize =
+                        pseudoUnit burst.seed (index * 5 + 2)
+
+                    unitRot =
+                        pseudoSigned burst.seed (index * 5 + 3)
+
+                    unitDelay =
+                        pseudoUnit burst.seed (index * 5 + 4)
+
+                    widthPx =
+                        8 + round (unitSize * 8)
+
+                    heightPx =
+                        7 + round ((1 - unitSize / 2) * 9)
+
+                    dxPx =
+                        round (unitX * (30 + toFloat (index * 10)))
+
+                    dyMagnitude =
+                        56 + round (unitY * 86) + index * 8
+
+                    dyPx =
+                        if burst.targetTop then
+                            dyMagnitude
+
+                        else
+                            -dyMagnitude
+
+                    rotation =
+                        String.fromInt (round (unitRot * 34))
+
+                    drift =
+                        String.fromInt (round (unitRot * 42)) ++ "deg"
+
+                    delay =
+                        String.fromInt (burst.delayBase + round (unitDelay * 150)) ++ "ms"
+
+                    duration =
+                        String.fromInt (1180 + round (unitY * 640) + index * 45) ++ "ms"
+                in
+                { x = burst.x
+                , y = burst.y
+                , width = String.fromInt widthPx
+                , height = String.fromInt heightPx
+                , rotation = rotation
+                , dx = String.fromInt dxPx ++ "px"
+                , dy = String.fromInt dyPx ++ "px"
+                , drift = drift
+                , delay = delay
+                , duration = duration
+                }
+            )
+
+
+pseudoUnit : Int -> Int -> Float
+pseudoUnit seed index =
+    let
+        angle =
+            toFloat (seed * 31 + index * 17)
+    in
+    abs (sin angle)
+
+
+pseudoSigned : Int -> Int -> Float
+pseudoSigned seed index =
+    let
+        angle =
+            toFloat (seed * 29 + index * 19)
+    in
+    sin angle
