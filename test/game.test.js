@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addPlayer, applyTurnTimeout, createGame, legalMoves, makeMove, pauseGame, resumeGame } from '../src/game.js';
+import { addPlayer, applyTurnTimeout, canReachTurnChange, claimSeat, createGame, freeDisconnectedSeat, leavePlayerAfterOpponentGrace, legalMoves, makeMove, markPlayerDisconnected, pauseGame, resumeGame } from '../src/game.js';
 
 function readyGame() {
   const game = createGame('room-test');
@@ -70,6 +70,34 @@ describe('traceball rules', () => {
     expect(game.turn).toBe('p1');
   });
 
+  it('detects turn-change availability through a forced bounce path', () => {
+    const game = readyGame();
+    game.ball = { x: 0, y: 6 };
+    game.visited = ['4,6', '0,6', '1,5', '1,6', '1,7'];
+    game.segments = [];
+
+    expect(legalMoves(game)).toEqual([{ x: 1, y: 5 }, { x: 1, y: 6 }, { x: 1, y: 7 }]);
+    expect(canReachTurnChange(game)).toBe(true);
+  });
+
+  it('detects no turn-change availability when no legal path exists', () => {
+    const game = readyGame();
+    game.ball = { x: 4, y: 6 };
+    game.segments = [
+      '3,5|4,6',
+      '3,6|4,6',
+      '3,7|4,6',
+      '4,5|4,6',
+      '4,6|4,7',
+      '4,6|5,5',
+      '4,6|5,6',
+      '4,6|5,7',
+    ];
+
+    expect(legalMoves(game)).toHaveLength(0);
+    expect(canReachTurnChange(game)).toBe(false);
+  });
+
   it('passes the turn on timeout without drawing a line or moving the ball', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;
@@ -104,7 +132,35 @@ describe('traceball rules', () => {
     expect(game.segments).toHaveLength(0);
   });
 
-  it('resumes paused games on the same turn with a fresh timer', () => {
+  it('pauses on behalf of one player after that same player times out more than twice in a row', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(applyTurnTimeout(game, 6000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(game.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+
+    expect(makeMove(game, 'p2', { x: 5, y: 6 }, 7000)).toMatchObject({ ok: true, bounce: false });
+    expect(game.turn).toBe('p1');
+    expect(game.timeoutStreaks).toEqual({ p1: 1, p2: 0 });
+
+    expect(applyTurnTimeout(game, 12000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(game.timeoutStreaks).toEqual({ p1: 2, p2: 0 });
+
+    expect(makeMove(game, 'p2', { x: 6, y: 6 }, 13000)).toMatchObject({ ok: true, bounce: false });
+    expect(game.turn).toBe('p1');
+    const third = applyTurnTimeout(game, 18000);
+
+    expect(third).toMatchObject({ ok: true, timedOutPlayer: 'p1', paused: true, origin: 'repeated-player-timeouts' });
+    expect(game.status).toBe('paused');
+    expect(game.turn).toBe('p1');
+    expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p1', resumeTurn: 'p1', origin: 'repeated-player-timeouts' });
+    expect(resumeGame(game, 19000, 'p2')).toMatchObject({ ok: false, error: expect.stringMatching(/paused the game|timed out/i) });
+    expect(resumeGame(game, 19000, 'p1').ok).toBe(true);
+    expect(game.turnStartedAt).toBe(19000);
+  });
+
+  it('resumes paused games with only the remaining turn time, not a fresh timer', () => {
     const game = readyGame();
     game.moveTimeLimitMs = 5000;
     game.turnStartedAt = 1000;
@@ -113,13 +169,36 @@ describe('traceball rules', () => {
     expect(game.status).toBe('paused');
     expect(game.turn).toBe('p1');
     expect(game.turnStartedAt).toBe(null);
+    expect(game.pause).toMatchObject({ remainingMs: 4000 });
 
     expect(resumeGame(game, 3000).ok).toBe(true);
     expect(game.status).toBe('playing');
     expect(game.turn).toBe('p1');
-    expect(game.turnStartedAt).toBe(3000);
+    expect(game.turnStartedAt).toBe(2000);
+    expect(game.turnStartedAt + game.moveTimeLimitMs).toBe(7000);
     expect(game.pause).toBe(null);
     expect(game.consecutiveTimeouts).toBe(0);
+  });
+
+  it('resumes a two-player idle pause with a fresh clock for the second timed-out player only', () => {
+    const game = readyGame();
+    game.moveTimeLimitMs = 5000;
+    game.turnStartedAt = 1000;
+
+    expect(applyTurnTimeout(game, 6000)).toMatchObject({ ok: true, timedOutPlayer: 'p1', nextPlayer: 'p2' });
+    expect(applyTurnTimeout(game, 11000)).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
+    expect(game.pause).toMatchObject({ reason: 'idle', byPlayerId: 'p2', resumeTurn: 'p2', remainingMs: 0 });
+
+    expect(resumeGame(game, 12000, 'p1')).toMatchObject({ ok: false, error: expect.stringMatching(/paused the game|timed out/i) });
+    expect(game.status).toBe('paused');
+
+    expect(resumeGame(game, 12000, 'p2').ok).toBe(true);
+
+    expect(game.status).toBe('playing');
+    expect(game.turn).toBe('p2');
+    expect(game.turnStartedAt).toBe(12000);
+    expect(applyTurnTimeout(game, 12000)).toMatchObject({ ok: false });
+    expect(applyTurnTimeout(game, 17000)).toMatchObject({ ok: true, timedOutPlayer: 'p2', paused: true });
   });
 
   it('rejects a move that arrives after the server-side timer deadline', () => {
@@ -154,5 +233,52 @@ describe('traceball rules', () => {
     expect(game.status).toBe('finished');
     expect(game.winner).toBe('p2');
     expect(game.endReason).toContain('Own goal');
+  });
+
+  it('reserves a disconnected seat during grace and allows same-client reclaim', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+
+    const disconnected = markPlayerDisconnected(game, 'p2', 10_000);
+
+    expect(disconnected).toMatchObject({ ok: true, playerId: 'p2', canBeFreedAt: 70_000 });
+    expect(game.status).toBe('paused');
+    expect(game.players.p2).toMatchObject({ status: 'disconnected', clientId: 'red-phone', disconnectedAt: 10_000, canBeFreedAt: 70_000 });
+    expect(claimSeat(game, 'p2', 'Red returns', 'red-phone', 20_000)).toMatchObject({ ok: true, playerId: 'p2', rejoined: true });
+    expect(game.players.p2).toMatchObject({ status: 'active', name: 'Red returns', clientId: 'red-phone' });
+    expect(game.status).toBe('playing');
+  });
+
+  it('blocks freeing a disconnected opponent until grace expires, then awards a forfeit point', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+    markPlayerDisconnected(game, 'p2', 10_000);
+
+    expect(freeDisconnectedSeat(game, 'p1', 'p2', 69_999)).toMatchObject({ ok: false });
+    const freed = freeDisconnectedSeat(game, 'p1', 'p2', 70_000);
+
+    expect(freed).toMatchObject({ ok: true, playerId: 'p2', winner: 'p1', forfeit: true });
+    expect(game.players.p2.status).toBe('vacant');
+    expect(game.score.p1).toBe(1);
+    expect(game.status).toBe('waiting');
+    expect(game.history.at(-1)).toMatchObject({ winner: 'p1', loser: 'p2', reason: 'disconnect-forfeit' });
+  });
+
+  it('clears the board without a ghost forfeit when the remaining player leaves after opponent grace expires', () => {
+    const game = readyGame();
+    game.players.p2.clientId = 'red-phone';
+    game.turn = 'p2';
+    markPlayerDisconnected(game, 'p2', 10_000);
+
+    const left = leavePlayerAfterOpponentGrace(game, 'p1', 70_000);
+
+    expect(left).toMatchObject({ ok: true, abandoned: true });
+    expect(game.score.p1).toBe(0);
+    expect(game.score.p2).toBe(0);
+    expect(game.status).toBe('waiting');
+    expect(game.players.p1.status).toBe('vacant');
+    expect(game.players.p2.status).toBe('vacant');
   });
 });

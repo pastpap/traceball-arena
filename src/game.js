@@ -7,8 +7,11 @@ export const GOAL_X_MAX = 5;
 export const START = { x: 4, y: 6 };
 export const MOVE_TIME_LIMIT_OPTIONS_MS = [0, 5000, 10000, 15000, 20000, 30000];
 export const DEFAULT_MOVE_TIME_LIMIT_MS = 15000;
+export const DISCONNECT_GRACE_MS = 60_000;
+export const BOARD_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function createGame(roomId, options = {}) {
+  const now = Number.isFinite(options.now) ? options.now : Date.now();
   const game = {
     roomId,
     status: 'waiting',
@@ -25,14 +28,17 @@ export function createGame(roomId, options = {}) {
     turnStartedAt: null,
     lastTimeout: null,
     consecutiveTimeouts: 0,
+    timeoutStreaks: { p1: 0, p2: 0 },
     pause: null,
     sessionId: null,
     sessionStartedAt: null,
     sessionEndedAt: null,
     history: [],
     watcherClientIds: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
+    waitingList: [],
+    createdAt: now,
+    updatedAt: now,
+    version: 1,
   };
   return game;
 }
@@ -54,15 +60,41 @@ export function publicGame(game) {
     turnStartedAt: game.turnStartedAt,
     lastTimeout: game.lastTimeout || null,
     consecutiveTimeouts: game.consecutiveTimeouts || 0,
+    timeoutStreaks: normalizeTimeoutStreaks(game),
     pause: game.pause || null,
     sessionId: game.sessionId || null,
     sessionStartedAt: game.sessionStartedAt || null,
     sessionEndedAt: game.sessionEndedAt || null,
     history: Array.isArray(game.history) ? game.history.slice(-10) : [],
     historyCount: Array.isArray(game.history) ? game.history.length : 0,
+    createdAt: game.createdAt ?? null,
+    updatedAt: game.updatedAt ?? null,
+    lastActivityAt: boardLastActivityAt(game),
+    expiresAt: boardExpiresAt(game),
     legalMoves: game.status === 'playing' ? legalMoves(game) : [],
     board: { width: WIDTH, height: HEIGHT, goalXMin: GOAL_X_MIN, goalXMax: GOAL_X_MAX },
   };
+}
+
+export function boardLastActivityAt(game) {
+  return Number(game?.updatedAt ?? game?.createdAt ?? 0);
+}
+
+function normalizeTimeoutStreaks(game) {
+  const streaks = game.timeoutStreaks || {};
+  game.timeoutStreaks = {
+    p1: Number(streaks.p1 || 0),
+    p2: Number(streaks.p2 || 0),
+  };
+  return game.timeoutStreaks;
+}
+
+export function boardExpiresAt(game) {
+  return boardLastActivityAt(game) + BOARD_TTL_MS;
+}
+
+export function isBoardExpired(game, now = Date.now()) {
+  return Number(now) >= boardExpiresAt(game);
 }
 
 export function addPlayer(game, name, clientId) {
@@ -75,7 +107,13 @@ export function addPlayer(game, name, clientId) {
         const cleanName = cleanPlayerName(name, id);
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        game.updatedAt = Date.now();
+        game.players[id].disconnectedAt = null;
+        game.players[id].canBeFreedAt = null;
+        if (game.status === 'paused' && bothSeatsActive(game)) {
+          resumeGame(game);
+        } else {
+          markUpdated(game);
+        }
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -96,7 +134,15 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
       if (game.players[id]?.clientId === cleanClientId) {
         game.players[id].name = cleanName;
         game.players[id].status = 'active';
-        game.updatedAt = now;
+        game.players[id].disconnectedAt = null;
+        game.players[id].canBeFreedAt = null;
+        forgetWatcherClient(game, cleanClientId);
+        removeWaitingClient(game, cleanClientId);
+        if (game.status === 'paused' && bothSeatsActive(game)) {
+          resumeGame(game, now);
+        } else {
+          markUpdated(game, now);
+        }
         return { ok: true, playerId: id, rejoined: true };
       }
     }
@@ -106,9 +152,66 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
 
   game.players[seatId] = { ...createSeat(seatId), name: cleanName, clientId: cleanClientId, status: 'active' };
   forgetWatcherClient(game, cleanClientId);
-  game.updatedAt = now;
+  removeWaitingClient(game, cleanClientId);
   if (bothSeatsActive(game) && game.status === 'waiting') startSession(game, now);
+  markUpdated(game, now);
   return { ok: true, playerId: seatId };
+}
+
+export function rejoinPlayerByClient(game, clientId, now = Date.now()) {
+  normalizeSeats(game);
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  for (const id of ['p1', 'p2']) {
+    const player = game.players[id];
+    if (player?.clientId !== cleanClientId) continue;
+    if (player.status === 'vacant') return { ok: false, error: 'That seat is vacant.' };
+    player.status = 'active';
+    player.disconnectedAt = null;
+    player.canBeFreedAt = null;
+    forgetWatcherClient(game, cleanClientId);
+    removeWaitingClient(game, cleanClientId);
+    if (game.status === 'paused' && bothSeatsActive(game)) {
+      resumeGame(game, now);
+    } else {
+      markUpdated(game, now);
+    }
+    return { ok: true, playerId: id, rejoined: true };
+  }
+  return { ok: false, error: 'No reserved seat for this client.' };
+}
+
+export function joinWaitingList(game, name, clientId, now = Date.now()) {
+  normalizeSeats(game);
+  game.waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  for (const id of ['p1', 'p2']) {
+    if (game.players[id]?.clientId === cleanClientId && isSeatActive(game.players[id])) {
+      return { ok: false, error: 'You already occupy a seat on this board.' };
+    }
+  }
+  const displayName = cleanPlayerName(name, 'watcher');
+  const existing = game.waitingList.find((person) => person.clientId === cleanClientId);
+  if (existing) {
+    existing.displayName = displayName;
+    markUpdated(game, now);
+    return { ok: true, clientId: cleanClientId, waiting: true, rejoined: true };
+  }
+  game.waitingList.push({ displayName, clientId: cleanClientId, joinedAt: now });
+  markUpdated(game, now);
+  return { ok: true, clientId: cleanClientId, waiting: true };
+}
+
+export function leaveWaitingList(game, clientId, now = Date.now()) {
+  game.waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
+  const cleanClientId = cleanClient(clientId);
+  if (!cleanClientId) return { ok: false, error: 'Client identity is required.' };
+  const before = game.waitingList.length;
+  game.waitingList = game.waitingList.filter((person) => person.clientId !== cleanClientId);
+  if (game.waitingList.length === before) return { ok: false, error: 'You are not on the waiting list.' };
+  markUpdated(game, now);
+  return { ok: true, clientId: cleanClientId, waiting: false };
 }
 
 export function leavePlayer(game, playerId, now = Date.now()) {
@@ -144,18 +247,97 @@ export function leavePlayer(game, playerId, now = Date.now()) {
   resetCurrentBoardForNextSession(game, now, { autoStart: false });
   game.status = 'waiting';
   game.turnStartedAt = null;
-  game.updatedAt = now;
+  markUpdated(game, now);
 
   return { ok: true, playerId, winner: historyEntry?.winner || null, forfeit: historyEntry?.reason === 'forfeit', historyEntry };
+}
+
+export function markPlayerDisconnected(game, playerId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };
+  const player = game.players[playerId];
+  if (!isSeatActive(player)) return { ok: false, error: 'That seat is not active.' };
+  player.status = 'disconnected';
+  player.disconnectedAt = now;
+  player.canBeFreedAt = now + DISCONNECT_GRACE_MS;
+  if (game.status === 'playing') {
+    pauseGame(game, { reason: 'disconnect', byPlayerId: playerId, now });
+  } else {
+    markUpdated(game, now);
+  }
+  return { ok: true, playerId, canBeFreedAt: player.canBeFreedAt };
+}
+
+export function freeDisconnectedSeat(game, actorPlayerId, seatId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(actorPlayerId) || !['p1', 'p2'].includes(seatId)) return { ok: false, error: 'Invalid seat.' };
+  if (actorPlayerId === seatId) return { ok: false, error: 'You cannot free your own reserved seat.' };
+  if (!isSeatActive(game.players[actorPlayerId])) return { ok: false, error: 'Only the seated opponent can free a disconnected seat.' };
+  const seat = game.players[seatId];
+  if (seat?.status !== 'disconnected') return { ok: false, error: 'That seat is not disconnected.' };
+  if (!Number.isFinite(seat.canBeFreedAt) || now < seat.canBeFreedAt) return { ok: false, error: 'Disconnect grace has not expired.' };
+
+  const wasSessionActive = Boolean(game.sessionStartedAt && ['playing', 'paused', 'finished'].includes(game.status));
+  let historyEntry = null;
+  if (wasSessionActive) {
+    game.score = game.score || { p1: 0, p2: 0 };
+    game.score[actorPlayerId] = (game.score[actorPlayerId] || 0) + 1;
+    historyEntry = archiveSessionResult(game, {
+      winner: actorPlayerId,
+      loser: seatId,
+      reason: 'disconnect-forfeit',
+      endReason: `${playerName(game, seatId)} did not return. ${playerName(game, actorPlayerId)} wins by disconnect forfeit.`,
+      now,
+    });
+  }
+
+  game.players[seatId] = createSeat(seatId);
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: true });
+  game.status = 'waiting';
+  markUpdated(game, now);
+  return { ok: true, playerId: seatId, winner: actorPlayerId, forfeit: wasSessionActive, historyEntry };
+}
+
+export function releaseExpiredDisconnectedSeats(game, now = Date.now()) {
+  normalizeSeats(game);
+  const released = [];
+  for (const playerId of ['p1', 'p2']) {
+    const seat = game.players[playerId];
+    if (seat?.status !== 'disconnected') continue;
+    if (!Number.isFinite(seat.canBeFreedAt) || now < seat.canBeFreedAt) continue;
+    game.players[playerId] = createSeat(playerId);
+    released.push(playerId);
+  }
+  if (!released.length) return { ok: false, released };
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: false });
+  game.status = 'waiting';
+  game.turnStartedAt = null;
+  markUpdated(game, now);
+  return { ok: true, released };
+}
+
+export function leavePlayerAfterOpponentGrace(game, playerId, now = Date.now()) {
+  normalizeSeats(game);
+  if (!['p1', 'p2'].includes(playerId)) return { ok: false, error: 'Invalid player.' };
+  const opponentId = otherPlayer(playerId);
+  const opponent = game.players[opponentId];
+  if (!isSeatActive(game.players[playerId])) return { ok: false, error: 'That seat is already vacant.' };
+  if (opponent?.status !== 'disconnected') {
+    return leavePlayer(game, playerId, now);
+  }
+
+  game.players[playerId] = createSeat(playerId);
+  game.players[opponentId] = createSeat(opponentId);
+  resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: false });
+  game.status = 'waiting';
+  markUpdated(game, now);
+  return { ok: true, playerId, abandoned: true };
 }
 
 export function makeMove(game, playerId, to, now = Date.now()) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
   if (hasTurnTimedOut(game, now)) return { ok: false, error: 'Time expired.', timeout: true };
   if (game.turn !== playerId) return { ok: false, error: 'Not your turn.' };
-
-  game.consecutiveTimeouts = 0;
-  game.pause = null;
   const from = game.ball;
   const target = normalizePoint(to);
   if (!target) return { ok: false, error: 'Invalid target.' };
@@ -164,6 +346,10 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   if (hasSegment(game, from, target)) return { ok: false, error: 'That line was already used.' };
   if (isTracedMarginSegment(from, target)) return { ok: false, error: 'The margin line is already traced.' };
   if (isBlockedCornerCut(from, target)) return { ok: false, error: 'Cannot cut through the outside corner.' };
+
+  game.consecutiveTimeouts = 0;
+  normalizeTimeoutStreaks(game)[playerId] = 0;
+  game.pause = null;
 
   const visitedBefore = game.visited.includes(pointKey(target));
   const boundaryBounce = isBoundaryPoint(target);
@@ -188,7 +374,7 @@ export function makeMove(game, playerId, to, now = Date.now()) {
     finishGame(game, goal.winner, goal.reason);
     move.goal = true;
     game.moves.push(move);
-    game.updatedAt = now;
+    markUpdated(game, now);
     return { ok: true, gameOver: true };
   }
 
@@ -206,7 +392,7 @@ export function makeMove(game, playerId, to, now = Date.now()) {
   } else {
     startTurnClock(game, now);
   }
-  game.updatedAt = now;
+  markUpdated(game, now);
   return { ok: true, bounce: getsBounce };
 }
 
@@ -224,16 +410,54 @@ export function legalMoves(game) {
   return options;
 }
 
+export function canReachTurnChange(game, maxDepth = 120) {
+  const seen = new Set();
+
+  function search(state, depth) {
+    const moves = legalMoves(state);
+    if (moves.length === 0) return false;
+
+    for (const to of moves) {
+      const visitedBefore = state.visited.includes(pointKey(to));
+      const bounce = visitedBefore || isBoundaryPoint(to);
+      if (!bounce) return true;
+    }
+
+    if (depth >= maxDepth) return false;
+    const key = `${pointKey(state.ball)}|${state.segments.slice().sort().join(';')}|${state.visited.slice().sort().join(';')}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+
+    for (const to of moves) {
+      const visitedBefore = state.visited.includes(pointKey(to));
+      const bounce = visitedBefore || isBoundaryPoint(to);
+      if (!bounce) continue;
+      const next = {
+        ...state,
+        ball: { ...to },
+        visited: visitedBefore ? state.visited.slice() : [...state.visited, pointKey(to)],
+        segments: [...state.segments, segmentKey(state.ball, to)],
+      };
+      if (search(next, depth + 1)) return true;
+    }
+
+    return false;
+  }
+
+  return search({ ...game, ball: { ...game.ball }, visited: game.visited.slice(), segments: game.segments.slice() }, 0);
+}
+
 export function resetGame(game, now = Date.now()) {
   normalizeSeats(game);
   if (bothSeatsActive(game)) {
     resetCurrentBoardForNextSession(game, now, { autoStart: false, preserveScore: true, preserveSession: true });
     game.status = 'playing';
     startTurnClock(game, now);
-    game.updatedAt = now;
+    markUpdated(game, now);
     return game;
   }
   resetCurrentBoardForNextSession(game, now, { autoStart: false });
+  markUpdated(game, now);
   return game;
 }
 
@@ -259,11 +483,26 @@ export function applyTurnTimeout(game, now = Date.now()) {
   if (!hasTurnTimedOut(game, now)) return { ok: false };
   const timedOutPlayer = game.turn;
   game.lastTimeout = { playerId: timedOutPlayer, at: now, ball: { ...game.ball } };
-  game.updatedAt = now;
+  const timeoutStreaks = normalizeTimeoutStreaks(game);
+  timeoutStreaks[timedOutPlayer] = Number(timeoutStreaks[timedOutPlayer] || 0) + 1;
+
+  if (timeoutStreaks[timedOutPlayer] > 2) {
+    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now, origin: 'repeated-player-timeouts' });
+    return { ok: true, timedOutPlayer, paused: true, origin: 'repeated-player-timeouts' };
+  }
 
   if ((game.consecutiveTimeouts || 0) >= 1) {
-    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now });
-    return { ok: true, timedOutPlayer, paused: true };
+    pauseGame(game, { reason: 'idle', byPlayerId: timedOutPlayer, now, origin: 'consecutive-timeouts' });
+    return { ok: true, timedOutPlayer, paused: true, origin: 'consecutive-timeouts' };
+  }
+
+  if (!canReachTurnChange(game)) {
+    game.status = 'finished';
+    game.turnStartedAt = null;
+    const winner = otherPlayer(timedOutPlayer);
+    finishGame(game, winner, `${playerName(game, timedOutPlayer)} cannot reach a turn-changing move after timing out — ${playerName(game, winner)} wins.`);
+    markUpdated(game, now);
+    return { ok: true, timedOutPlayer, gameOver: true, winner };
   }
 
   const nextPlayer = otherPlayer(timedOutPlayer);
@@ -277,11 +516,18 @@ export function applyTurnTimeout(game, now = Date.now()) {
   } else {
     startTurnClock(game, now);
   }
+  markUpdated(game, now);
   return { ok: true, timedOutPlayer, nextPlayer };
 }
 
-export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now() } = {}) {
+export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Date.now(), origin = null } = {}) {
   if (game.status !== 'playing') return { ok: false, error: 'Game is not playing.' };
+  const elapsed = game.moveTimeLimitMs > 0 && Number.isFinite(game.turnStartedAt)
+    ? Math.max(0, now - game.turnStartedAt)
+    : 0;
+  const remainingMs = game.moveTimeLimitMs > 0
+    ? Math.max(0, game.moveTimeLimitMs - elapsed)
+    : 0;
   game.status = 'paused';
   game.turnStartedAt = null;
   game.pause = {
@@ -289,21 +535,37 @@ export function pauseGame(game, { reason = 'manual', byPlayerId = null, now = Da
     byPlayerId,
     pausedAt: now,
     resumeTurn: game.turn,
+    remainingMs,
+    origin,
   };
-  game.updatedAt = now;
+  markUpdated(game, now);
   return { ok: true };
 }
 
-export function resumeGame(game, now = Date.now()) {
+export function resumeGame(game, now = Date.now(), byPlayerId = null) {
   normalizeSeats(game);
   if (game.status !== 'paused') return { ok: false, error: 'Game is not paused.' };
   if (!bothSeatsActive(game)) return { ok: false, error: 'Both seats must be filled before resuming.' };
+  const pause = game.pause || null;
+  if (byPlayerId && pause?.byPlayerId && byPlayerId !== pause.byPlayerId) {
+    return { ok: false, error: 'Only the player who paused or timed out can resume this game.' };
+  }
+  const resetsIdleTimeoutClock = pause?.reason === 'idle' && ['consecutive-timeouts', 'repeated-player-timeouts'].includes(pause?.origin);
   game.status = 'playing';
-  game.turn = game.pause?.resumeTurn || game.turn;
+  game.turn = pause?.resumeTurn || game.turn;
+  const remainingMs = resetsIdleTimeoutClock
+    ? game.moveTimeLimitMs || 0
+    : Number.isFinite(pause?.remainingMs)
+      ? Math.max(0, Math.min(game.moveTimeLimitMs || 0, pause.remainingMs))
+      : game.moveTimeLimitMs || 0;
   game.pause = null;
-  game.consecutiveTimeouts = 0;
-  startTurnClock(game, now);
-  game.updatedAt = now;
+  if (!resetsIdleTimeoutClock) game.consecutiveTimeouts = 0;
+  if (game.moveTimeLimitMs > 0) {
+    game.turnStartedAt = now - (game.moveTimeLimitMs - remainingMs);
+  } else {
+    game.turnStartedAt = null;
+  }
+  markUpdated(game, now);
   return { ok: true };
 }
 
@@ -353,6 +615,7 @@ export function startSession(game, now = Date.now()) {
   game.sessionEndedAt = null;
   game.lastTimeout = null;
   game.consecutiveTimeouts = 0;
+  game.timeoutStreaks = { p1: 0, p2: 0 };
   game.pause = null;
   startTurnClock(game, now);
   game.updatedAt = now;
@@ -363,14 +626,17 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   const players = game.players;
   const history = Array.isArray(game.history) ? game.history : [];
   const watcherClientIds = Array.isArray(game.watcherClientIds) ? [...game.watcherClientIds] : [];
+  const waitingList = Array.isArray(game.waitingList) ? [...game.waitingList] : [];
   const moveTimeLimitMs = game.moveTimeLimitMs || 0;
   const createdAt = game.createdAt || now;
+  const version = Number(game.version || 1);
   const score = preserveScore ? { p1: Number(game.score?.p1 || 0), p2: Number(game.score?.p2 || 0) } : { p1: 0, p2: 0 };
   const sessionId = preserveSession ? game.sessionId || createSessionId(now) : null;
   const sessionStartedAt = preserveSession ? game.sessionStartedAt || now : null;
   game.players = players;
   game.history = history;
   game.watcherClientIds = watcherClientIds;
+  game.waitingList = waitingList;
   game.moveTimeLimitMs = moveTimeLimitMs;
   game.createdAt = createdAt;
   game.status = 'waiting';
@@ -387,9 +653,11 @@ export function resetCurrentBoardForNextSession(game, now = Date.now(), { autoSt
   game.sessionEndedAt = null;
   game.lastTimeout = null;
   game.consecutiveTimeouts = 0;
+  game.timeoutStreaks = { p1: 0, p2: 0 };
   game.pause = null;
   game.turnStartedAt = null;
   game.updatedAt = now;
+  game.version = version;
   if (autoStart && bothSeatsActive(game)) startSession(game, now);
   return game;
 }
@@ -432,6 +700,8 @@ function publicPlayer(player, id) {
     name: seat.name || (id === 'p1' ? 'Blue' : 'Red'),
     color: seat.color || (id === 'p1' ? '#0b7cff' : '#ff3b30'),
     status: seat.status || 'active',
+    disconnectedAt: seat.disconnectedAt ?? null,
+    canBeFreedAt: seat.canBeFreedAt ?? null,
   };
 }
 
@@ -449,6 +719,7 @@ function normalizeSeats(game) {
     if (!game.players[id].id) game.players[id].id = id;
   }
   if (!Array.isArray(game.history)) game.history = [];
+  if (!Array.isArray(game.waitingList)) game.waitingList = [];
 }
 
 function cleanClient(clientId) {
@@ -456,7 +727,12 @@ function cleanClient(clientId) {
 }
 
 function cleanPlayerName(name, seatId) {
-  return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : 'Red');
+  return String(name || '').trim().slice(0, 24) || (seatId === 'p1' ? 'Blue' : seatId === 'p2' ? 'Red' : 'Guest');
+}
+
+function markUpdated(game, now = Date.now()) {
+  game.updatedAt = now;
+  game.version = Number(game.version || 0) + 1;
 }
 
 function createSessionId(now = Date.now()) {
@@ -476,6 +752,11 @@ function rememberWatcherClient(game, clientId) {
 function forgetWatcherClient(game, clientId) {
   if (!clientId || !Array.isArray(game.watcherClientIds)) return;
   game.watcherClientIds = game.watcherClientIds.filter((id) => id !== clientId);
+}
+
+function removeWaitingClient(game, clientId) {
+  if (!clientId || !Array.isArray(game.waitingList)) return;
+  game.waitingList = game.waitingList.filter((person) => person.clientId !== clientId);
 }
 
 function finishGame(game, winner, reason) {

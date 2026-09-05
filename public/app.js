@@ -447,13 +447,14 @@ function pauseRound() {
 function resumeRound() {
   if (!game || game.status !== 'paused') return toast('Game is not paused.');
   if (gameMode === 'local') {
+    const pause = game.pause || {};
     game.status = 'playing';
-    game.turn = game.pause?.resumeTurn || game.turn;
+    game.turn = pause.resumeTurn || game.turn;
     game.pause = null;
     game.consecutiveTimeouts = 0;
     localStorageSafeRemove(SUSPENDED_LOCAL_STORAGE_KEY);
     renderSuspendedLocalCard();
-    restartLocalTurnClock();
+    resumeLocalTurnClock(pause);
     updateUi();
     draw();
     toast('Game resumed.');
@@ -465,14 +466,20 @@ function resumeRound() {
 
 function pauseLocalGame(reason = 'manual', byPlayerId = null) {
   if (!game || game.status !== 'playing') return;
+  const now = Date.now();
+  const elapsed = game.moveTimeLimitMs > 0 && Number.isFinite(game.turnStartedAt)
+    ? Math.max(0, now - game.turnStartedAt)
+    : 0;
+  const remainingMs = game.moveTimeLimitMs > 0 ? Math.max(0, game.moveTimeLimitMs - elapsed) : 0;
   game.status = 'paused';
   game.turnStartedAt = null;
   clearLocalTurnTimeout();
   game.pause = {
     reason,
     byPlayerId,
-    pausedAt: Date.now(),
+    pausedAt: now,
     resumeTurn: game.turn,
+    remainingMs,
   };
   replayIndex = null;
   saveSuspendedLocalGame();
@@ -746,6 +753,19 @@ function restartLocalTurnClock() {
   scheduleLocalTurnTimeout();
 }
 
+function resumeLocalTurnClock(pause = {}) {
+  if (!game || game.status !== 'playing') return;
+  if (game.moveTimeLimitMs > 0) {
+    const remainingMs = Number.isFinite(pause.remainingMs)
+      ? Math.max(0, Math.min(game.moveTimeLimitMs, pause.remainingMs))
+      : game.moveTimeLimitMs;
+    game.turnStartedAt = Date.now() - (game.moveTimeLimitMs - remainingMs);
+  } else {
+    game.turnStartedAt = null;
+  }
+  scheduleLocalTurnTimeout();
+}
+
 function clearLocalTurnTimeout() {
   clearTimeout(localTimeoutTimer);
   localTimeoutTimer = 0;
@@ -846,7 +866,7 @@ function renderBoardCard(room) {
   const p2 = room.players?.p2 || { name: 'Red', status: 'vacant' };
   const status = boardStatusLabel(room);
   const last = room.lastResult ? `<p class="board-card-last">Last: ${escapeHtml(historyText(room.lastResult))}</p>` : '<p class="board-card-last">No finished sessions yet.</p>';
-  const action = room.occupancy?.vacantCount > 0 ? 'Open / join' : 'Watch';
+  const action = 'Watch board';
   return `
     <article class="lobby-board-card">
       <div class="board-card-top">
@@ -872,20 +892,8 @@ function seatLabel(seat, fallback) {
   return seat && seat.status !== 'vacant' ? seat.name || fallback : 'Open';
 }
 
-function vacantSeatForRoom(room) {
-  if (room?.players?.p1?.status === 'vacant') return 'p1';
-  if (room?.players?.p2?.status === 'vacant') return 'p2';
-  return null;
-}
-
 function openLobbyBoard(nextRoomId) {
-  const room = cachedBoards.find((entry) => entry.roomId === nextRoomId);
-  const seatId = vacantSeatForRoom(room);
-  const message = seatId ? `Joining ${seatId === 'p1' ? 'Blue' : 'Red'} seat…` : 'Board opened for watching.';
-  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, message, () => {
-    if (!seatId) return;
-    claimOnlineSeat(seatId);
-  });
+  openOnlineRoom(nextRoomId, `${location.origin}/room/${nextRoomId}`, 'Board opened for watching. Choose an open seat when you want to play.');
   setMobilePage('play');
 }
 
@@ -988,7 +996,7 @@ function connect(onOpen) {
     }
     if (msg.type === 'state') {
       applyRemoteGameState(msg.game);
-      if (replayIndex !== null && replayIndex > game.moves.length) replayIndex = game.moves.length;
+      reconcileReplayWithLiveState();
       updateUi();
       draw();
     }
@@ -1231,7 +1239,7 @@ function syncClockAnimation() {
 }
 
 function shouldAnimateClock() {
-  return Boolean(game && game.status === 'playing' && game.moveTimeLimitMs > 0 && game.turnStartedAt && replayIndex === null);
+  return Boolean(game && game.status === 'playing' && game.moveTimeLimitMs > 0 && game.turnStartedAt);
 }
 
 function showInvite() {
@@ -1303,7 +1311,28 @@ function setReplay(index) {
   replayIndex = index === game.moves.length ? null : index;
   els.replayRange.value = index;
   els.replayText.textContent = `Move ${index} of ${game.moves.length}${replayIndex === null ? ' — live board' : ''}`;
+  if (replayIndex === null) {
+    restartLiveBoardRendering();
+    syncClockAnimation();
+  }
   draw();
+}
+
+function reconcileReplayWithLiveState() {
+  if (!game || replayIndex === null) return;
+  if (replayIndex >= game.moves.length) {
+    replayIndex = null;
+    restartLiveBoardRendering();
+  }
+}
+
+function restartLiveBoardRendering() {
+  if (!game || game.status !== 'playing') return;
+  legalMoveHintKey = '';
+  legalMoveHintStartedAt = 0;
+  startLegalMoveHintFade(`live:${gameMode}:${game.turn}:${Date.now()}`);
+  legalMoveHintKey = '';
+  syncClockAnimation();
 }
 
 function currentReplay() {
@@ -1558,7 +1587,7 @@ function turnClockSpot(player) {
 }
 
 function drawMoveClock() {
-  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt || replayIndex !== null) return;
+  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
   const spot = turnClockSpot(game.turn);
   const remaining = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now());
   const seconds = Math.max(0, Math.ceil(remaining / 1000));
@@ -1737,7 +1766,7 @@ function drawSoccerBall(x, y, radius) {
 function isPlayerInverted() { return gameMode !== 'local' && playerId === 'p2'; }
 
 function drawLegalMoves() {
-  if (!game || game.status !== 'playing' || replayIndex !== null) return;
+  if (!game || game.status !== 'playing') return;
   if (gameMode !== 'local' && game.turn !== playerId) return;
   syncLegalMoveHintFade();
   const alpha = legalMoveHintAlpha();
@@ -1780,10 +1809,10 @@ function startLegalMoveHintFade(nextKey) {
 }
 
 function scheduleLegalMoveHintFadeFrame(alpha) {
-  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing' || replayIndex !== null) return;
+  if (alpha >= MOVE_HINT_ALPHA || legalMoveHintFadeRaf || !game || game.status !== 'playing') return;
   legalMoveHintFadeRaf = requestAnimationFrame(() => {
     legalMoveHintFadeRaf = 0;
-    if (!game || game.status !== 'playing' || replayIndex !== null) return;
+    if (!game || game.status !== 'playing') return;
     draw();
   });
 }

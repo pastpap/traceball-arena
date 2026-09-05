@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { nanoid } from 'nanoid';
 import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, claimSeat, createGame, leavePlayer, makeMove, normalizeMoveTimeLimitMs, pauseGame, publicGame, resetGame, resumeGame } from './game.js';
+import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, rejoinPlayerByClient, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from './game.js';
+import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -15,14 +16,45 @@ const rooms = new Map();
 const sockets = new Map();
 const roomTimers = new Map();
 const appShellPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
+const elmShellPath = fileURLToPath(new URL('../public/elm.html', import.meta.url));
+const FRONTEND_MODE = process.env.TRACEBALL_FRONTEND || 'elm';
 
-app.use(express.static('public', { extensions: ['html'] }));
+function useLegacyDefaultFrontend() {
+  return FRONTEND_MODE === 'legacy';
+}
+
+function servePrimaryShell(_req, res) {
+  res.type('html').send(readFileSync(useLegacyDefaultFrontend() ? appShellPath : elmShellPath, 'utf8'));
+}
+
+function serveElmShell(_req, res) {
+  res.type('html').send(readFileSync(elmShellPath, 'utf8'));
+}
+
+function serveLegacyShell(_req, res) {
+  res.type('html').send(readFileSync(appShellPath, 'utf8'));
+}
+
+app.get('/', servePrimaryShell);
+app.get('/elm', serveElmShell);
+app.get('/legacy', serveLegacyShell);
+app.get('/legacy/room/:roomId', serveLegacyShell);
+app.get('/room/:roomId', (req, res) => {
+  const roomId = safeRoomId(req.params.roomId);
+  if (useLegacyDefaultFrontend()) return serveLegacyShell(req, res);
+  if (!roomId) return res.redirect(302, '/');
+  return res.redirect(302, `/?board=${encodeURIComponent(roomId)}`);
+});
+
+app.use(express.static('public', { extensions: ['html'], index: false }));
 
 app.get('/api/health', (_req, res) => {
+  cleanupExpiredRooms();
   res.json({ ok: true, rooms: rooms.size, uptime: process.uptime() });
 });
 
 app.post('/api/rooms', express.json(), (req, res) => {
+  cleanupExpiredRooms();
   const roomId = nanoid(8);
   const moveTimeLimitMs = normalizeMoveTimeLimitMs(Number(req.body?.moveTimeLimitSeconds) * 1000, 15000);
   const game = createGame(roomId, { moveTimeLimitMs });
@@ -31,6 +63,7 @@ app.post('/api/rooms', express.json(), (req, res) => {
 });
 
 app.get('/api/rooms', (req, res) => {
+  cleanupExpiredRooms();
   const origin = originFromRequest(req);
   const summaries = [...rooms.values()]
     .map((game) => publicRoomSummary(game, origin))
@@ -39,6 +72,7 @@ app.get('/api/rooms', (req, res) => {
 });
 
 app.get('/api/rooms/:roomId', (req, res) => {
+  cleanupExpiredRooms();
   const roomId = safeRoomId(req.params.roomId);
   if (!roomId) return res.status(400).json({ error: 'Invalid room code.' });
   const game = rooms.get(roomId);
@@ -57,12 +91,8 @@ app.get('/api/qr', async (req, res) => {
   }
 });
 
-app.get('/room/:roomId', (_req, res) => {
-  res.type('html').send(readFileSync(appShellPath, 'utf8'));
-});
-
 wss.on('connection', (ws) => {
-  const socketState = { roomId: null, playerId: null };
+  const socketState = { roomId: null, playerId: null, clientId: null };
   sockets.set(ws, socketState);
 
   ws.on('message', (raw) => {
@@ -72,6 +102,7 @@ wss.on('connection', (ws) => {
     } catch {
       return send(ws, 'error', { error: 'Invalid JSON.' });
     }
+    cleanupExpiredRooms();
 
     if (msg.type === 'join') {
       const roomId = safeRoomId(msg.roomId);
@@ -82,6 +113,7 @@ wss.on('connection', (ws) => {
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
+      socketState.clientId = cleanClientId(msg.clientId);
       send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
       broadcast(roomId);
       return;
@@ -90,9 +122,16 @@ wss.on('connection', (ws) => {
     if (msg.type === 'watch') {
       const roomId = safeRoomId(msg.roomId);
       if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
-      if (!rooms.has(roomId)) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
       if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
+      const rejoin = rejoinPlayerByClient(game, msg.clientId);
+      if (rejoin.ok) {
+        socketState.playerId = rejoin.playerId;
+        send(ws, 'joined', { playerId: rejoin.playerId, roomId, rejoined: true });
+      }
       broadcast(roomId);
       return;
     }
@@ -106,7 +145,36 @@ wss.on('connection', (ws) => {
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
-      send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      socketState.clientId = cleanClientId(msg.clientId);
+      send(ws, 'joined', { playerId: result.playerId, roomId, rejoined: Boolean(result.rejoined) });
+      broadcast(roomId);
+      return;
+    }
+
+    if (msg.type === 'joinWaitingList') {
+      const roomId = safeRoomId(msg.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const result = joinWaitingList(game, msg.name, msg.clientId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
+      send(ws, 'waitingListJoined', { roomId, rejoined: Boolean(result.rejoined) });
+      broadcast(roomId);
+      return;
+    }
+
+    if (msg.type === 'leaveWaitingList') {
+      const roomId = safeRoomId(msg.roomId || socketState.roomId);
+      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      const game = rooms.get(roomId);
+      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      const result = leaveWaitingList(game, msg.clientId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      socketState.roomId = roomId;
+      socketState.clientId = cleanClientId(msg.clientId);
+      send(ws, 'waitingListLeft', { roomId });
       broadcast(roomId);
       return;
     }
@@ -118,7 +186,12 @@ wss.on('connection', (ws) => {
       const timeout = applyTurnTimeout(game);
       if (timeout.ok) {
         broadcast(socketState.roomId);
-        return send(ws, 'error', { error: timeout.paused ? 'Both players timed out — game paused.' : 'Time expired — turn passed.' });
+        const timeoutMessage = timeout.paused
+          ? timeout.origin === 'repeated-player-timeouts'
+            ? 'Same player timed out too often — game paused.'
+            : 'Both players timed out — game paused.'
+          : 'Time expired — turn passed.';
+        return send(ws, 'error', { error: timeoutMessage });
       }
       const result = makeMove(game, socketState.playerId, msg.to);
       if (!result.ok) return send(ws, 'error', { error: result.error });
@@ -129,14 +202,29 @@ wss.on('connection', (ws) => {
     if (msg.type === 'leave') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'You are not occupying a seat.' });
       const leavingPlayerId = socketState.playerId;
-      const result = leavePlayer(game, leavingPlayerId);
+      const result = leavePlayerAfterOpponentGrace(game, leavingPlayerId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       socketState.playerId = null;
+      clearPlayerSocketState(socketState.roomId, leavingPlayerId);
       send(ws, 'left', {
         playerId: leavingPlayerId,
         roomId: socketState.roomId,
         forfeit: result.forfeit,
         winner: result.winner,
+      });
+      broadcast(socketState.roomId);
+      return;
+    }
+
+    if (msg.type === 'freeSeat') {
+      if (!socketState.playerId) return send(ws, 'error', { error: 'Only the seated opponent can free a disconnected seat.' });
+      const result = freeDisconnectedSeat(game, socketState.playerId, msg.seatId);
+      if (!result.ok) return send(ws, 'error', { error: result.error });
+      send(ws, 'seatFreed', {
+        playerId: result.playerId,
+        roomId: socketState.roomId,
+        winner: result.winner,
+        forfeit: result.forfeit,
       });
       broadcast(socketState.roomId);
       return;
@@ -152,7 +240,7 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'resume') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can resume.' });
-      const result = resumeGame(game);
+      const result = resumeGame(game, Date.now(), socketState.playerId);
       if (!result.ok) return send(ws, 'error', { error: result.error });
       broadcast(socketState.roomId);
       return;
@@ -160,6 +248,9 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'reset') {
       if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can start a new round.' });
+      if (game.status === 'paused' && game.pause?.byPlayerId && game.pause.byPlayerId !== socketState.playerId) {
+        return send(ws, 'error', { error: 'Only the player who paused or timed out can start a new round while paused.' });
+      }
       resetGame(game);
       broadcast(socketState.roomId);
       return;
@@ -167,20 +258,66 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('close', () => {
+    const state = sockets.get(ws);
     sockets.delete(ws);
+    if (!state?.roomId || !state.playerId) return;
+    if (hasOpenPlayerSocket(state.roomId, state.playerId)) return;
+    const game = rooms.get(state.roomId);
+    if (!game) return;
+    const result = markPlayerDisconnected(game, state.playerId);
+    if (result.ok) broadcast(state.roomId);
   });
 });
+
+function cleanupExpiredRooms(now = Date.now()) {
+  for (const [roomId, game] of rooms.entries()) {
+    releaseExpiredDisconnectedSeats(game, now);
+    if (!isBoardExpired(game, now)) continue;
+    clearTimeout(roomTimers.get(roomId));
+    roomTimers.delete(roomId);
+    rooms.delete(roomId);
+    for (const [client, state] of sockets.entries()) {
+      if (state.roomId !== roomId) continue;
+      state.roomId = null;
+      state.playerId = null;
+      send(client, 'BoardNotFound', { boardCode: roomId, reason: 'not_found_or_expired', message: 'Board not found or expired.' });
+    }
+  }
+}
 
 function safeRoomId(value) {
   const roomId = String(value || '').trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
 }
 
+function cleanClientId(value) {
+  const clientId = String(value || '').trim();
+  return clientId ? clientId.slice(0, 96) : null;
+}
+
+function hasOpenPlayerSocket(roomId, playerId) {
+  for (const [client, state] of sockets.entries()) {
+    if (
+      state.roomId === roomId
+      && state.playerId === playerId
+      && client.readyState === client.OPEN
+    ) return true;
+  }
+  return false;
+}
+
+function clearPlayerSocketState(roomId, playerId) {
+  for (const state of sockets.values()) {
+    if (state.roomId === roomId && state.playerId === playerId) state.playerId = null;
+  }
+}
+
 function broadcast(roomId) {
   const game = rooms.get(roomId);
   if (!game) return;
+  releaseExpiredDisconnectedSeats(game);
   applyTurnTimeout(game);
-  const payload = { game: publicGame(game) };
+  const payload = toLegacyCompatibleStateMessage(game);
   for (const [client, state] of sockets.entries()) {
     if (state.roomId === roomId && client.readyState === client.OPEN) {
       send(client, 'state', payload);
@@ -193,12 +330,24 @@ function scheduleRoomTimeout(roomId) {
   clearTimeout(roomTimers.get(roomId));
   roomTimers.delete(roomId);
   const game = rooms.get(roomId);
-  if (!game || game.status !== 'playing' || !game.moveTimeLimitMs || !game.turnStartedAt) return;
-  const delay = Math.max(0, game.turnStartedAt + game.moveTimeLimitMs - Date.now() + 30);
+  if (!game) return;
+  const now = Date.now();
+  const delays = [];
+  if (game.status === 'playing' && game.moveTimeLimitMs && game.turnStartedAt) {
+    delays.push(game.turnStartedAt + game.moveTimeLimitMs - now + 30);
+  }
+  for (const playerId of ['p1', 'p2']) {
+    const canBeFreedAt = game.players?.[playerId]?.status === 'disconnected' ? game.players[playerId].canBeFreedAt : null;
+    if (Number.isFinite(canBeFreedAt)) delays.push(canBeFreedAt - now + 30);
+  }
+  if (!delays.length) return;
+  const delay = Math.max(0, Math.min(...delays));
   const timer = setTimeout(() => {
     const current = rooms.get(roomId);
     if (!current) return;
-    if (applyTurnTimeout(current).ok) broadcast(roomId);
+    const released = releaseExpiredDisconnectedSeats(current);
+    const timeout = applyTurnTimeout(current);
+    if (released.ok || timeout.ok) broadcast(roomId);
     else scheduleRoomTimeout(roomId);
   }, delay);
   roomTimers.set(roomId, timer);
@@ -215,7 +364,10 @@ function publicRoomSummary(game, requestOrigin) {
   return {
     roomId: game.roomId,
     url: roomUrl(game.roomId, requestOrigin),
+    elmUrl: elmRoomUrl(game.roomId, requestOrigin),
+    legacyUrl: legacyRoomUrl(game.roomId, requestOrigin),
     status: game.status,
+    state: publicState.status === 'finished' ? 'BetweenRounds' : publicState.status === 'playing' ? 'SessionActive' : publicState.status === 'paused' ? 'SessionPaused' : activeCount === 1 ? 'OneSeatOccupied' : 'WaitingForPlayers',
     players: publicState.players,
     occupancy: {
       activeCount,
@@ -229,12 +381,23 @@ function publicRoomSummary(game, requestOrigin) {
     lastResult,
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,
+    lastActivityAt: boardLastActivityAt(game),
+    expiresAt: boardExpiresAt(game),
   };
 }
 
 function roomUrl(roomId, requestOrigin) {
   const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
-  return `${base}/room/${roomId}`;
+  return `${base}/?board=${encodeURIComponent(roomId)}`;
+}
+
+function legacyRoomUrl(roomId, requestOrigin) {
+  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
+  return `${base}/legacy/room/${encodeURIComponent(roomId)}`;
+}
+
+function elmRoomUrl(roomId, requestOrigin) {
+  return roomUrl(roomId, requestOrigin);
 }
 
 function originFromRequest(req) {

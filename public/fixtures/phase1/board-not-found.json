@@ -1,0 +1,6 @@
+{
+  "type": "BoardNotFound",
+  "boardCode": "MISSING",
+  "reason": "not_found_or_expired",
+  "message": "Board not found or expired."
+}

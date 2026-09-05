@@ -1,0 +1,89 @@
+{
+  "type": "state",
+  "boardCode": "ROOM123",
+  "version": 6,
+  "board": {
+    "code": "ROOM123",
+    "version": 6,
+    "state": "SessionPaused",
+    "seats": {
+      "blue": {
+        "color": "blue",
+        "state": "Occupied",
+        "player": {
+          "displayName": "Stefan"
+        },
+        "disconnectedAt": null,
+        "canBeFreedAt": null,
+        "canBeFreed": false
+      },
+      "red": {
+        "color": "red",
+        "state": "DisconnectedReserved",
+        "player": {
+          "displayName": "Friend"
+        },
+        "disconnectedAt": 4000,
+        "canBeFreedAt": 64000,
+        "canBeFreed": true
+      }
+    },
+    "currentSession": {
+      "sessionId": "session-between-rounds-fixture",
+      "startedAt": 2000,
+      "state": "Paused",
+      "score": {
+        "blue": 1,
+        "red": 0
+      },
+      "round": {
+        "state": "PendingContinue",
+        "turn": "blue",
+        "ball": {
+          "x": 4,
+          "y": 0
+        },
+        "visited": [
+          "4,6",
+          "4,0"
+        ],
+        "segments": [
+          "4,0|4,1"
+        ],
+        "moves": [
+          {
+            "playerId": "p1",
+            "from": {
+              "x": 4,
+              "y": 1
+            },
+            "to": {
+              "x": 4,
+              "y": 0
+            },
+            "segment": "4,0|4,1",
+            "bounce": false,
+            "at": 2500,
+            "goal": true
+          }
+        ],
+        "legalMoves": [],
+        "winner": "blue",
+        "endReason": "p1 scored!"
+      },
+      "pause": {
+        "reason": "disconnect",
+        "byPlayerId": "p2",
+        "pausedAt": 4000,
+        "resumeTurn": "p1"
+      },
+      "updatedAt": 4000
+    },
+    "watchers": [],
+    "waitingList": [],
+    "history": [],
+    "createdAt": 1000,
+    "updatedAt": 65000,
+    "expiresAt": 604865000
+  }
+}
