@@ -1,204 +1,344 @@
-import { describe, expect, it } from 'vitest';
-import { BOARD_TTL_MS, boardExpiresAt, boardLastActivityAt, addPlayer, claimSeat, createGame, isBoardExpired, joinWaitingList, leavePlayer, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, pauseGame, publicGame, rejoinPlayerByClient, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from '../src/game.js';
+import { describe, expect, it } from "vitest";
+import {
+  BOARD_TTL_MS,
+  boardExpiresAt,
+  boardLastActivityAt,
+  addPlayer,
+  claimSeat,
+  createGame,
+  isBoardExpired,
+  joinWaitingList,
+  leavePlayer,
+  leavePlayerAfterOpponentGrace,
+  leaveWaitingList,
+  makeMove,
+  markPlayerDisconnected,
+  pauseGame,
+  publicGame,
+  rejoinPlayerByClient,
+  releaseExpiredDisconnectedSeats,
+  resetGame,
+  resumeGame,
+} from "../src/game.js";
 
-describe('room state lifecycle', () => {
-  it('newly created boards start with vacant blue and red seats plus empty session history', () => {
-    const game = createGame('room-test');
+describe("room state lifecycle", () => {
+  it("newly created boards start with vacant blue and red seats plus empty session history", () => {
+    const game = createGame("room-test");
 
-    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', color: '#0b7cff', clientId: null, status: 'vacant' });
-    expect(game.players.p2).toMatchObject({ id: 'p2', name: 'Red', color: '#ff3b30', clientId: null, status: 'vacant' });
+    expect(game.players.p1).toMatchObject({
+      id: "p1",
+      name: "Blue",
+      color: "#0b7cff",
+      clientId: null,
+      status: "vacant",
+    });
+    expect(game.players.p2).toMatchObject({
+      id: "p2",
+      name: "Red",
+      color: "#ff3b30",
+      clientId: null,
+      status: "vacant",
+    });
     expect(game.score).toEqual({ p1: 0, p2: 0 });
     expect(game.history).toEqual([]);
-    expect(game.status).toBe('waiting');
+    expect(game.status).toBe("waiting");
   });
 
-  it('lets clients claim seats and starts a fresh session once both sides are active', () => {
-    const game = createGame('room-test');
+  it("lets clients claim seats and starts a fresh session once both sides are active", () => {
+    const game = createGame("room-test");
 
-    expect(claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000)).toEqual({ ok: true, playerId: 'p1' });
-    expect(game.players.p1).toMatchObject({ name: 'Desktop', clientId: 'desktop-client', status: 'active' });
-    expect(game.status).toBe('waiting');
+    expect(claimSeat(game, "p1", "Desktop", "desktop-client", 1000)).toEqual({
+      ok: true,
+      playerId: "p1",
+    });
+    expect(game.players.p1).toMatchObject({
+      name: "Desktop",
+      clientId: "desktop-client",
+      status: "active",
+    });
+    expect(game.status).toBe("waiting");
 
-    expect(claimSeat(game, 'p2', 'Phone', 'phone-client', 2000)).toEqual({ ok: true, playerId: 'p2' });
-    expect(game.players.p2).toMatchObject({ name: 'Phone', clientId: 'phone-client', status: 'active' });
-    expect(game.status).toBe('playing');
+    expect(claimSeat(game, "p2", "Phone", "phone-client", 2000)).toEqual({
+      ok: true,
+      playerId: "p2",
+    });
+    expect(game.players.p2).toMatchObject({
+      name: "Phone",
+      clientId: "phone-client",
+      status: "active",
+    });
+    expect(game.status).toBe("playing");
     expect(game.sessionStartedAt).toBe(2000);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
   });
 
-  it('keeps reconnect behavior for the same browser client without exposing client IDs publicly', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'First name', 'phone-client');
-    claimSeat(game, 'p2', 'Other phone', 'other-client');
+  it("keeps reconnect behavior for the same browser client without exposing client IDs publicly", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "First name", "phone-client");
+    claimSeat(game, "p2", "Other phone", "other-client");
 
-    expect(addPlayer(game, 'Updated name', 'phone-client')).toEqual({ ok: true, playerId: 'p1', rejoined: true });
-    expect(game.players.p1?.name).toBe('Updated name');
-    expect(publicGame(game).players.p1).not.toHaveProperty('clientId');
-    expect(publicGame(game).players.p2).not.toHaveProperty('clientId');
+    expect(addPlayer(game, "Updated name", "phone-client")).toEqual({
+      ok: true,
+      playerId: "p1",
+      rejoined: true,
+    });
+    expect(game.players.p1?.name).toBe("Updated name");
+    expect(publicGame(game).players.p1).not.toHaveProperty("clientId");
+    expect(publicGame(game).players.p2).not.toHaveProperty("clientId");
   });
 
-  it('rejects attempts to claim a seat occupied by another client', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+  it("rejects attempts to claim a seat occupied by another client", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client");
 
-    const result = claimSeat(game, 'p1', 'Intruder', 'other-client');
+    const result = claimSeat(game, "p1", "Intruder", "other-client");
 
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/occupied/i);
-    expect(game.players.p1.name).toBe('Desktop');
+    expect(game.players.p1.name).toBe("Desktop");
   });
 
-  it('lets a lone player leave without creating a forfeit history entry', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+  it("lets a lone player leave without creating a forfeit history entry", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client");
 
-    const result = leavePlayer(game, 'p1', 3000);
+    const result = leavePlayer(game, "p1", 3000);
 
-    expect(result).toMatchObject({ ok: true, playerId: 'p1', forfeit: false, winner: null });
-    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
+    expect(result).toMatchObject({
+      ok: true,
+      playerId: "p1",
+      forfeit: false,
+      winner: null,
+    });
+    expect(game.players.p1).toMatchObject({
+      id: "p1",
+      name: "Blue",
+      clientId: null,
+      status: "vacant",
+    });
     expect(game.history).toHaveLength(0);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
-    expect(game.status).toBe('waiting');
+    expect(game.status).toBe("waiting");
   });
 
-  it('turns an explicit leave into a forfeit win, stores history, resets the board, and keeps the opponent seated', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
-    makeMove(game, 'p1', { x: 5, y: 6 }, 2500);
+  it("turns an explicit leave into a forfeit win, stores history, resets the board, and keeps the opponent seated", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1000);
+    claimSeat(game, "p2", "Phone", "phone-client", 2000);
+    makeMove(game, "p1", { x: 5, y: 6 }, 2500);
 
-    const result = leavePlayer(game, 'p1', 3000);
+    const result = leavePlayer(game, "p1", 3000);
 
-    expect(result).toMatchObject({ ok: true, playerId: 'p1', forfeit: true, winner: 'p2' });
+    expect(result).toMatchObject({
+      ok: true,
+      playerId: "p1",
+      forfeit: true,
+      winner: "p2",
+    });
     expect(game.history).toHaveLength(1);
     expect(game.history[0]).toMatchObject({
-      reason: 'forfeit',
-      winner: 'p2',
-      loser: 'p1',
+      reason: "forfeit",
+      winner: "p2",
+      loser: "p1",
       finalScore: { p1: 0, p2: 1 },
       moveCount: 1,
     });
-    expect(game.history[0].endReason).toContain('wins by forfeit');
-    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
-    expect(game.players.p2).toMatchObject({ name: 'Phone', clientId: 'phone-client', status: 'active' });
+    expect(game.history[0].endReason).toContain("wins by forfeit");
+    expect(game.players.p1).toMatchObject({
+      id: "p1",
+      name: "Blue",
+      clientId: null,
+      status: "vacant",
+    });
+    expect(game.players.p2).toMatchObject({
+      name: "Phone",
+      clientId: "phone-client",
+      status: "active",
+    });
     expect(game.score).toEqual({ p1: 0, p2: 0 });
     expect(game.ball).toEqual({ x: 4, y: 6 });
     expect(game.moves).toHaveLength(0);
-    expect(game.status).toBe('waiting');
+    expect(game.status).toBe("waiting");
   });
 
-  it('lets watchers explicitly join and leave the waiting list without occupying a seat', () => {
-    const game = createGame('room-test', { now: 1000 });
-    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1100);
-    claimSeat(game, 'p2', 'Red Player', 'red-client', 1200);
+  it("lets watchers explicitly join and leave the waiting list without occupying a seat", () => {
+    const game = createGame("room-test", { now: 1000 });
+    claimSeat(game, "p1", "Blue Player", "blue-client", 1100);
+    claimSeat(game, "p2", "Red Player", "red-client", 1200);
 
-    expect(joinWaitingList(game, 'Next Player', 'next-client', 1300)).toEqual({ ok: true, clientId: 'next-client', waiting: true });
-    expect(game.waitingList).toEqual([{ displayName: 'Next Player', clientId: 'next-client', joinedAt: 1300 }]);
-    expect(game.players.p1.clientId).toBe('blue-client');
-    expect(game.players.p2.clientId).toBe('red-client');
-    expect(publicGame(game)).not.toHaveProperty('waitingList');
+    expect(joinWaitingList(game, "Next Player", "next-client", 1300)).toEqual({
+      ok: true,
+      clientId: "next-client",
+      waiting: true,
+    });
+    expect(game.waitingList).toEqual([
+      { displayName: "Next Player", clientId: "next-client", joinedAt: 1300 },
+    ]);
+    expect(game.players.p1.clientId).toBe("blue-client");
+    expect(game.players.p2.clientId).toBe("red-client");
+    expect(publicGame(game).waitingList).toEqual([
+      { displayName: "Next Player", joinedAt: 1300 },
+    ]);
 
-    expect(joinWaitingList(game, 'Renamed Next', 'next-client', 1400)).toEqual({ ok: true, clientId: 'next-client', waiting: true, rejoined: true });
-    expect(game.waitingList).toEqual([{ displayName: 'Renamed Next', clientId: 'next-client', joinedAt: 1300 }]);
+    expect(joinWaitingList(game, "Renamed Next", "next-client", 1400)).toEqual({
+      ok: true,
+      clientId: "next-client",
+      waiting: true,
+      rejoined: true,
+    });
+    expect(game.waitingList).toEqual([
+      { displayName: "Renamed Next", clientId: "next-client", joinedAt: 1300 },
+    ]);
 
-    expect(leaveWaitingList(game, 'next-client', 1500)).toEqual({ ok: true, clientId: 'next-client', waiting: false });
+    expect(leaveWaitingList(game, "next-client", 1500)).toEqual({
+      ok: true,
+      clientId: "next-client",
+      waiting: false,
+    });
     expect(game.waitingList).toEqual([]);
   });
 
-  it('keeps an explicit leaver as a watcher until they press a seat join button', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+  it("keeps an explicit leaver as a watcher until they press a seat join button", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1000);
+    claimSeat(game, "p2", "Phone", "phone-client", 2000);
 
-    leavePlayer(game, 'p1', 3000);
-    const autoResume = addPlayer(game, 'Desktop again', 'desktop-client');
+    leavePlayer(game, "p1", 3000);
+    const autoResume = addPlayer(game, "Desktop again", "desktop-client");
 
     expect(autoResume.ok).toBe(false);
     expect(autoResume.error).toMatch(/open seat/i);
-    expect(game.players.p1).toMatchObject({ id: 'p1', status: 'vacant', clientId: null });
+    expect(game.players.p1).toMatchObject({
+      id: "p1",
+      status: "vacant",
+      clientId: null,
+    });
 
-    const explicitJoin = claimSeat(game, 'p1', 'Desktop again', 'desktop-client', 4000);
+    const explicitJoin = claimSeat(
+      game,
+      "p1",
+      "Desktop again",
+      "desktop-client",
+      4000,
+    );
 
-    expect(explicitJoin).toEqual({ ok: true, playerId: 'p1' });
-    expect(game.players.p1).toMatchObject({ name: 'Desktop again', clientId: 'desktop-client', status: 'active' });
+    expect(explicitJoin).toEqual({ ok: true, playerId: "p1" });
+    expect(game.players.p1).toMatchObject({
+      name: "Desktop again",
+      clientId: "desktop-client",
+      status: "active",
+    });
   });
 
-  it('starts a new zero-zero session on the same board when a replacement claims the vacated side', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
-    leavePlayer(game, 'p1', 3000);
+  it("starts a new zero-zero session on the same board when a replacement claims the vacated side", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1000);
+    claimSeat(game, "p2", "Phone", "phone-client", 2000);
+    leavePlayer(game, "p1", 3000);
 
-    const result = claimSeat(game, 'p1', 'New Blue', 'new-client', 4000);
+    const result = claimSeat(game, "p1", "New Blue", "new-client", 4000);
 
-    expect(result).toEqual({ ok: true, playerId: 'p1' });
-    expect(game.status).toBe('playing');
+    expect(result).toEqual({ ok: true, playerId: "p1" });
+    expect(game.status).toBe("playing");
     expect(game.sessionStartedAt).toBe(4000);
     expect(game.history).toHaveLength(1);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
   });
 
-  it('opens both seats when the remaining player leaves while the opponent is disconnected', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1000);
-    claimSeat(game, 'p2', 'Red Player', 'red-client', 2000);
-    markPlayerDisconnected(game, 'p1', 3000);
+  it("opens both seats when the remaining player leaves while the opponent is disconnected", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Blue Player", "blue-client", 1000);
+    claimSeat(game, "p2", "Red Player", "red-client", 2000);
+    markPlayerDisconnected(game, "p1", 3000);
 
-    const result = leavePlayerAfterOpponentGrace(game, 'p2', 4000);
+    const result = leavePlayerAfterOpponentGrace(game, "p2", 4000);
 
     expect(result).toMatchObject({ ok: true, abandoned: true });
-    expect(game.players.p1).toMatchObject({ id: 'p1', name: 'Blue', clientId: null, status: 'vacant' });
-    expect(game.players.p2).toMatchObject({ id: 'p2', name: 'Red', clientId: null, status: 'vacant' });
-    expect(game.status).toBe('waiting');
-    expect(claimSeat(game, 'p1', 'Fresh Blue', 'fresh-blue', 5000)).toEqual({ ok: true, playerId: 'p1' });
-    expect(claimSeat(game, 'p2', 'Fresh Red', 'fresh-red', 6000)).toEqual({ ok: true, playerId: 'p2' });
+    expect(game.players.p1).toMatchObject({
+      id: "p1",
+      name: "Blue",
+      clientId: null,
+      status: "vacant",
+    });
+    expect(game.players.p2).toMatchObject({
+      id: "p2",
+      name: "Red",
+      clientId: null,
+      status: "vacant",
+    });
+    expect(game.status).toBe("waiting");
+    expect(claimSeat(game, "p1", "Fresh Blue", "fresh-blue", 5000)).toEqual({
+      ok: true,
+      playerId: "p1",
+    });
+    expect(claimSeat(game, "p2", "Fresh Red", "fresh-red", 6000)).toEqual({
+      ok: true,
+      playerId: "p2",
+    });
   });
 
-  it('reclaims a reserved seat for the same browser client during disconnect grace', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1000);
-    claimSeat(game, 'p2', 'Red Player', 'red-client', 2000);
-    markPlayerDisconnected(game, 'p2', 3000);
+  it("reclaims a reserved seat for the same browser client during disconnect grace", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Blue Player", "blue-client", 1000);
+    claimSeat(game, "p2", "Red Player", "red-client", 2000);
+    markPlayerDisconnected(game, "p2", 3000);
 
-    const result = rejoinPlayerByClient(game, 'red-client', 4000);
+    const result = rejoinPlayerByClient(game, "red-client", 4000);
 
-    expect(result).toEqual({ ok: true, playerId: 'p2', rejoined: true });
-    expect(game.players.p2).toMatchObject({ name: 'Red Player', clientId: 'red-client', status: 'active' });
+    expect(result).toEqual({ ok: true, playerId: "p2", rejoined: true });
+    expect(game.players.p2).toMatchObject({
+      name: "Red Player",
+      clientId: "red-client",
+      status: "active",
+    });
     expect(game.players.p2.disconnectedAt).toBe(null);
     expect(game.players.p2.canBeFreedAt).toBe(null);
-    expect(game.status).toBe('playing');
+    expect(game.status).toBe("playing");
   });
 
-  it('automatically releases disconnected reserved seats after the grace period expires', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Blue Player', 'blue-client', 1000);
-    claimSeat(game, 'p2', 'Red Player', 'red-client', 2000);
-    markPlayerDisconnected(game, 'p2', 3000);
+  it("automatically releases disconnected reserved seats after the grace period expires", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Blue Player", "blue-client", 1000);
+    claimSeat(game, "p2", "Red Player", "red-client", 2000);
+    markPlayerDisconnected(game, "p2", 3000);
 
-    expect(releaseExpiredDisconnectedSeats(game, 3000 + 60_000 - 1)).toEqual({ ok: false, released: [] });
-    expect(game.players.p2.status).toBe('disconnected');
+    expect(releaseExpiredDisconnectedSeats(game, 3000 + 60_000 - 1)).toEqual({
+      ok: false,
+      released: [],
+    });
+    expect(game.players.p2.status).toBe("disconnected");
 
     const result = releaseExpiredDisconnectedSeats(game, 3000 + 60_000);
 
-    expect(result).toEqual({ ok: true, released: ['p2'] });
-    expect(game.players.p2).toMatchObject({ id: 'p2', name: 'Red', clientId: null, status: 'vacant' });
-    expect(game.status).toBe('waiting');
-    expect(claimSeat(game, 'p2', 'Fresh Red', 'fresh-red', 3000 + 60_001)).toEqual({ ok: true, playerId: 'p2' });
+    expect(result).toEqual({ ok: true, released: ["p2"] });
+    expect(game.players.p2).toMatchObject({
+      id: "p2",
+      name: "Red",
+      clientId: null,
+      status: "vacant",
+    });
+    expect(game.status).toBe("waiting");
+    expect(
+      claimSeat(game, "p2", "Fresh Red", "fresh-red", 3000 + 60_001),
+    ).toEqual({ ok: true, playerId: "p2" });
   });
 
-  it('starts a new round without resetting the active player-session score or recording table history', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+  it("starts a new round without resetting the active player-session score or recording table history", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1000);
+    claimSeat(game, "p2", "Phone", "phone-client", 2000);
     game.ball = { x: 4, y: 1 };
-    game.turn = 'p1';
+    game.turn = "p1";
 
-    expect(makeMove(game, 'p1', { x: 4, y: 0 }, 2500)).toMatchObject({ ok: true, gameOver: true });
+    expect(makeMove(game, "p1", { x: 4, y: 0 }, 2500)).toMatchObject({
+      ok: true,
+      gameOver: true,
+    });
     expect(game.score).toEqual({ p1: 1, p2: 0 });
 
     resetGame(game, 3000);
 
-    expect(game.status).toBe('playing');
+    expect(game.status).toBe("playing");
     expect(game.score).toEqual({ p1: 1, p2: 0 });
     expect(game.history).toHaveLength(0);
     expect(game.ball).toEqual({ x: 4, y: 6 });
@@ -206,70 +346,70 @@ describe('room state lifecycle', () => {
     expect(game.sessionStartedAt).toBe(2000);
   });
 
-  it('records the cumulative session score with timestamps only when a player leaves, then resets for the next pairing', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1000);
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 2000);
+  it("records the cumulative session score with timestamps only when a player leaves, then resets for the next pairing", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1000);
+    claimSeat(game, "p2", "Phone", "phone-client", 2000);
     game.ball = { x: 4, y: 1 };
-    game.turn = 'p1';
-    makeMove(game, 'p1', { x: 4, y: 0 }, 2500);
+    game.turn = "p1";
+    makeMove(game, "p1", { x: 4, y: 0 }, 2500);
     resetGame(game, 3000);
     game.ball = { x: 4, y: 11 };
-    game.turn = 'p2';
-    makeMove(game, 'p2', { x: 4, y: 12 }, 3500);
+    game.turn = "p2";
+    makeMove(game, "p2", { x: 4, y: 12 }, 3500);
 
-    const result = leavePlayer(game, 'p1', 5000);
+    const result = leavePlayer(game, "p1", 5000);
 
-    expect(result).toMatchObject({ ok: true, playerId: 'p1', winner: null });
+    expect(result).toMatchObject({ ok: true, playerId: "p1", winner: null });
     expect(game.history).toHaveLength(1);
     expect(game.history[0]).toMatchObject({
-      reason: 'session-ended',
+      reason: "session-ended",
       startedAt: 2000,
       endedAt: 5000,
       players: {
-        p1: { name: 'Desktop' },
-        p2: { name: 'Phone' },
+        p1: { name: "Desktop" },
+        p2: { name: "Phone" },
       },
       finalScore: { p1: 1, p2: 1 },
     });
     expect(game.score).toEqual({ p1: 0, p2: 0 });
 
-    claimSeat(game, 'p1', 'New Blue', 'new-client', 6000);
+    claimSeat(game, "p1", "New Blue", "new-client", 6000);
 
     expect(game.sessionStartedAt).toBe(6000);
     expect(game.score).toEqual({ p1: 0, p2: 0 });
     expect(game.history).toHaveLength(1);
   });
 
-  it('increments board version on state-changing lifecycle operations', () => {
-    const game = createGame('room-test', { now: 1000 });
+  it("increments board version on state-changing lifecycle operations", () => {
+    const game = createGame("room-test", { now: 1000 });
 
     expect(game.version).toBe(1);
 
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 1100);
+    claimSeat(game, "p1", "Desktop", "desktop-client", 1100);
     expect(game.version).toBe(2);
 
-    claimSeat(game, 'p2', 'Phone', 'phone-client', 1200);
+    claimSeat(game, "p2", "Phone", "phone-client", 1200);
     expect(game.version).toBe(3);
 
-    pauseGame(game, { reason: 'manual', byPlayerId: 'p1', now: 1300 });
+    pauseGame(game, { reason: "manual", byPlayerId: "p1", now: 1300 });
     expect(game.version).toBe(4);
 
     resumeGame(game, 1400);
     expect(game.version).toBe(5);
 
-    makeMove(game, 'p1', { x: 5, y: 6 }, 1500);
+    makeMove(game, "p1", { x: 5, y: 6 }, 1500);
     expect(game.version).toBe(6);
 
     resetGame(game, 1600);
     expect(game.version).toBe(7);
 
-    leavePlayer(game, 'p1', 1700);
+    leavePlayer(game, "p1", 1700);
     expect(game.version).toBe(8);
   });
 
-  it('exposes board last-activity and expiry metadata for public lists', () => {
-    const game = createGame('room-test', { now: 1000 });
+  it("exposes board last-activity and expiry metadata for public lists", () => {
+    const game = createGame("room-test", { now: 1000 });
 
     expect(BOARD_TTL_MS).toBe(7 * 24 * 60 * 60 * 1000);
     expect(boardLastActivityAt(game)).toBe(1000);
@@ -277,7 +417,7 @@ describe('room state lifecycle', () => {
     expect(isBoardExpired(game, boardExpiresAt(game) - 1)).toBe(false);
     expect(isBoardExpired(game, boardExpiresAt(game))).toBe(true);
 
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client', 2500);
+    claimSeat(game, "p1", "Desktop", "desktop-client", 2500);
     const publicState = publicGame(game);
 
     expect(boardLastActivityAt(game)).toBe(2500);
@@ -289,13 +429,13 @@ describe('room state lifecycle', () => {
     });
   });
 
-  it('resets a new round to waiting when a board has a vacant seat', () => {
-    const game = createGame('room-test');
-    claimSeat(game, 'p1', 'Desktop', 'desktop-client');
+  it("resets a new round to waiting when a board has a vacant seat", () => {
+    const game = createGame("room-test");
+    claimSeat(game, "p1", "Desktop", "desktop-client");
 
     resetGame(game);
 
-    expect(game.status).toBe('waiting');
+    expect(game.status).toBe("waiting");
     expect(game.score).toEqual({ p1: 0, p2: 0 });
     expect(game.moves).toHaveLength(0);
   });

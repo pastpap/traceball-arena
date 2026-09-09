@@ -132,12 +132,12 @@ A session remains tied to the exact two seat occupants that started it. If eithe
 
 ```text
 SessionActive
-  -> SessionPaused       when either seated player pauses or a player disconnects
+  -> SessionPaused       when the current-turn seated player pauses or a player disconnects
   -> BetweenRounds       when a goal/point is scored
   -> SessionEnded        when a player forfeits, stale seat is freed, both players leave, or board expires
 
 SessionPaused
-  -> SessionActive       when either seated active player resumes
+  -> SessionActive       when the current-turn seated player resumes
   -> SessionEnded        when leave/free/expire closes the session
 
 BetweenRounds
@@ -145,7 +145,7 @@ BetweenRounds
   -> SessionEnded        when leave/free/expire closes the session
 ```
 
-Either seated player may pause or resume. Watchers and waiting-list members cannot pause/resume.
+Only the seated player whose turn it is may manually pause or resume a paused session. Automatic pauses also resume only through that same current-turn seat. Watchers and waiting-list members cannot pause/resume.
 
 ## Leave and forfeit rules
 

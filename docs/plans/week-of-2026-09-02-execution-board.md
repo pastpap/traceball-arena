@@ -9,7 +9,7 @@ By end of week, the team should have:
 
 - Phase 9 remaining parity gaps closed or explicitly documented.
 - Full smoke evidence for desktop and phone flows captured.
-- Legacy fallback drill confirmed and reversible.
+- Route integrity drill confirmed and reversible.
 - Explicit Go/No-Go recommendation for limited production trial.
 
 ## 2) Owner map
@@ -132,7 +132,7 @@ Exit for Day 5:
 2. Mobile/tablet notification readability and spacing verification.
 3. Match metadata completeness with Play tab kept board-focused.
 4. Production-trial smoke completion across Home, Boards, Play, Match, timeout/pause/winner/replay/PWA.
-5. Legacy fallback verification on routes and env-switch behavior.
+5. Route integrity verification on shipped Elm routes and redirect behavior.
 
 ## 5) Runbook coverage mapping
 
@@ -152,7 +152,7 @@ Source runbook: docs/plans/prod-trial-smoke-runbook.md
   - Evidence: metadata/control panel screenshot and role clarity note.
 - E Pause and resume ownership
   - Owner: Realtime Backend, QA Mobile
-  - Evidence: step log proving only pause owner can resume/new-round.
+  - Evidence: step log proving only the current-turn pause owner can resume; paused overlay remains resume-only.
 - F Timeout behavior
   - Owner: Realtime Backend, QA Mobile
   - Evidence: logs/screenshots for alternating timeout pause and repeated-player timeout pause.
@@ -162,9 +162,9 @@ Source runbook: docs/plans/prod-trial-smoke-runbook.md
 - H PWA refresh behavior
   - Owner: Elm Frontend, QA Mobile
   - Evidence: version/cached shell verification notes against public/sw.js.
-- Legacy fallback drill
+- Route integrity drill
   - Owner: Orchestrator, Realtime Backend
-  - Evidence: /legacy and /legacy/room checks + TRACEBALL_FRONTEND=legacy outcome.
+  - Evidence: `/` + `/elm` shell checks and `/room/:roomId` redirect outcome.
 
 ## 6) Daily report format
 
@@ -186,7 +186,7 @@ Go only if all are true:
 - Pause ownership and timeout behavior are correct.
 - Winner overlay and replay are stable.
 - PWA refresh acceptable.
-- Legacy fallback verified.
+- Route integrity drill verified.
 
 All automated checks for these gates are green. The remaining Safari/iPhone runbook evidence is a manual follow-up, not a blocker to continuing the next implementation step.
 
@@ -222,15 +222,15 @@ No-Go if any true:
   - Decision artifact: `docs/plans/prod-trial-go-no-go-draft-2026-09-02.md`.
   - Gate status: PASS for the next plan step; remaining Safari/iPhone manual evidence is procedural, not corrective.
 
-- 2026-09-02: Added automated fallback route drill coverage in `test/fallback-routes.test.js`.
-  - Verifies default `/` serves Elm while `/legacy` serves legacy shell.
-  - Verifies `TRACEBALL_FRONTEND=legacy` forces legacy shell on `/`.
-  - Verifies `/room/:roomId` redirects to `/?board=...` in Elm mode.
-  - Verifies `/room/:roomId` and `/legacy/room/:roomId` serve legacy shell in legacy mode.
+- 2026-09-02: Added automated route integrity coverage in `test/fallback-routes.test.js`.
+  - Verifies `/` serves Elm shell.
+  - Verifies `/elm` serves Elm shell.
+  - Verifies `/room/:roomId` redirects to `/?board=...`.
+  - Verifies removed `/legacy` routes return not found.
   - Command: `npm test -- --run test/fallback-routes.test.js` passed.
 - 2026-09-02: Added browser e2e pause-ownership scenario in `test/e2e/main-playing-flows.spec.js`.
-  - Verifies manual pause by Player A shows resume/new-round controls only for Player A.
-  - Verifies Player B cannot resume/new-round while paused by Player A.
+  - Verifies manual pause by Player A exposes resume controls only for Player A.
+  - Verifies Player B cannot resume while paused by Player A.
   - Verifies Player A resumes successfully and both clients return to active board view.
   - Command: `npm run test:e2e -- --grep "manual pause only allows the pausing player"` passed.
 - 2026-09-02: Expanded browser matrix for smoke scenarios in `playwright.config.js`.
@@ -258,5 +258,13 @@ No-Go if any true:
   - Command: `npm run test:e2e -- --grep "Match tab smoke"` passed across all projects.
 - 2026-09-02: Verified timeout and fallback decision gates with targeted automation.
   - Command: `npm test -- --run test/game.test.js test/realtime-websocket-flow.test.js test/fallback-routes.test.js`
+
+- 2026-09-09: Final late-Phase 9 polish pass landed in the Elm runtime.
+  - Removed duplicate desktop/mobile leave controls and corrected replay-row / Match-card desktop layout.
+  - Tightened mobile board-list cards and refresh button styling/readability.
+  - Restored current-turn-owner-only online pause, blocked reconnect auto-resume, and removed New Round from the pause overlay on both layouts.
+  - Name inputs now preserve spaces while typing and normalize whitespace only on persistence.
+  - Targeted checks passed: `npm run build:elm`, `npx vitest run test/game.test.js`, and live browser pause-overlay verification.
+  - Follow-up note: older Playwright helpers still referencing `#playerNameInput` should be refreshed before reusing their evidence output.
   - Result: 3 files passed, 27 tests passed.
   - Covers: alternating timeout pass-then-pause, repeated same-player timeout pause, and legacy fallback routes/env behavior.

@@ -50,6 +50,8 @@ type alias Model =
     , dismissedWinnerKey : Maybe String
     , showTimerSheet : Bool
     , currentTimeMs : Int
+    , lastOnlineTurn : Maybe String
+    , turnHopSerial : Int
     }
 
 
@@ -121,10 +123,12 @@ type Msg
     | UpdateBoardCodeInput String
     | SubmitWatchBoard
     | UpdatePlayerName String
+    | PauseOnlineGame
     | ClaimSeat String
     | JoinWaitingList
     | LeaveWaitingList
     | LeaveSeat
+    | ResumeOnlinePause
     | ClickLegalMove Point
     | StartNewRound
     | UpdateFreeSeatInput String
@@ -223,6 +227,8 @@ init flags =
             , dismissedWinnerKey = Nothing
             , showTimerSheet = False
             , currentTimeMs = 0
+            , lastOnlineTurn = Nothing
+            , turnHopSerial = 0
             }
 
         model =
@@ -320,11 +326,35 @@ applyFlags flags model =
 
 applyIncoming : StateMessage -> Model -> Model
 applyIncoming incoming model =
-    if incoming.version <= model.version then
+    if isValidBoardCode model.boardCode && incoming.boardCode /= model.boardCode then
+        { model | ignoredStaleVersion = Just incoming.version, error = Nothing }
+
+    else if incoming.boardCode == model.boardCode && incoming.version <= model.version then
         { model | ignoredStaleVersion = Just incoming.version, error = Nothing }
 
     else
         let
+            nextTurn =
+                incoming.board.currentSession
+                    |> Maybe.andThen .round
+                    |> Maybe.map (.turn >> normalizeSeatId)
+                    |> Maybe.andThen
+                        (\turn ->
+                            if String.isEmpty turn then
+                                Nothing
+
+                            else
+                                Just turn
+                        )
+
+            turnChanged =
+                case ( model.lastOnlineTurn, nextTurn ) of
+                    ( Just prev, Just next ) ->
+                        prev /= next
+
+                    _ ->
+                        False
+
             nextModel =
                 { model
                     | board = Just incoming.board
@@ -334,6 +364,13 @@ applyIncoming incoming model =
                     , error = Nothing
                     , ignoredStaleVersion = Nothing
                     , replayIndex = Nothing
+                    , lastOnlineTurn = nextTurn
+                    , turnHopSerial =
+                        if turnChanged then
+                            model.turnHopSerial + 1
+
+                        else
+                            model.turnHopSerial
                 }
         in
         if currentWinnerKey nextModel == model.dismissedWinnerKey then
@@ -484,15 +521,20 @@ update msg model =
         UpdatePlayerName raw ->
             let
                 name =
-                    sanitizePlayerName raw
+                    limitNameInput raw
             in
             ( { model | playerName = name, error = Nothing }
             , outgoingClientCommand
                 (Encode.object
                     [ ( "type", Encode.string "persistPlayerName" )
-                    , ( "name", Encode.string name )
+                    , ( "name", Encode.string (sanitizePlayerName name) )
                     ]
                 )
+            )
+
+        PauseOnlineGame ->
+            ( model
+            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "pause" ) ])
             )
 
         ClaimSeat seatId ->
@@ -545,6 +587,11 @@ update msg model =
         LeaveSeat ->
             ( { model | joinedSeat = Nothing }
             , outgoingClientCommand (Encode.object [ ( "type", Encode.string "leave" ) ])
+            )
+
+        ResumeOnlinePause ->
+            ( model
+            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "resume" ) ])
             )
 
         ClickLegalMove point ->
@@ -709,10 +756,10 @@ update msg model =
             )
 
         UpdateLocalBlueName raw ->
-            ( { model | localBlueName = String.trim raw |> String.left 24 }, Cmd.none )
+            ( { model | localBlueName = limitNameInput raw }, Cmd.none )
 
         UpdateLocalRedName raw ->
-            ( { model | localRedName = String.trim raw |> String.left 24 }, Cmd.none )
+            ( { model | localRedName = limitNameInput raw }, Cmd.none )
 
         ReceiveBoardList value ->
             let
@@ -737,16 +784,34 @@ update msg model =
                     sanitizeBoardCode newCode
             in
             if isValidBoardCode sanitized then
-                ( { model | boardCode = sanitized, draftBoardCode = sanitized, connectionStatus = "connecting", dismissedWinnerKey = Nothing }
-                , outgoingClientCommand
-                    (Encode.object
-                        [ ( "type", Encode.string "claimSeat" )
-                        , ( "seatId", Encode.string "p1" )
-                        , ( "name", Encode.string model.playerName )
-                        , ( "roomId", Encode.string sanitized )
-                        , ( "clientId", Encode.string model.clientId )
-                        ]
-                    )
+                ( { model
+                    | boardCode = sanitized
+                    , draftBoardCode = sanitized
+                    , board = Nothing
+                    , joinedSeat = Nothing
+                    , replayIndex = Nothing
+                    , version = 0
+                    , connectionStatus = "connecting"
+                    , dismissedWinnerKey = Nothing
+                    , showLobby = False
+                  }
+                , Cmd.batch
+                    [ outgoingClientCommand
+                        (Encode.object
+                            [ ( "type", Encode.string "claimSeat" )
+                            , ( "seatId", Encode.string "p1" )
+                            , ( "name", Encode.string model.playerName )
+                            , ( "roomId", Encode.string sanitized )
+                            , ( "clientId", Encode.string model.clientId )
+                            ]
+                        )
+                    , outgoingClientCommand
+                        (Encode.object
+                            [ ( "type", Encode.string "updateUrl" )
+                            , ( "url", Encode.string ("/?board=" ++ sanitized) )
+                            ]
+                        )
+                    ]
                 )
 
             else
@@ -1245,13 +1310,14 @@ type alias PauseOverlayConfig =
     , message : String
     , turnText : String
     , resumeAction : Maybe Msg
-    , newRoundAction : Maybe Msg
     }
 
 
 type alias BoardScreenConfig =
     { board : Board
     , ownSeat : Maybe String
+    , boardFlipped : Bool
+    , turnHopSerial : Int
     , replayIndex : Maybe Int
     , isCompactLayout : Bool
     , showWinnerOverlay : Bool
@@ -1404,14 +1470,16 @@ viewLocalGameHtml model lg =
         timerSecs =
             positiveMaybe lg.moveTimerSeconds
 
+        timerRemainingSecs =
+            activeTimerRemainingSeconds model.currentTimeMs board
+
         pauseOverlay =
             if model.localPaused then
                 Just
                     { title = "Game paused"
-                    , message = "Board hidden while paused."
-                    , turnText = turnOwnerName board lg.turn ++ " to move when resumed."
+                    , message = "Paused. Resume when ready."
+                    , turnText = "Next: " ++ turnOwnerName board lg.turn
                     , resumeAction = Just ToggleLocalPause
-                    , newRoundAction = Just LocalNewRound
                     }
 
             else
@@ -1420,11 +1488,13 @@ viewLocalGameHtml model lg =
     viewBoardScreenHtml
         { board = board
         , ownSeat = Just lg.turn
+        , boardFlipped = False
+        , turnHopSerial = 0
         , replayIndex = model.replayIndex
         , isCompactLayout = model.viewportWidth <= 640
         , showWinnerOverlay = winnerKeyForBoard board /= model.dismissedWinnerKey
         , timerSecs = timerSecs
-        , timerRemainingSecs = Nothing
+        , timerRemainingSecs = timerRemainingSecs
         , statusText = localStatusText model board lg.turn winnerName
         , turnIndicatorText = localTurnIndicatorText model board lg.turn winnerName
         , turnIndicatorIsRed = normalizeSeatId lg.turn == "red"
@@ -1452,6 +1522,12 @@ viewOnlineGameHtml model board =
         ownSeat =
             derivedOwnSeat model board
 
+        boardFlipped =
+            ownSeat
+                |> Maybe.map normalizeSeatId
+                |> Maybe.map (\seat -> seat == "red")
+                |> Maybe.withDefault False
+
         round =
             board.currentSession |> Maybe.andThen .round
 
@@ -1464,15 +1540,42 @@ viewOnlineGameHtml model board =
 
             else
                 Nothing
+
+        onlineTimerSecs =
+            board.currentSession
+                |> Maybe.andThen .moveTimeLimitSeconds
+                |> Maybe.andThen positiveMaybe
+
+        onlineTimerRemaining =
+            activeTimerRemainingSeconds model.currentTimeMs board
+
+        onlinePauseOverlay =
+            if board.state == SessionPaused then
+                Just
+                    { title = "Game paused"
+                    , message = "Paused. Resume when ready."
+                    , turnText = "Next: " ++ turnOwnerName board turn
+                    , resumeAction =
+                        if seatMatchesTurn ownSeat turn then
+                            Just ResumeOnlinePause
+
+                        else
+                            Nothing
+                    }
+
+            else
+                Nothing
     in
     viewBoardScreenHtml
         { board = board
         , ownSeat = ownSeat
+        , boardFlipped = boardFlipped
+        , turnHopSerial = model.turnHopSerial
         , replayIndex = model.replayIndex
         , isCompactLayout = model.viewportWidth <= 640
         , showWinnerOverlay = winnerKeyForBoard board /= model.dismissedWinnerKey
-        , timerSecs = board.currentSession |> Maybe.andThen .moveTimeLimitSeconds |> Maybe.andThen positiveMaybe
-        , timerRemainingSecs = activeTimerRemainingSeconds model.currentTimeMs board
+        , timerSecs = onlineTimerSecs
+        , timerRemainingSecs = onlineTimerRemaining
         , statusText = onlineStatusText board ownSeat turn winnerName
         , turnIndicatorText = onlineTurnIndicatorText board turn winnerName
         , turnIndicatorIsRed = normalizeSeatId turn == "red"
@@ -1483,14 +1586,19 @@ viewOnlineGameHtml model board =
         , showJoinRed = ownSeat == Nothing && seatIsVacant board.red
         , showSeatActions = True
         , leaveAction = ownSeat |> Maybe.map (\_ -> LeaveSeat)
-        , pauseAction = Nothing
+        , pauseAction =
+            if board.state == SessionActive && seatMatchesTurn ownSeat turn then
+                Just PauseOnlineGame
+
+            else
+                Nothing
         , newRoundAction =
             if winnerName /= Nothing && ownSeat /= Nothing then
                 Just StartNewRound
 
             else
                 Nothing
-        , pauseOverlay = Nothing
+        , pauseOverlay = onlinePauseOverlay
         }
 
 
@@ -1545,20 +1653,6 @@ viewDesktopBoardScreenHtml config =
                     ]
                 ]
                 [ Html.text config.turnIndicatorText ]
-            , Html.div [ Html.Attributes.class "play-board-actions" ]
-                [ viewGhostButtonHtml "play-join-button ghost" config.showJoinBlue (Just (ClaimSeat "blue")) "Join Blue"
-                , viewGhostButtonHtml "play-join-button ghost" config.showJoinRed (Just (ClaimSeat "red")) "Join Red"
-                , viewGhostButtonHtml "play-pause-button ghost"
-                    (config.pauseAction /= Nothing)
-                    config.pauseAction
-                    (if config.isPaused then
-                        "▶ Resume"
-
-                     else
-                        "⏸ Pause"
-                    )
-                , viewGhostButtonHtml "play-leave-button ghost danger" (config.leaveAction /= Nothing) config.leaveAction "Leave / forfeit"
-                ]
             , viewBoardStageHtml True config blueName redName blueScore redScore winnerName
             , viewReplayHtml config.replayIndex config.moveCount
             ]
@@ -1605,11 +1699,10 @@ viewDesktopBoardScreenHtml config =
                             Nothing ->
                                 []
                        )
-                    ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed || config.leaveAction /= Nothing) then
+                    ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed) then
                             Html.div [ Html.Attributes.class "seat-actions" ]
                                 [ viewGhostButtonHtml "ghost" config.showJoinBlue (Just (ClaimSeat "blue")) "Join Blue"
                                 , viewGhostButtonHtml "ghost" config.showJoinRed (Just (ClaimSeat "red")) "Join Red"
-                                , viewGhostButtonHtml "ghost danger" (config.leaveAction /= Nothing) config.leaveAction "Leave / forfeit"
                                 ]
 
                          else
@@ -1666,16 +1759,33 @@ viewMobileBoardScreen config =
 
 viewBoardStageHtml : Bool -> BoardScreenConfig -> String -> String -> Int -> Int -> Maybe String -> Html Msg
 viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore winnerName =
+    let
+        topSide =
+            if config.boardFlipped then
+                { color = "blue", name = blueName, score = blueScore }
+
+            else
+                { color = "red", name = redName, score = redScore }
+
+        bottomSide =
+            if config.boardFlipped then
+                { color = "red", name = redName, score = redScore }
+
+            else
+                { color = "blue", name = blueName, score = blueScore }
+    in
     Html.div
         [ Html.Attributes.classList
             [ ( "board-stage", True )
             , ( "paused", config.isPaused )
             , ( "mobile-hero-board", config.isCompactLayout )
+            , ( "board-stage-flipped", config.boardFlipped )
             ]
         ]
-        ([ viewBoard ClickLegalMove config.ownSeat config.replayIndex config.board
-         , viewBoardBadgeHtml "top" "red" redName redScore
-         , viewBoardBadgeHtml "bottom" "blue" blueName blueScore
+        ([ viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board
+         , viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
+         , viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
+         , viewBoardTurnWidgetsHtml config
          ]
             ++ (case config.pauseOverlay of
                     Just overlay ->
@@ -1696,6 +1806,132 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
                     []
                )
         )
+
+
+viewBoardTurnWidgetsHtml : BoardScreenConfig -> Html Msg
+viewBoardTurnWidgetsHtml config =
+    case boardTurnWidgetData config of
+        Nothing ->
+            Html.text ""
+
+        Just widget ->
+            let
+                warningThreshold =
+                    config.timerSecs
+                        |> Maybe.map (\limit -> min 5 (max 1 (round (toFloat limit * 0.34))))
+                        |> Maybe.withDefault 5
+
+                isDanger =
+                    widget.clockSeconds
+                        |> Maybe.map (\seconds -> seconds <= 3)
+                        |> Maybe.withDefault False
+
+                isWarning =
+                    not isDanger
+                        && (widget.clockSeconds
+                                |> Maybe.map (\seconds -> seconds <= warningThreshold)
+                                |> Maybe.withDefault False
+                           )
+            in
+            Html.div
+                [ Html.Attributes.classList
+                    [ ( "elm-board-turn-overlay", True )
+                    , ( "turn-red", widget.turnIsRed )
+                    , ( "turn-blue", not widget.turnIsRed )
+                    ]
+                ]
+                (viewBoardTurnChipHtml widget.turnIsRed widget.turnAtTop widget.hopSerial
+                    :: (case widget.clockSeconds of
+                            Just seconds ->
+                                [ viewBoardTurnClockSlotHtml "top" widget.turnAtTop seconds isWarning isDanger
+                                , viewBoardTurnClockSlotHtml "bottom" (not widget.turnAtTop) seconds isWarning isDanger
+                                ]
+
+                            Nothing ->
+                                []
+                       )
+                )
+
+
+type alias BoardTurnWidgetData =
+    { turnIsRed : Bool
+    , turnAtTop : Bool
+    , hopSerial : Int
+    , clockSeconds : Maybe Int
+    }
+
+
+boardTurnWidgetData : BoardScreenConfig -> Maybe BoardTurnWidgetData
+boardTurnWidgetData config =
+    if config.board.state /= SessionActive || config.replayIndex /= Nothing || config.isPaused then
+        Nothing
+
+    else
+        config.board.currentSession
+            |> Maybe.andThen .round
+            |> Maybe.map .turn
+            |> Maybe.andThen
+                (\turn ->
+                    if String.isEmpty turn then
+                        Nothing
+
+                    else
+                        let
+                            clockSeconds =
+                                case config.timerRemainingSecs of
+                                    Just seconds ->
+                                        Just (max 0 seconds)
+
+                                    Nothing ->
+                                        config.timerSecs
+                        in
+                        Just
+                            { turnIsRed = normalizeSeatId turn == "red"
+                            , turnAtTop =
+                                if config.boardFlipped then
+                                    normalizeSeatId turn /= "red"
+
+                                else
+                                    normalizeSeatId turn == "red"
+                            , hopSerial = config.turnHopSerial
+                            , clockSeconds = clockSeconds
+                            }
+                )
+
+
+viewBoardTurnClockSlotHtml : String -> Bool -> Int -> Bool -> Bool -> Html Msg
+viewBoardTurnClockSlotHtml position isActive seconds isWarning isDanger =
+    Html.div
+        [ Html.Attributes.classList
+            [ ( "elm-board-turn-clock", True )
+            , ( "slot-top", position == "top" )
+            , ( "slot-bottom", position == "bottom" )
+            , ( "active", isActive )
+            , ( "inactive", not isActive )
+            , ( "warning", isWarning )
+            , ( "danger", isDanger )
+            ]
+        ]
+        [ Html.span [ Html.Attributes.class "elm-board-turn-clock-digits" ]
+            [ Html.text (String.padLeft 2 '0' (String.fromInt (max 0 seconds))) ]
+        ]
+
+
+viewBoardTurnChipHtml : Bool -> Bool -> Int -> Html Msg
+viewBoardTurnChipHtml turnIsRed turnAtTop hopSerial =
+    Html.div
+        [ Html.Attributes.classList
+            [ ( "elm-board-turn-chip", True )
+            , ( "red", turnIsRed )
+            , ( "blue", not turnIsRed )
+            , ( "at-top", turnAtTop )
+            , ( "at-bottom", not turnAtTop )
+            , ( "arch-hop", hopSerial > 0 )
+            , ( "to-top", turnAtTop )
+            , ( "to-bottom", not turnAtTop )
+            ]
+        ]
+        [ Html.span [ Html.Attributes.class "elm-board-turn-chip-ball", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "⚽" ] ]
 
 
 viewMobileTopCard : BoardScreenConfig -> String -> String -> String -> Int -> Int -> Element Msg
@@ -1748,12 +1984,12 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
             , wrappedRow [ width fill, spacing 10 ] <|
                 List.filterMap identity
                     [ if config.showSeatActions && config.showJoinBlue then
-                        Just (viewMobileActionButton False (ClaimSeat "blue") "●" "Join Blue")
+                        Just (viewMobileJoinSeatButton "blue" (ClaimSeat "blue"))
 
                       else
                         Nothing
                     , if config.showSeatActions && config.showJoinRed then
-                        Just (viewMobileActionButton False (ClaimSeat "red") "●" "Join Red")
+                        Just (viewMobileJoinSeatButton "red" (ClaimSeat "red"))
 
                       else
                         Nothing
@@ -1910,8 +2146,66 @@ viewMobileActionButton isDanger msg icon label =
         , Font.size 16
         , Font.bold
         , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
+        , Element.htmlAttribute
+            (Html.Attributes.attribute
+                "data-elm-command"
+                (if label == "Pause" then
+                    "pause"
+
+                 else if label == "Resume" then
+                    "resume"
+
+                 else
+                    ""
+                )
+            )
         ]
         { onPress = Just msg, label = el [ centerX, centerY ] (text icon) }
+
+
+viewMobileJoinSeatButton : String -> Msg -> Element Msg
+viewMobileJoinSeatButton seat msg =
+    let
+        seatLabel =
+            if seat == "red" then
+                "Red"
+
+            else
+                "Blue"
+
+        dotColor =
+            if seat == "red" then
+                rgb255 255 88 80
+
+            else
+                rgb255 58 151 255
+
+        borderColor =
+            if seat == "red" then
+                rgb255 153 55 51
+
+            else
+                rgb255 54 106 173
+    in
+    Input.button
+        [ width fill
+        , paddingXY 10 10
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color borderColor
+        , Bg.color (rgb255 28 54 31)
+        , Font.color (rgb255 248 241 238)
+        , Font.size 14
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" ("Join " ++ seatLabel))
+        ]
+        { onPress = Just msg
+        , label =
+            row [ centerX, centerY, spacing 8 ]
+                [ el [ Font.color dotColor, Font.size 14 ] (text "●")
+                , text ("Join " ++ seatLabel)
+                ]
+        }
 
 
 viewMobilePrimaryActionButton : Msg -> String -> String -> Element Msg
@@ -2062,15 +2356,26 @@ viewBoardBadgeHtml position color name score =
 
 viewPauseOverlayHtml : PauseOverlayConfig -> Html Msg
 viewPauseOverlayHtml overlay =
-    Html.div [ Html.Attributes.class "pause-overlay", Html.Attributes.attribute "aria-live" "polite" ]
+    Html.div [ Html.Attributes.id "pauseOverlay", Html.Attributes.class "pause-overlay", Html.Attributes.attribute "aria-live" "polite" ]
         [ Html.div [ Html.Attributes.class "pause-card" ]
             [ Html.div [ Html.Attributes.class "pause-kicker" ] [ Html.text "Paused" ]
             , Html.h2 [] [ Html.text overlay.title ]
             , Html.p [] [ Html.text overlay.message ]
             , Html.p [ Html.Attributes.id "pauseTurn" ] [ Html.text overlay.turnText ]
             , Html.div [ Html.Attributes.class "pause-actions" ]
-                [ viewPrimaryButtonHtml overlay.resumeAction "Resume game"
-                , viewGhostButtonHtml "ghost" True overlay.newRoundAction "New round"
+                [ Html.button
+                    ([ Html.Attributes.id "resumeGame"
+                     , Html.Attributes.type_ "button"
+                     , Html.Attributes.classList
+                        [ ( "primary", True )
+                        , ( "hidden", overlay.resumeAction == Nothing )
+                        ]
+                     , Html.Attributes.disabled (overlay.resumeAction == Nothing)
+                     , Html.Attributes.attribute "data-elm-command" "resume"
+                     ]
+                        ++ onClickAttributes overlay.resumeAction
+                    )
+                    [ Html.text "Resume game" ]
                 ]
             ]
         ]
@@ -2146,10 +2451,10 @@ viewReplayHtml replayIndex moveCount =
     Html.div [ Html.Attributes.class "board-replay replay" ]
         [ Html.h2 [] [ Html.text "Replay" ]
         , Html.div [ Html.Attributes.class "replay-controls" ]
-            [ viewReplayButton (moveCount > 0) (Just ReplayToStart) "Start"
-            , viewReplayButton (moveCount > 0) (Just ReplayStepBack) "‹"
-            , viewReplayButton (moveCount > 0) (Just ReplayStepForward) "›"
-            , viewReplayButton (moveCount > 0) (Just ReplayToLive) "End"
+            [ viewReplayButton (moveCount > 0) (Just ReplayToStart) "⏮" "Start"
+            , viewReplayButton (moveCount > 0) (Just ReplayStepBack) "◀" "Back"
+            , viewReplayButton (moveCount > 0) (Just ReplayStepForward) "▶" "Next"
+            , viewReplayButton (moveCount > 0) (Just ReplayToLive) "⏭" "Live"
             ]
         , Html.div [ Html.Attributes.class "replay-progress", Html.Attributes.attribute "aria-hidden" "true" ]
             [ Html.div [ Html.Attributes.class "replay-progress-fill", Html.Attributes.style "width" replayProgress ] [] ]
@@ -2157,11 +2462,12 @@ viewReplayHtml replayIndex moveCount =
         ]
 
 
-viewReplayButton : Bool -> Maybe Msg -> String -> Html Msg
-viewReplayButton enabled onPress label =
+viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg
+viewReplayButton enabled onPress icon label =
     Html.button
         ([ Html.Attributes.type_ "button"
          , Html.Attributes.disabled (not enabled)
+         , Html.Attributes.attribute "aria-label" label
          ]
             ++ onClickAttributes
                 (if enabled then
@@ -2171,7 +2477,9 @@ viewReplayButton enabled onPress label =
                     Nothing
                 )
         )
-        [ Html.text label ]
+        [ Html.span [ Html.Attributes.class "replay-btn-icon", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ]
+        , Html.span [ Html.Attributes.class "replay-btn-label" ] [ Html.text label ]
+        ]
 
 
 viewRoundSummaryHtml : String -> Int -> Int -> Maybe Msg -> Html Msg
@@ -2188,6 +2496,7 @@ viewGhostButtonHtml : String -> Bool -> Maybe Msg -> String -> Html Msg
 viewGhostButtonHtml baseClass isVisible onPress label =
     Html.button
         ([ Html.Attributes.type_ "button"
+         , Html.Attributes.disabled (onPress == Nothing)
          , Html.Attributes.classList
             [ ( baseClass, True )
             , ( "hidden", not isVisible )
@@ -2201,7 +2510,10 @@ viewGhostButtonHtml baseClass isVisible onPress label =
 viewPrimaryButtonHtml : Maybe Msg -> String -> Html Msg
 viewPrimaryButtonHtml onPress label =
     Html.button
-        ([ Html.Attributes.type_ "button", Html.Attributes.class "primary" ]
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.class "primary"
+         , Html.Attributes.disabled (onPress == Nothing)
+         ]
             ++ onClickAttributes onPress
         )
         [ Html.text label ]
@@ -2211,8 +2523,23 @@ viewSquareIconButtonHtml : String -> Maybe Msg -> String -> String -> Html Msg
 viewSquareIconButtonHtml className onPress icon ariaLabel =
     Html.button
         ([ Html.Attributes.type_ "button"
-         , Html.Attributes.class className
+         , Html.Attributes.classList
+            [ ( className, True )
+            , ( "hidden", onPress == Nothing )
+            ]
+         , Html.Attributes.disabled (onPress == Nothing)
          , Html.Attributes.attribute "aria-label" ariaLabel
+         , Html.Attributes.attribute
+            "data-elm-command"
+            (if ariaLabel == "Pause game" then
+                "pause"
+
+             else if ariaLabel == "Resume game" then
+                "resume"
+
+             else
+                ""
+            )
          ]
             ++ onClickAttributes onPress
         )
@@ -2308,7 +2635,7 @@ localStatusText model board turn winnerName =
 
         Nothing ->
             if model.localPaused then
-                "Game paused. " ++ turnOwnerName board turn ++ " to move when resumed."
+                "Paused. " ++ turnOwnerName board turn ++ " moves next."
 
             else
                 turnOwnerName board turn
@@ -2345,7 +2672,7 @@ onlineStatusText board ownSeat turn winnerName =
                     waitingStatusTextForBoard board
 
                 SessionPaused ->
-                    "Game paused. " ++ turnOwnerName board turn ++ " to move when resumed."
+                    "Paused. " ++ turnOwnerName board turn ++ " moves next."
 
                 _ ->
                     if String.isEmpty turn then
@@ -2633,7 +2960,23 @@ viewBoardListSection model =
         ]
         [ row [ width fill ]
             [ el [ Font.bold, Font.size 14, Font.color (rgb255 140 200 140) ] (text "Live boards")
-            , el [ alignRight ] (miniButton "↻" (Just RequestBoardList))
+            , el [ alignRight ]
+                (Input.button
+                    [ width (px 48)
+                    , height (px 48)
+                    , Border.rounded 12
+                    , Border.width 2
+                    , Border.color (rgb255 110 180 255)
+                    , Bg.color (rgba255 9 32 18 0.9)
+                    , Font.color (rgb255 141 255 174)
+                    , Font.size 24
+                    , Font.bold
+                    , padding 0
+                    ]
+                    { onPress = Just RequestBoardList
+                    , label = el [ centerX, centerY ] (text "↻")
+                    }
+                )
             ]
         , if List.isEmpty model.boardList then
             el [ Font.size 13, Font.color (rgba255 255 255 255 0.5) ] (text "No live boards. Create one!")
@@ -2655,13 +2998,38 @@ viewBoardCard board =
         ]
         { url = "/?board=" ++ board.roomId
         , label =
-            row [ width fill, spacing 8 ]
-                [ el [ Font.bold, Font.size 14 ] (text board.roomId)
-                , el [ Font.size 12, Font.color (rgba255 255 255 255 0.6) ] (text board.state)
-                , el [ alignRight, Font.size 12, Font.color (rgba255 255 255 255 0.5) ]
-                    (text (String.fromInt board.activeCount ++ "/2 seated"))
+            column [ width fill, spacing 6 ]
+                [ row [ width fill, spacing 8 ]
+                    [ el [ Font.bold, Font.size 14, width fill ] (text board.roomId)
+                    , el [ Font.size 12, Font.color (rgba255 255 255 255 0.5), width shrink ]
+                        (text (String.fromInt board.activeCount ++ "/2 seated"))
+                    ]
+                , paragraph [ width fill, Font.size 12, Font.color (rgba255 255 255 255 0.68) ]
+                    [ text (boardSummaryStateLabel board.state) ]
                 ]
         }
+
+
+boardSummaryStateLabel : String -> String
+boardSummaryStateLabel state =
+    case state of
+        "WaitingForPlayers" ->
+            "Waiting for players"
+
+        "OneSeatOccupied" ->
+            "1 seat occupied"
+
+        "InProgress" ->
+            "Game in progress"
+
+        "SessionPaused" ->
+            "Game paused"
+
+        "Complete" ->
+            "Round complete"
+
+        _ ->
+            state
 
 
 viewTimerControl : Model -> Element Msg
@@ -2980,10 +3348,10 @@ derivedOwnSeat model board =
                 redName =
                     board.red.player |> Maybe.map .displayName
             in
-            if blueName == Just model.playerName then
+            if blueName == Just (sanitizePlayerName model.playerName) then
                 Just "blue"
 
-            else if redName == Just model.playerName then
+            else if redName == Just (sanitizePlayerName model.playerName) then
                 Just "red"
 
             else
@@ -3056,17 +3424,31 @@ sanitizeBoardCode raw =
         |> String.left 32
 
 
+limitNameInput : String -> String
+limitNameInput raw =
+    String.left 24 raw
+
+
+normalizeWhitespaceName : String -> String
+normalizeWhitespaceName raw =
+    raw
+        |> String.trim
+        |> String.words
+        |> String.join " "
+        |> String.left 24
+
+
 sanitizePlayerName : String -> String
 sanitizePlayerName raw =
     let
-        t =
-            String.trim raw
+        normalized =
+            normalizeWhitespaceName raw
     in
-    if String.isEmpty t then
+    if String.isEmpty normalized then
         "Player"
 
     else
-        String.left 24 t
+        normalized
 
 
 watchBoardCommand : String -> String -> Cmd Msg

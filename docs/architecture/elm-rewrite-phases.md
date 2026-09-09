@@ -64,7 +64,7 @@ Important decisions:
 
 - Every state broadcast includes board `version`.
 - Message names should be intent-based, not UI-based.
-- Keep old protocol compatibility only if needed for incremental migration.
+- Keep wire-format compatibility only where an active migration step explicitly needs it.
 
 Exit criteria:
 
@@ -191,7 +191,7 @@ Deliverables:
 
 - Seat state `DisconnectedReserved` exposed to Elm. ✅ Phase 1 state carries disconnected seat reservation metadata through the live `/elm` shell.
 - 60-second grace display. ✅ `/elm` shows the disconnected player, reserved-seat copy, and grace countdown text.
-- Reconnect by same `clientId`. ✅ Server marks dropped player sockets as disconnected instead of vacant; opening/watching with the same stable `clientId` reclaims the reserved seat and resumes paused play, while fresh watchers stay seatless.
+- Reconnect by same `clientId`. ✅ Server marks dropped player sockets as disconnected instead of vacant; opening/watching with the same stable `clientId` reclaims the reserved seat without silently resuming paused play, while fresh watchers stay seatless.
 - Opponent-only `Make seat available` control after grace. ✅ Elm gates the `freeSeat` command to the seated opponent only after `canBeFreed` is true.
 - Freeing stale opponent awards forfeit point and closes session. ✅ `freeDisconnectedSeat` archives a `disconnect-forfeit`, increments the remaining player score, and opens the seat.
 - Leaving after opponent grace has expired abandons/clears rather than awarding ghost point. ✅ Server leave path clears both seats when the opponent is stale-disconnected past grace.
@@ -228,8 +228,13 @@ Current status after the late Phase 9 staging pass:
 - Home supports online board opening/creation and local same-screen setup with one persisted player identity.
 - Boards tab loads live `/api/rooms` data and refreshes from desktop/mobile board views.
 - Play is intentionally board-centric: board, replay, leave/forfeit, and compact pause/winner overlays only.
-- Board visuals, player badges, gate/bounce markers, winner overlay/confetti, pause blur, turn feedback, legal-move affordances, and timers have been ported/polished beyond the first Elm shell.
+- Board visuals, player badges, gate/bounce markers, winner overlay/confetti, pause blur, turn feedback, legal-move affordances, and timers have been ported/polished into the compiled Elm runtime.
 - Match owns lifecycle and metadata. Detailed board/session information is intentionally hidden under the ℹ info control to keep the panel uncluttered.
+- The legacy UI and the old Phase 1 adapter are retired; `/` and `/elm` now both serve the Elm runtime.
+- Online seated players always attack upward, the turn badge travels in a longer arc, and countdowns appear beside the active gate instead of sliding across the board.
+- Pause rules are current-turn-owner only: manual pause/resume is limited to the seated current-turn player, reconnect does not auto-resume, and the pause overlay only offers Resume.
+- Desktop/mobile cleanup includes de-duplicated controls, compact live-board cards, wider desktop Match layout, and replay controls that fill the row correctly.
+- Player-name inputs keep typed spaces while editing and normalize whitespace only when persisted or compared.
 - Phone and desktop staging playtesting are the primary quality gates; old iPad/iOS 15 compatibility is a best-effort final smoke item rather than a blocker for every change.
 
 Deliverables:
@@ -241,14 +246,16 @@ Deliverables:
    - Add the local/online mode toggle back to Home.
    - Add local same-screen setup on Home: Blue name, Red name, local move timer, resume saved local game, discard saved local game, and Start local match.
    - Local games keep the fixed shared-board orientation because both players play from one device.
-   - Regression checks: Home render contains `playerNameInput`, `onlineMode`, `localMode`, `localForm`, `localP1Name`, `localP2Name`, `localMoveTimer`, and uses the persisted player name instead of `Elm Player` after a name is set.
+
+- Regression checks: Home render contains one persisted `Your name` field, explicit Online/Local switching, local blue/red name inputs, timer selection, and reuses the persisted player name instead of a separate fallback identity.
 
 2. **Boards tab: active online boards**
    - Boards tab must load `/api/rooms` and render active online boards inside the tab, not below or outside the tab shell.
    - Show useful board summary data per card: board code/link, state, occupancy/vacant seats, current score, move count, active/waiting/watcher counts where available, last activity, expiry, and Open/Watch action.
    - Add refresh affordance equivalent to the JavaScript UI.
    - Keep expired/not-found recovery behavior from Phase 8.
-   - Regression checks: Boards tab render contains active board cards after `loadBoardList`, an empty state when no boards exist, and Open board links target `/elm?board=...`.
+
+- Regression checks: Boards tab render contains active board cards after `loadBoardList`, an empty state when no boards exist, and Open board links target `/?board=...`.
 
 3. **Play tab: focus-only gameplay surface**
    - Play tab should show only:
@@ -356,107 +363,43 @@ Execution tracking links for the current late-Phase 9 window:
 
 Use those docs for owner assignment, daily sequencing, evidence capture, and final Go/No-Go trial decisioning.
 
-## Phase 10: Move logic into actual Elm runtime
+## Phase 10: Closed — runtime logic moved into the compiled Elm app
 
-**Goal:** Replace the hand-written JS shell with a real Elm application that owns Model, update, and view — reducing `public/elm.js` to ~200 lines of port plumbing and canvas animation.
+**Status:** Completed.
 
-**Prerequisite:** Phase 9 smoke pass accepted. This phase happens before the default-frontend cutover so the cutover ships with a real Elm frontend, not a JS reimplementation.
+The current shipped UI is the compiled Elm runtime generated from `src/elm/Main.elm` to `public/elm-runtime.js`. The old hand-written JS rendering shell is retired.
 
-### Why the current shell is not Elm
-
-Phases 2–9 incrementally added features to the JS shell (`public/elm.js`) rather than to the compiled Elm runtime. The result is a ~3600-line hand-written JS file that reimplements Elm's own model/update/view pattern in plain JavaScript. The `.elm` source files exist and compile, but their output is not used at runtime.
-
-### What moves into Elm
-
-| JS group today                                     | Elm target                                |
-| -------------------------------------------------- | ----------------------------------------- |
-| `initialModel`, `applyState`, `decodeStateMessage` | `Model` type + `update` + `Board.Decode`  |
-| All `render*` functions (~1200 lines)              | `view` with `Html` and `Svg`              |
-| `computeLocalLegalMoves`, `applyLocalRuntimeMove`  | Pure Elm module, testable with `elm-test` |
-| `expireLocalRuntimeTurnIfNeeded`, pause/resume     | `update` branches                         |
-| History, replay state                              | `Model` fields + `update`                 |
-
-### What stays in JS (irreducible ~200 lines)
+What remains in `public/elm.js` now:
 
 - WebSocket connection setup and Elm port subscription
-- `localStorage` read/write via ports
-- Canvas rAF loop (turn marker arc, confetti) triggered by Elm port
-- Service worker registration
-- `mount()` entry point
+- `localStorage` read/write and route/update bridge behavior
+- service worker registration and browser integration glue
+- runtime mount/bootstrap code
 
-### Elm port surface (JS ↔ Elm boundary)
+Current reality:
 
-```
-Ports out (JS → Elm):  socketMessage, localStorageLoaded, tick
-Ports in  (Elm → JS):  socketSend, localStorageSet, startCanvas, stopCanvas
-```
+- `npm run build:elm` regenerates the runtime actually served at `/` and `/elm`.
+- Elm owns model/update/view for online and local board rendering.
+- Phase 1 raw game payloads are decoded directly in Elm without a compatibility adapter.
 
-### Migration order
+## Phase 11: Closed — Elm is the default frontend
 
-1. Wire the compiled Elm runtime into `elm.html` so `elm make` output is what actually runs.
-2. Port decoders from `Board/Decode.elm` to handle all Phase 1 canonical fixtures.
-3. Move `update` logic in from the JS shell group by group, starting with online state (applyState) then local runtime.
-4. Replace JS `render*` functions with Elm `view`; keep JS rendering as fallback until Elm view is complete.
-5. Delete each JS function as its Elm equivalent passes the existing Vitest/Playwright suite.
+**Status:** Completed.
 
-### Exit criteria
+- `/` and `/elm` both serve the Elm frontend.
+- `/room/:roomId` redirects to `/?board=<code>`.
+- The legacy pre-Elm UI is no longer a shipped route.
+- README, runbooks, and architecture docs should treat Elm as the default runtime, not an experimental shell.
 
-- `npm run build:elm` produces the runtime actually served at `/`.
-- `public/elm.js` is ≤ 250 lines of port bridge + canvas code.
-- `npm test` and `npm run test:e2e` pass with no test changes.
-- All Phase 1 canonical fixtures render correctly through the Elm decoder.
-- Local same-screen runtime behaves identically to current JS implementation.
+## Phase 12: Optional hardening of the remaining bridge layer
 
-## Phase 11: Switch default frontend
+**Goal:** Keep the remaining JS bridge small, explicit, and well-tested.
 
-**Goal:** Make Elm the primary frontend only after functional parity, lifecycle reliability, and visual parity are proven.
+Possible follow-up work:
 
-Deliverables:
-
-- Elm route becomes default app route only after the final polish/smoke pass is accepted. `elm-rewrite` staging currently serves the Elm shell by default for testing.
-- Old JS frontend removed or kept behind a temporary fallback flag. Legacy JavaScript UI remains at `/legacy` and `/legacy/room/:roomId`; `TRACEBALL_FRONTEND=legacy` rolls the root route and old room links back to legacy without code changes.
-- PWA service worker cache version bumped after parity/cutover changes. Current staging cache is tracked in `public/sw.js`.
-- README updated with Elm development commands and current parity/cutover status.
-
-Exit criteria:
-
-- Full tests/build pass.
-- Staging phone playtest passes.
-- Production deployment plan is explicit and reversible.
-
-## Phase 12: Harden the irreducible JS port layer
-
-**Goal:** After Phase 10 moves all logic into Elm, clean up and type-check the ~200 lines of JS that cannot move to Elm, so the port bridge is maintainable and correct.
-
-**Prerequisite:** Phase 10 complete — `public/elm.js` is already ≤ 250 lines of port bridge and canvas code.
-
-### What remains in JS after Phase 10
-
-```
-public/elm.js  (~200 lines total)
-  ports    # WebSocket send/receive, localStorage get/set, clipboard
-  canvas   # rAF loop: turn-marker arc, confetti, seven-segment clock
-  sw       # service worker registration
-  mount()  # Elm.Main.init() + port subscriptions
-```
-
-### What this phase does
-
-- Rewrite the remaining JS as a single typed TypeScript file `src/elm-shell/main.ts` compiled by `esbuild` to `public/elm.js`.
-- Add strict types for every port message shape so mismatches between Elm port definitions and JS handlers are caught at build time.
-- Add `tsc --noEmit` to `npm run build` so port type drift is a CI failure.
-
-### Build step
-
-```json
-"build:shell": "esbuild src/elm-shell/main.ts --bundle --outfile=public/elm.js --target=es2020 --format=iife"
-```
-
-### Exit criteria
-
-- `public/elm.js` is generated from `src/elm-shell/main.ts`, not hand-edited.
-- All Elm port names and message shapes have matching TypeScript types.
-- `npm run build`, `npm test`, and `npm run test:e2e` pass with no changes to tests.
+- move bridge code to a typed source file if it starts growing again;
+- keep Playwright/Vitest selectors aligned with the Elm DOM surface;
+- preserve the rule that rendering logic stays in Elm and browser plumbing stays in the bridge.
 
 ## Future backend experiment: Elixir/BEAM
 

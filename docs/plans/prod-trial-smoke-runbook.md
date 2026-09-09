@@ -6,15 +6,14 @@ Branch target: elm-rewrite
 
 ## 1) Objective
 
-Run a deterministic final pass across desktop and phone flows, then make a clear go or no-go call for production trial with legacy fallback retained.
+Run a deterministic final pass across desktop and phone flows, then make a clear go or no-go call for production trial.
 
 ## 2) Preconditions
 
 - Current branch is elm-rewrite and synced with origin.
-- Legacy fallback remains available at /legacy and /legacy/room/:roomId.
-- Fallback env switch is available via TRACEBALL_FRONTEND=legacy.
 - Service worker cache version is confirmed in public/sw.js (currently traceball-arena-v40).
 - Core automated checks are green:
+  - npm run build:elm
   - npm run build
   - npm test
   - npm run test:e2e (run this outside the VS Code agent sandbox)
@@ -88,12 +87,13 @@ Evidence to capture:
 ### E. Pause and resume ownership
 
 - Player A pauses.
-- Player B cannot resume or start new round while paused by A.
+- Player B cannot resume while paused by A.
 - Player A can resume.
 
 Expected outcome:
 
-- Ownership guard behaves exactly as above.
+- Only the seated current-turn player can manually pause.
+- Paused overlays expose Resume only; New Round belongs to winner/between-round flows, not paused play.
 
 ### F. Timeout behavior
 
@@ -129,19 +129,17 @@ Evidence to capture:
 
 - Note version check against public/sw.js cache string.
 
-## 6) Legacy Fallback Drill
+## 6) Route Integrity Drill
 
-Before trial sign-off, verify rollback path:
+Before trial sign-off, verify route behavior:
 
-- Direct route checks:
-  - /legacy
-  - /legacy/room/:roomId
-- Config rollback check:
-  - TRACEBALL_FRONTEND=legacy forces legacy shell on root route.
+- `/` serves Elm shell
+- `/elm` serves Elm shell
+- `/room/:roomId` redirects to `/?board=<code>`
 
 Expected outcome:
 
-- Fallback is immediate and operational.
+- Routes are deterministic and preserve invite-link compatibility.
 
 ## 7) Trial Decision Rubric
 
@@ -153,7 +151,7 @@ Go for production trial only if all are true:
 - Replay works in active testing session.
 - Winner overlay and new-round behavior are stable.
 - PWA refresh path is acceptable.
-- Legacy fallback validated.
+- Route integrity drill validated.
 
 No-go if any of these occur:
 
@@ -178,7 +176,7 @@ Use this table during the pass.
 | Replay           |                |                |               |                |        |       |
 | Winner overlay   |                |                |               |                |        |       |
 | PWA refresh      |                |                |               |                |        |       |
-| Legacy fallback  |                |                |               |                |        |       |
+| Route integrity  |                |                |               |                |        |       |
 
 Final verdict:
 

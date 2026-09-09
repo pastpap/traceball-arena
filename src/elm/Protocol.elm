@@ -1,6 +1,6 @@
 module Protocol exposing (BoardNotFoundPayload, ServerMessage(..), StateMessage, boardNotFoundCode, serverMessageDecoder, stateMessageDecoder)
 
-import Board.Decode exposing (boardDecoder)
+import Board.Decode exposing (boardDecoder, boardFromPublicGameDecoder)
 import Board.Types exposing (Board)
 import Json.Decode as Decode exposing (Decoder)
 
@@ -95,24 +95,25 @@ boardNotFoundCode payload fallback =
 
 stateMessageDecoder : Decoder StateMessage
 stateMessageDecoder =
-    Decode.field "board" boardDecoder
+    Decode.map2 Tuple.pair
+        (Decode.oneOf [ Decode.field "boardCode" Decode.string, Decode.field "roomId" Decode.string, Decode.succeed "" ])
+        (Decode.oneOf [ Decode.field "version" Decode.int, Decode.succeed 1 ])
         |> Decode.andThen
-            (\board ->
-                Decode.map2
-                    (\boardCode version ->
-                        { boardCode = boardCode
-                        , version = version
-                        , board = board
-                        }
-                    )
-                    (Decode.oneOf
-                        [ Decode.field "boardCode" Decode.string
-                        , Decode.succeed board.code
-                        ]
-                    )
-                    (Decode.oneOf
-                        [ Decode.field "version" Decode.int
-                        , Decode.succeed board.version
-                        ]
-                    )
+            (\( boardCode, version ) ->
+                Decode.oneOf
+                    [ Decode.field "board" boardDecoder
+                    , Decode.field "game" (boardFromPublicGameDecoder boardCode version)
+                    ]
+                    |> Decode.map
+                        (\board ->
+                            { boardCode =
+                                if String.isEmpty boardCode then
+                                    board.code
+
+                                else
+                                    boardCode
+                            , version = version
+                            , board = board
+                            }
+                        )
             )

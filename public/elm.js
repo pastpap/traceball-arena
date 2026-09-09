@@ -21,20 +21,29 @@ function generateRandomPlayerName() {
   return `${pick(["Neon", "Turbo", "Cosmic", "Lucky", "Pixel", "Rocket", "Thunder"])} ${pick(["Striker", "Falcon", "Comet", "Phantom", "Kicker", "Ace", "Wizard"])}`;
 }
 
+function normalizePlayerName(name, fallback = "") {
+  const value = String(name || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 24);
+  return value || fallback;
+}
+
 function getStoredPlayerName() {
   const storage = getStorage();
-  const stored = String(storage?.getItem?.(PLAYER_NAME_KEY) || "").trim();
-  if (stored && stored !== "Elm Player") return stored.slice(0, 24);
+  const stored = String(storage?.getItem?.(PLAYER_NAME_KEY) || "");
+  const normalized = normalizePlayerName(stored, "");
+  if (normalized && normalized !== "Elm Player") {
+    storage?.setItem?.(PLAYER_NAME_KEY, normalized);
+    return normalized;
+  }
   const name = generateRandomPlayerName();
   storage?.setItem?.(PLAYER_NAME_KEY, name);
   return name;
 }
 
 function persistPlayerName(name) {
-  const value =
-    String(name || "")
-      .trim()
-      .slice(0, 24) || generateRandomPlayerName();
+  const value = normalizePlayerName(name, generateRandomPlayerName());
   getStorage()?.setItem?.(PLAYER_NAME_KEY, value);
   return value;
 }

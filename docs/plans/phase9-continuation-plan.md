@@ -2,11 +2,13 @@
 
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
-**Goal:** Continue Phase 9 toward visual/product parity while keeping the game board-centric. Push completed slices directly to `elm-rewrite` unless Stefan explicitly asks for branches/PRs again.
+**Goal:** Continue Phase 9 toward final parity/polish while keeping the game board-centric. Push completed slices directly to `elm-rewrite` unless Stefan explicitly asks for branches/PRs again.
 
-**Architecture:** The current default shell is rendered by `public/elm.js` and tested by `test/elm-shell-runtime.test.js`. Each slice should begin with a failing runtime/static test, implement the smallest UI/runtime change, run `npm test`, `npm run build`, and a local HTTP/WebSocket smoke before pushing directly to `elm-rewrite`. Keep online server state authoritative; local same-screen runtime can be isolated in the shell until it is promoted to shared game helpers.
+**Architecture:** The current default frontend is the compiled Elm runtime from `src/elm/Main.elm`, generated to `public/elm-runtime.js`, with `public/elm.js` reduced to browser/WebSocket/localStorage bridge duties. Each slice should begin with a failing targeted test where practical, implement the smallest Elm/runtime change, run `npm run build:elm`, `npm test`, `npm run build`, and a local HTTP/WebSocket smoke before pushing directly to `elm-rewrite`. Keep online server state authoritative.
 
-**Tech Stack:** Node.js, Express, WebSocket `ws`, Vitest, static HTML/CSS/JS in `public/`, checked-in Elm shell fallback.
+**Tech Stack:** Node.js, Express, WebSocket `ws`, Elm 0.19.1, Vitest, Playwright, and static assets in `public/`.
+
+**Historical note:** Lower task sections in this file were written while `public/elm.js` still owned large parts of rendering. Treat those file references as archival unless a task explicitly concerns the bridge layer.
 
 Execution tracking for this week is consolidated in:
 
@@ -21,18 +23,22 @@ Use the weekly execution board as the source for owner assignments/day-by-day se
 
 Completed baseline work from `phase9-home-boards-match` and follow-up staging fixes:
 
-- Home has a generic persisted `playerNameInput` using `traceballPlayerName`.
+- Home has one persisted player identity using `traceballPlayerName`.
 - Home has explicit Online/Local setup controls.
-- Local same-screen setup scaffold exists with player names and timer selector.
+- Local same-screen setup supports player names and timer selection.
 - The current online board is visible in the Boards tab immediately after create/join, and the Boards tab can still be replaced by `/api/rooms` results.
 - Home restores share affordances for the active board: invite link, copy button, and QR code.
 - Play is focused on board/replay/leave; join/waiting/session details live in Match.
-- Task 1 Board HUD/orientation is implemented: Play shows board code, viewer role, turn, connection state, and a `data-elm-orientation` marker.
-- Task 2 one-shot move feedback is implemented with `data-elm-move-feedback="pending"` and a non-infinite CSS animation.
-- Task 3 online timer display/settings is implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
-- The richer JS-style turn marker/arc animation is already present in the Elm shell canvas overlay; do not re-implement it as missing work.
+- Board HUD/orientation is implemented: online seated players attack upward while local games keep fixed shared orientation.
+- One-shot turn feedback is implemented as a longer, more visible arc hop instead of a constant pulse.
+- Online timer display/settings are implemented: Home persists the online timer selector, create-room sends `moveTimeLimitSeconds`, active timed sessions expose canonical timer metadata, and Match/Play surface the server-authoritative timer/deadline.
+- The richer JS-style turn marker/arc animation is present in the current Elm runtime; do not re-open it as missing baseline work.
 - Play now surfaces move countdown text on/near the board again, and local same-screen rounds carry/reset deadline metadata so the same board countdown path works for local games.
 - Desktop lobby now stays open on inert background/top-bar clicks; only the explicit Lobby/Game control or Escape should return to the game view.
+- The legacy UI has been removed from shipped routes, and the old Phase 1 adapter path has been retired.
+- Manual online pause is restored for the current-turn seat only, reconnect no longer auto-resumes paused games, and the pause overlay is resume-only on both desktop and mobile.
+- Desktop/mobile cleanup includes deduplicated leave controls, wider Match layout, compact live-board cards, corrected replay row distribution, and dark refresh-button styling.
+- Player names now accept spaces while typing and normalize whitespace only when persisted or compared.
 
 ### Progress log (yesterday and today)
 
@@ -55,17 +61,18 @@ Completed baseline work from `phase9-home-boards-match` and follow-up staging fi
 - Fixed badge/toast persistence across render cycles by re-applying UI notification state after DOM replacement.
 - Added and updated runtime tests for all notification and view-preservation regressions.
 
-Current test status after these fixes: full Vitest suite green.
+Current test status after these fixes: targeted Vitest rule/runtime suites and Elm build checks are green; some older Playwright helpers still need selector refresh before they can serve as current smoke evidence.
 
 Additional trial-readiness coverage (2026-09-02):
 
-- Added `test/fallback-routes.test.js` to verify runtime fallback behavior (default Elm route, legacy routes, `/room/:roomId` redirect semantics, and `TRACEBALL_FRONTEND=legacy` mode).
+- Added `test/fallback-routes.test.js` to verify route integrity (`/`, `/elm`, and `/room/:roomId` redirect semantics).
 
 ### Remaining near-term Phase 9 items
 
 - Continue visual parity pass for board art details and any remaining JS-vs-shell differences.
 - Run focused mobile/tablet staging smoke for notification readability and spacing.
 - Keep Match metadata complete while preserving board-first Play focus.
+- Refresh older Playwright selectors that still assume removed DOM hooks such as `#playerNameInput`.
 - If local timer enforcement beyond visible local deadlines is added later, keep it isolated from the online server-authoritative timeout path.
 
 ## Visual asset parity slice to add explicitly
@@ -224,9 +231,9 @@ git commit -m "feat: add one-shot move feedback"
 **Files:**
 
 - Modify: `test/elm-shell-runtime.test.js`
-- Modify: `test/phase1-protocol.test.js`
 - Modify: `public/elm.js`
-- Modify: `src/protocol/phase1.js`
+- Modify: `src/elm/Board/Decode.elm`
+- Modify: `src/elm/Protocol.elm`
 
 **Step 1: Write failing tests**
 
@@ -251,7 +258,7 @@ Run targeted tests, `npm test`, `npm run build`, and local smoke creating a time
 **Step 5: Commit**
 
 ```bash
-git add public/elm.js src/protocol/phase1.js test/elm-shell-runtime.test.js test/phase1-protocol.test.js docs/plans/phase9-continuation-plan.md
+git add public/elm.js src/elm/Board/Decode.elm src/elm/Protocol.elm test/elm-shell-runtime.test.js docs/plans/phase9-continuation-plan.md
 git commit -m "feat: surface online move timer settings"
 ```
 

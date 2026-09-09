@@ -7,10 +7,18 @@ const bridgeSource = readFileSync("public/elm.js", "utf8");
 function loadBridge(overrides = {}) {
   const storage = overrides.localStorage ?? {
     values: new Map(),
-    getItem(k) { return this.values.get(k) ?? null; },
-    setItem(k, v) { this.values.set(k, String(v)); },
+    getItem(k) {
+      return this.values.get(k) ?? null;
+    },
+    setItem(k, v) {
+      this.values.set(k, String(v));
+    },
   };
-  const location = overrides.location ?? { protocol: "https:", host: "example.test", search: "" };
+  const location = overrides.location ?? {
+    protocol: "https:",
+    host: "example.test",
+    search: "",
+  };
   const context = {
     console,
     window: {
@@ -27,7 +35,9 @@ function loadBridge(overrides = {}) {
     URLSearchParams,
     setTimeout,
     clearTimeout,
-    fetch: overrides.fetch ?? (async () => ({ ok: false, status: 404, json: async () => ({}) })),
+    fetch:
+      overrides.fetch ??
+      (async () => ({ ok: false, status: 404, json: async () => ({}) })),
     URL: overrides.URL ?? URL,
   };
   vm.createContext(context);
@@ -60,7 +70,11 @@ function makeElmWithPorts(extraPorts = {}) {
           ports: {
             incomingSocketMessage: { send: () => {} },
             incomingConnectionStatus: { send: () => {} },
-            outgoingClientCommand: { subscribe(cb) { sendCommand = cb; } },
+            outgoingClientCommand: {
+              subscribe(cb) {
+                sendCommand = cb;
+              },
+            },
             ...extraPorts,
           },
         };
@@ -74,12 +88,21 @@ describe("Elm runtime bridge — flags", () => {
   it("passes boardCode, clientId, playerName, onlineMoveTimer to Elm init", async () => {
     let initFlags = null;
     const storage = {
-      values: new Map([["traceballPlayerName", "Stefan"], ["traceballOnlineMoveTimer", "30"]]),
-      getItem(k) { return this.values.get(k) ?? null; },
-      setItem(k, v) { this.values.set(k, String(v)); },
+      values: new Map([
+        ["traceballPlayerName", "Stefan"],
+        ["traceballOnlineMoveTimer", "30"],
+      ]),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
     };
     const { bridge } = loadBridge({
-      Elm: makeElm(({ flags }) => { initFlags = flags; }),
+      Elm: makeElm(({ flags }) => {
+        initFlags = flags;
+      }),
       localStorage: storage,
       document: { querySelector: () => null },
     });
@@ -94,17 +117,38 @@ describe("Elm runtime bridge — flags", () => {
 
   it("restores saved Elm local game into flags", async () => {
     let initFlags = null;
-    const savedGame = { blueName: "Stefan", redName: "Alex", turn: "p1", ball: { x: 4, y: 6 }, visited: ["4,6"], segments: [], moves: [], scoreBlue: 0, scoreRed: 0, winner: null, endReason: null };
+    const savedGame = {
+      blueName: "Stefan",
+      redName: "Alex",
+      turn: "p1",
+      ball: { x: 4, y: 6 },
+      visited: ["4,6"],
+      segments: [],
+      moves: [],
+      scoreBlue: 0,
+      scoreRed: 0,
+      winner: null,
+      endReason: null,
+    };
     const storage = {
       values: new Map([
         ["traceballPlayerName", "Stefan"],
-        ["traceballElmLocalRuntime", JSON.stringify({ savedLocalGame: savedGame, savedLocalPaused: true })],
+        [
+          "traceballElmLocalRuntime",
+          JSON.stringify({ savedLocalGame: savedGame, savedLocalPaused: true }),
+        ],
       ]),
-      getItem(k) { return this.values.get(k) ?? null; },
-      setItem(k, v) { this.values.set(k, String(v)); },
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
     };
     const { bridge } = loadBridge({
-      Elm: makeElm(({ flags }) => { initFlags = flags; }),
+      Elm: makeElm(({ flags }) => {
+        initFlags = flags;
+      }),
       localStorage: storage,
       document: { querySelector: () => null },
     });
@@ -112,14 +156,27 @@ describe("Elm runtime bridge — flags", () => {
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
 
     expect(initFlags.savedLocalPaused).toBe(true);
-    expect(initFlags.savedLocalGame).toMatchObject({ blueName: "Stefan", redName: "Alex" });
+    expect(initFlags.savedLocalGame).toMatchObject({
+      blueName: "Stefan",
+      redName: "Alex",
+    });
   });
 
   it("generates and persists a random name when no name is stored", async () => {
     let initFlags = null;
-    const storage = { values: new Map(), getItem(k) { return this.values.get(k) ?? null; }, setItem(k, v) { this.values.set(k, String(v)); } };
+    const storage = {
+      values: new Map(),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
     const { bridge } = loadBridge({
-      Elm: makeElm(({ flags }) => { initFlags = flags; }),
+      Elm: makeElm(({ flags }) => {
+        initFlags = flags;
+      }),
       localStorage: storage,
       document: { querySelector: () => null },
     });
@@ -128,15 +185,58 @@ describe("Elm runtime bridge — flags", () => {
 
     expect(typeof initFlags.playerName).toBe("string");
     expect(initFlags.playerName.length).toBeGreaterThan(3);
-    expect(storage.values.get("traceballPlayerName")).toBe(initFlags.playerName);
+    expect(storage.values.get("traceballPlayerName")).toBe(
+      initFlags.playerName,
+    );
+  });
+
+  it("normalizes stored multi-word names when initializing the Elm runtime", async () => {
+    let initFlags = null;
+    const storage = {
+      values: new Map([["traceballPlayerName", "  Alex   Smith  "]]),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
+    const { bridge } = loadBridge({
+      Elm: makeElm(({ flags }) => {
+        initFlags = flags;
+      }),
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
+
+    await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
+
+    expect(initFlags.playerName).toBe("Alex Smith");
+    expect(storage.values.get("traceballPlayerName")).toBe("Alex Smith");
   });
 
   it("preserves client ID across mounts via localStorage", async () => {
-    const storage = { values: new Map(), getItem(k) { return this.values.get(k) ?? null; }, setItem(k, v) { this.values.set(k, String(v)); } };
+    const storage = {
+      values: new Map(),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
     const ids = [];
-    const { bridge: b1 } = loadBridge({ Elm: makeElm(({ flags }) => ids.push(flags.clientId)), localStorage: storage, document: { querySelector: () => null } });
+    const { bridge: b1 } = loadBridge({
+      Elm: makeElm(({ flags }) => ids.push(flags.clientId)),
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
     await b1.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
-    const { bridge: b2 } = loadBridge({ Elm: makeElm(({ flags }) => ids.push(flags.clientId)), localStorage: storage, document: { querySelector: () => null } });
+    const { bridge: b2 } = loadBridge({
+      Elm: makeElm(({ flags }) => ids.push(flags.clientId)),
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
     await b2.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
 
     expect(ids[0]).toBe(ids[1]);
@@ -147,17 +247,64 @@ describe("Elm runtime bridge — flags", () => {
 describe("Elm runtime bridge — outgoing command handlers", () => {
   it("persists player name when Elm emits persistPlayerName", async () => {
     const { elm, getSendCommand } = makeElmWithPorts();
-    const storage = { values: new Map([["traceballPlayerName", "Stefan"]]), getItem(k) { return this.values.get(k) ?? null; }, setItem(k, v) { this.values.set(k, String(v)); } };
-    const { bridge } = loadBridge({ Elm: elm, localStorage: storage, document: { querySelector: () => null } });
+    const storage = {
+      values: new Map([["traceballPlayerName", "Stefan"]]),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
+    const { bridge } = loadBridge({
+      Elm: elm,
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "persistPlayerName", name: "Alex" });
     expect(storage.values.get("traceballPlayerName")).toBe("Alex");
   });
 
+  it("normalizes whitespace in multi-word player names while preserving spaces", async () => {
+    const { elm, getSendCommand } = makeElmWithPorts();
+    const storage = {
+      values: new Map(),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
+    const { bridge } = loadBridge({
+      Elm: elm,
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
+
+    await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
+    getSendCommand()({ type: "persistPlayerName", name: "  Alex   Smith  " });
+
+    expect(storage.values.get("traceballPlayerName")).toBe("Alex Smith");
+  });
+
   it("persists online move timer when Elm emits persistOnlineMoveTimer", async () => {
     const { elm, getSendCommand } = makeElmWithPorts();
-    const storage = { values: new Map(), getItem(k) { return this.values.get(k) ?? null; }, setItem(k, v) { this.values.set(k, String(v)); } };
-    const { bridge } = loadBridge({ Elm: elm, localStorage: storage, document: { querySelector: () => null } });
+    const storage = {
+      values: new Map(),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
+    const { bridge } = loadBridge({
+      Elm: elm,
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "persistOnlineMoveTimer", seconds: 30 });
     expect(storage.values.get("traceballOnlineMoveTimer")).toBe("30");
@@ -165,12 +312,31 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
 
   it("persists Elm local runtime snapshot when Elm emits persistLocalRuntime", async () => {
     const { elm, getSendCommand } = makeElmWithPorts();
-    const storage = { values: new Map(), getItem(k) { return this.values.get(k) ?? null; }, setItem(k, v) { this.values.set(k, String(v)); } };
-    const { bridge } = loadBridge({ Elm: elm, localStorage: storage, document: { querySelector: () => null } });
+    const storage = {
+      values: new Map(),
+      getItem(k) {
+        return this.values.get(k) ?? null;
+      },
+      setItem(k, v) {
+        this.values.set(k, String(v));
+      },
+    };
+    const { bridge } = loadBridge({
+      Elm: elm,
+      localStorage: storage,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
-    getSendCommand()({ type: "persistLocalRuntime", localPaused: true, localGame: { blueName: "Stefan", redName: "Alex" } });
+    getSendCommand()({
+      type: "persistLocalRuntime",
+      localPaused: true,
+      localGame: { blueName: "Stefan", redName: "Alex" },
+    });
     const raw = storage.values.get("traceballElmLocalRuntime");
-    expect(JSON.parse(raw)).toMatchObject({ savedLocalPaused: true, savedLocalGame: { blueName: "Stefan", redName: "Alex" } });
+    expect(JSON.parse(raw)).toMatchObject({
+      savedLocalPaused: true,
+      savedLocalGame: { blueName: "Stefan", redName: "Alex" },
+    });
   });
 
   it("routes updateUrl to history.replaceState", async () => {
@@ -178,7 +344,11 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
     const { elm, getSendCommand } = makeElmWithPorts();
     const { bridge } = loadBridge({
       Elm: elm,
-      history: { replaceState(_s, _t, url) { historyCalls.push(String(url)); } },
+      history: {
+        replaceState(_s, _t, url) {
+          historyCalls.push(String(url));
+        },
+      },
       document: { querySelector: () => null },
     });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
@@ -188,11 +358,22 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
 
   it("fetches board list and pushes result to incomingBoardList port", async () => {
     let boardListReceived = null;
-    const { elm, getSendCommand } = makeElmWithPorts({ incomingBoardList: { send: (v) => { boardListReceived = v; } } });
+    const { elm, getSendCommand } = makeElmWithPorts({
+      incomingBoardList: {
+        send: (v) => {
+          boardListReceived = v;
+        },
+      },
+    });
     const { bridge } = loadBridge({
       Elm: elm,
       document: { querySelector: () => null },
-      fetch: async () => ({ ok: true, json: async () => ({ rooms: [{ roomId: "LIVE42", state: "WaitingForPlayers" }] }) }),
+      fetch: async () => ({
+        ok: true,
+        json: async () => ({
+          rooms: [{ roomId: "LIVE42", state: "WaitingForPlayers" }],
+        }),
+      }),
     });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "fetchBoardList" });
@@ -202,7 +383,13 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
 
   it("pushes empty rooms when fetchBoardList request fails", async () => {
     let boardListReceived = null;
-    const { elm, getSendCommand } = makeElmWithPorts({ incomingBoardList: { send: (v) => { boardListReceived = v; } } });
+    const { elm, getSendCommand } = makeElmWithPorts({
+      incomingBoardList: {
+        send: (v) => {
+          boardListReceived = v;
+        },
+      },
+    });
     const { bridge } = loadBridge({
       Elm: elm,
       document: { querySelector: () => null },
@@ -218,20 +405,32 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
     const sockets = [];
     let boardCreatedCode = null;
     const { elm, getSendCommand } = makeElmWithPorts({
-      incomingBoardCreated: { send: (c) => { boardCreatedCode = c; } },
+      incomingBoardCreated: {
+        send: (c) => {
+          boardCreatedCode = c;
+        },
+      },
     });
     class FakeWebSocket {
-      constructor() { this.sent = []; sockets.push(this); }
-      send(raw) { this.sent.push(JSON.parse(raw)); }
-      close() { this.onclose?.(); }
+      constructor() {
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
     }
     const { bridge } = loadBridge({
       Elm: elm,
       WebSocket: FakeWebSocket,
       document: { querySelector: () => null },
-      fetch: async (url, opts) => opts?.method === "POST"
-        ? { ok: true, json: async () => ({ roomId: "NEWRM1" }) }
-        : { ok: false, status: 404 },
+      fetch: async (url, opts) =>
+        opts?.method === "POST"
+          ? { ok: true, json: async () => ({ roomId: "NEWRM1" }) }
+          : { ok: false, status: 404 },
     });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "createBoard", moveTimeLimitSeconds: 15 });
@@ -239,7 +438,10 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
     sockets[0].onopen();
     expect(sockets.length).toBe(1);
     expect(boardCreatedCode).toBe("NEWRM1");
-    expect(sockets[0].sent[0]).toMatchObject({ type: "watch", roomId: "NEWRM1" });
+    expect(sockets[0].sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "NEWRM1",
+    });
   });
 });
 
@@ -248,38 +450,66 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const sockets = [];
     const statuses = [];
     class FakeWebSocket {
-      constructor() { this.sent = []; sockets.push(this); }
-      send(raw) { this.sent.push(JSON.parse(raw)); }
-      close() { this.onclose?.(); }
+      constructor() {
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
     }
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingConnectionStatus: { send: (s) => statuses.push(s) },
     });
-    const { bridge } = loadBridge({ Elm: elm, WebSocket: FakeWebSocket, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
-    getSendCommand()({ type: "watch", roomId: "ROOM123", clientId: "traceball-elm-xyz" });
+    getSendCommand()({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-xyz",
+    });
     expect(sockets.length).toBe(1);
     sockets[0].onopen();
     expect(statuses).toContain("connected");
-    expect(sockets[0].sent[0]).toMatchObject({ type: "watch", roomId: "ROOM123", clientId: "traceball-elm-xyz" });
+    expect(sockets[0].sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-xyz",
+    });
   });
 
   it("forwards incoming WebSocket messages to incomingSocketMessage port", async () => {
     const messages = [];
     const sockets = [];
     class FakeWebSocket {
-      constructor() { this.sent = []; sockets.push(this); }
+      constructor() {
+        this.sent = [];
+        sockets.push(this);
+      }
       send() {}
       close() {}
     }
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingSocketMessage: { send: (m) => messages.push(m) },
     });
-    const { bridge } = loadBridge({ Elm: elm, WebSocket: FakeWebSocket, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "watch", roomId: "ROOM123", clientId: "elm-abc" });
     sockets[0].onopen();
-    sockets[0].onmessage({ data: JSON.stringify({ type: "state", boardCode: "ROOM123", version: 1 }) });
+    sockets[0].onmessage({
+      data: JSON.stringify({ type: "state", boardCode: "ROOM123", version: 1 }),
+    });
     expect(messages.some((m) => m.type === "state")).toBe(true);
   });
 
@@ -287,14 +517,22 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const statuses = [];
     const sockets = [];
     class FakeWebSocket {
-      constructor() { sockets.push(this); }
+      constructor() {
+        sockets.push(this);
+      }
       send() {}
-      close() { this.onclose?.(); }
+      close() {
+        this.onclose?.();
+      }
     }
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingConnectionStatus: { send: (s) => statuses.push(s) },
     });
-    const { bridge } = loadBridge({ Elm: elm, WebSocket: FakeWebSocket, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "watch", roomId: "ROOM123", clientId: "elm-abc" });
     sockets[0].onopen();
@@ -306,14 +544,20 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const statuses = [];
     const sockets = [];
     class FakeWebSocket {
-      constructor() { sockets.push(this); }
+      constructor() {
+        sockets.push(this);
+      }
       send() {}
       close() {}
     }
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingConnectionStatus: { send: (s) => statuses.push(s) },
     });
-    const { bridge } = loadBridge({ Elm: elm, WebSocket: FakeWebSocket, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "watch", roomId: "ROOM123", clientId: "elm-abc" });
     sockets[0].onerror();
@@ -323,31 +567,70 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
   it("forwards protocol commands through open WebSocket", async () => {
     const sockets = [];
     class FakeWebSocket {
-      constructor() { this.sent = []; sockets.push(this); }
-      send(raw) { this.sent.push(JSON.parse(raw)); }
-      close() { this.onclose?.(); }
+      constructor() {
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
     }
     const { elm, getSendCommand } = makeElmWithPorts();
-    const { bridge } = loadBridge({ Elm: elm, WebSocket: FakeWebSocket, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
-    getSendCommand()({ type: "watch", roomId: "ROOM123", clientId: "elm-custom" });
+    getSendCommand()({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "elm-custom",
+    });
     sockets[0].onopen();
 
-    getSendCommand()({ type: "claimSeat", seatId: "p1", name: "Stefan", roomId: "ROOM123", clientId: "elm-custom" });
-    getSendCommand()({ type: "joinWaitingList", name: "Stefan", roomId: "ROOM123", clientId: "elm-custom" });
-    getSendCommand()({ type: "leaveWaitingList", roomId: "ROOM123", clientId: "elm-custom" });
+    getSendCommand()({
+      type: "claimSeat",
+      seatId: "p1",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "elm-custom",
+    });
+    getSendCommand()({
+      type: "joinWaitingList",
+      name: "Stefan",
+      roomId: "ROOM123",
+      clientId: "elm-custom",
+    });
+    getSendCommand()({
+      type: "leaveWaitingList",
+      roomId: "ROOM123",
+      clientId: "elm-custom",
+    });
     getSendCommand()({ type: "leave" });
     getSendCommand()({ type: "move", to: { x: 4, y: 5 } });
     getSendCommand()({ type: "reset" });
     getSendCommand()({ type: "freeSeat", seatId: "p2" });
 
-    expect(sockets[0].sent[1]).toMatchObject({ type: "claimSeat", seatId: "p1" });
+    expect(sockets[0].sent[1]).toMatchObject({
+      type: "claimSeat",
+      seatId: "p1",
+    });
     expect(sockets[0].sent[2]).toMatchObject({ type: "joinWaitingList" });
     expect(sockets[0].sent[3]).toMatchObject({ type: "leaveWaitingList" });
     expect(sockets[0].sent[4]).toMatchObject({ type: "leave" });
-    expect(sockets[0].sent[5]).toMatchObject({ type: "move", to: { x: 4, y: 5 } });
+    expect(sockets[0].sent[5]).toMatchObject({
+      type: "move",
+      to: { x: 4, y: 5 },
+    });
     expect(sockets[0].sent[6]).toMatchObject({ type: "reset" });
-    expect(sockets[0].sent[7]).toMatchObject({ type: "freeSeat", seatId: "p2" });
+    expect(sockets[0].sent[7]).toMatchObject({
+      type: "freeSeat",
+      seatId: "p2",
+    });
   });
 
   it("pushes error message when command arrives but socket is not open", async () => {
@@ -355,7 +638,10 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingSocketMessage: { send: (m) => messages.push(m) },
     });
-    const { bridge } = loadBridge({ Elm: elm, document: { querySelector: () => null } });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      document: { querySelector: () => null },
+    });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "move", to: { x: 4, y: 5 } });
     expect(messages.some((m) => m.type === "error")).toBe(true);
@@ -365,7 +651,9 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const historyCalls = [];
     const sockets = [];
     class FakeWebSocket {
-      constructor() { sockets.push(this); }
+      constructor() {
+        sockets.push(this);
+      }
       send() {}
       close() {}
     }
@@ -373,7 +661,11 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     const { bridge } = loadBridge({
       Elm: elm,
       WebSocket: FakeWebSocket,
-      history: { replaceState(_s, _t, url) { historyCalls.push(String(url)); } },
+      history: {
+        replaceState(_s, _t, url) {
+          historyCalls.push(String(url));
+        },
+      },
       document: { querySelector: () => null },
     });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });

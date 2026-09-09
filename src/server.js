@@ -1,68 +1,85 @@
-import express from 'express';
-import { readFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { fileURLToPath } from 'node:url';
-import { WebSocketServer } from 'ws';
-import { nanoid } from 'nanoid';
-import QRCode from 'qrcode';
-import { activeSeatCount, addPlayer, applyTurnTimeout, boardExpiresAt, boardLastActivityAt, claimSeat, createGame, freeDisconnectedSeat, isBoardExpired, joinWaitingList, leavePlayerAfterOpponentGrace, leaveWaitingList, makeMove, markPlayerDisconnected, normalizeMoveTimeLimitMs, pauseGame, publicGame, rejoinPlayerByClient, releaseExpiredDisconnectedSeats, resetGame, resumeGame } from './game.js';
-import { toLegacyCompatibleStateMessage } from './protocol/phase1.js';
+import express from "express";
+import { readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { fileURLToPath } from "node:url";
+import { WebSocketServer } from "ws";
+import { nanoid } from "nanoid";
+import QRCode from "qrcode";
+import {
+  activeSeatCount,
+  addPlayer,
+  applyTurnTimeout,
+  boardExpiresAt,
+  boardLastActivityAt,
+  claimSeat,
+  createGame,
+  freeDisconnectedSeat,
+  isBoardExpired,
+  joinWaitingList,
+  leavePlayerAfterOpponentGrace,
+  leaveWaitingList,
+  makeMove,
+  markPlayerDisconnected,
+  normalizeMoveTimeLimitMs,
+  pauseGame,
+  publicGame,
+  rejoinPlayerByClient,
+  releaseExpiredDisconnectedSeats,
+  resetGame,
+  resumeGame,
+} from "./game.js";
 
 const PORT = process.env.PORT || 3000;
 const app = express();
 const server = createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+const wss = new WebSocketServer({ server, path: "/ws" });
 const rooms = new Map();
 const sockets = new Map();
 const roomTimers = new Map();
-const appShellPath = fileURLToPath(new URL('../public/index.html', import.meta.url));
-const elmShellPath = fileURLToPath(new URL('../public/elm.html', import.meta.url));
-const FRONTEND_MODE = process.env.TRACEBALL_FRONTEND || 'elm';
-
-function useLegacyDefaultFrontend() {
-  return FRONTEND_MODE === 'legacy';
-}
+const elmShellPath = fileURLToPath(
+  new URL("../public/elm.html", import.meta.url),
+);
 
 function servePrimaryShell(_req, res) {
-  res.type('html').send(readFileSync(useLegacyDefaultFrontend() ? appShellPath : elmShellPath, 'utf8'));
+  res.type("html").send(readFileSync(elmShellPath, "utf8"));
 }
 
 function serveElmShell(_req, res) {
-  res.type('html').send(readFileSync(elmShellPath, 'utf8'));
+  res.type("html").send(readFileSync(elmShellPath, "utf8"));
 }
 
-function serveLegacyShell(_req, res) {
-  res.type('html').send(readFileSync(appShellPath, 'utf8'));
-}
-
-app.get('/', servePrimaryShell);
-app.get('/elm', serveElmShell);
-app.get('/legacy', serveLegacyShell);
-app.get('/legacy/room/:roomId', serveLegacyShell);
-app.get('/room/:roomId', (req, res) => {
+app.get("/", servePrimaryShell);
+app.get("/elm", serveElmShell);
+app.get("/room/:roomId", (req, res) => {
   const roomId = safeRoomId(req.params.roomId);
-  if (useLegacyDefaultFrontend()) return serveLegacyShell(req, res);
-  if (!roomId) return res.redirect(302, '/');
+  if (!roomId) return res.redirect(302, "/");
   return res.redirect(302, `/?board=${encodeURIComponent(roomId)}`);
 });
 
-app.use(express.static('public', { extensions: ['html'], index: false }));
+app.use(express.static("public", { extensions: ["html"], index: false }));
 
-app.get('/api/health', (_req, res) => {
+app.get("/api/health", (_req, res) => {
   cleanupExpiredRooms();
   res.json({ ok: true, rooms: rooms.size, uptime: process.uptime() });
 });
 
-app.post('/api/rooms', express.json(), (req, res) => {
+app.post("/api/rooms", express.json(), (req, res) => {
   cleanupExpiredRooms();
   const roomId = nanoid(8);
-  const moveTimeLimitMs = normalizeMoveTimeLimitMs(Number(req.body?.moveTimeLimitSeconds) * 1000, 15000);
+  const moveTimeLimitMs = normalizeMoveTimeLimitMs(
+    Number(req.body?.moveTimeLimitSeconds) * 1000,
+    15000,
+  );
   const game = createGame(roomId, { moveTimeLimitMs });
   rooms.set(roomId, game);
-  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)), moveTimeLimitMs: game.moveTimeLimitMs });
+  res.json({
+    roomId,
+    url: roomUrl(roomId, originFromRequest(req)),
+    moveTimeLimitMs: game.moveTimeLimitMs,
+  });
 });
 
-app.get('/api/rooms', (req, res) => {
+app.get("/api/rooms", (req, res) => {
   cleanupExpiredRooms();
   const origin = originFromRequest(req);
   const summaries = [...rooms.values()]
@@ -71,142 +88,176 @@ app.get('/api/rooms', (req, res) => {
   res.json({ rooms: summaries });
 });
 
-app.get('/api/rooms/:roomId', (req, res) => {
+app.get("/api/rooms/:roomId", (req, res) => {
   cleanupExpiredRooms();
   const roomId = safeRoomId(req.params.roomId);
-  if (!roomId) return res.status(400).json({ error: 'Invalid room code.' });
+  if (!roomId) return res.status(400).json({ error: "Invalid room code." });
   const game = rooms.get(roomId);
-  if (!game) return res.status(404).json({ error: 'Game not found or expired.' });
-  res.json({ roomId, url: roomUrl(roomId, originFromRequest(req)), moveTimeLimitMs: game.moveTimeLimitMs || 0 });
+  if (!game)
+    return res.status(404).json({ error: "Game not found or expired." });
+  res.json({
+    roomId,
+    url: roomUrl(roomId, originFromRequest(req)),
+    moveTimeLimitMs: game.moveTimeLimitMs || 0,
+  });
 });
 
-app.get('/api/qr', async (req, res) => {
-  const url = typeof req.query.url === 'string' ? req.query.url : roomUrl(String(req.query.room || ''), originFromRequest(req));
+app.get("/api/qr", async (req, res) => {
+  const url =
+    typeof req.query.url === "string"
+      ? req.query.url
+      : roomUrl(String(req.query.room || ""), originFromRequest(req));
   try {
-    const png = await QRCode.toBuffer(url, { type: 'png', margin: 1, scale: 8, color: { dark: '#102a1a', light: '#ffffff' } });
-    res.setHeader('content-type', 'image/png');
+    const png = await QRCode.toBuffer(url, {
+      type: "png",
+      margin: 1,
+      scale: 8,
+      color: { dark: "#102a1a", light: "#ffffff" },
+    });
+    res.setHeader("content-type", "image/png");
     res.send(png);
   } catch (error) {
-    res.status(500).json({ error: 'Could not generate QR code.' });
+    res.status(500).json({ error: "Could not generate QR code." });
   }
 });
 
-wss.on('connection', (ws) => {
+wss.on("connection", (ws) => {
   const socketState = { roomId: null, playerId: null, clientId: null };
   sockets.set(ws, socketState);
 
-  ws.on('message', (raw) => {
+  ws.on("message", (raw) => {
     let msg;
     try {
       msg = JSON.parse(raw.toString());
     } catch {
-      return send(ws, 'error', { error: 'Invalid JSON.' });
+      return send(ws, "error", { error: "Invalid JSON." });
     }
     cleanupExpiredRooms();
 
-    if (msg.type === 'join') {
+    if (msg.type === "join") {
       const roomId = safeRoomId(msg.roomId);
-      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!roomId) return send(ws, "error", { error: "Invalid room code." });
       const game = rooms.get(roomId);
-      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      if (!game)
+        return send(ws, "error", { error: "Game not found or expired." });
       const result = addPlayer(game, msg.name, msg.clientId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
       socketState.clientId = cleanClientId(msg.clientId);
-      send(ws, 'joined', { playerId: result.playerId, roomId, url: roomUrl(roomId) });
+      send(ws, "joined", {
+        playerId: result.playerId,
+        roomId,
+        url: roomUrl(roomId),
+      });
       broadcast(roomId);
       return;
     }
 
-    if (msg.type === 'watch') {
+    if (msg.type === "watch") {
       const roomId = safeRoomId(msg.roomId);
-      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!roomId) return send(ws, "error", { error: "Invalid room code." });
       const game = rooms.get(roomId);
-      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      if (!game)
+        return send(ws, "error", { error: "Game not found or expired." });
       if (socketState.roomId !== roomId) socketState.playerId = null;
       socketState.roomId = roomId;
       socketState.clientId = cleanClientId(msg.clientId);
       const rejoin = rejoinPlayerByClient(game, msg.clientId);
       if (rejoin.ok) {
         socketState.playerId = rejoin.playerId;
-        send(ws, 'joined', { playerId: rejoin.playerId, roomId, rejoined: true });
+        send(ws, "joined", {
+          playerId: rejoin.playerId,
+          roomId,
+          rejoined: true,
+        });
       }
       broadcast(roomId);
       return;
     }
 
-    if (msg.type === 'claimSeat') {
+    if (msg.type === "claimSeat") {
       const roomId = safeRoomId(msg.roomId);
-      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!roomId) return send(ws, "error", { error: "Invalid room code." });
       const game = rooms.get(roomId);
-      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      if (!game)
+        return send(ws, "error", { error: "Game not found or expired." });
       const result = claimSeat(game, msg.seatId, msg.name, msg.clientId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       socketState.roomId = roomId;
       socketState.playerId = result.playerId;
       socketState.clientId = cleanClientId(msg.clientId);
-      send(ws, 'joined', { playerId: result.playerId, roomId, rejoined: Boolean(result.rejoined) });
+      send(ws, "joined", {
+        playerId: result.playerId,
+        roomId,
+        rejoined: Boolean(result.rejoined),
+      });
       broadcast(roomId);
       return;
     }
 
-    if (msg.type === 'joinWaitingList') {
+    if (msg.type === "joinWaitingList") {
       const roomId = safeRoomId(msg.roomId);
-      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!roomId) return send(ws, "error", { error: "Invalid room code." });
       const game = rooms.get(roomId);
-      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      if (!game)
+        return send(ws, "error", { error: "Game not found or expired." });
       const result = joinWaitingList(game, msg.name, msg.clientId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       socketState.roomId = roomId;
       socketState.clientId = cleanClientId(msg.clientId);
-      send(ws, 'waitingListJoined', { roomId, rejoined: Boolean(result.rejoined) });
+      send(ws, "waitingListJoined", {
+        roomId,
+        rejoined: Boolean(result.rejoined),
+      });
       broadcast(roomId);
       return;
     }
 
-    if (msg.type === 'leaveWaitingList') {
+    if (msg.type === "leaveWaitingList") {
       const roomId = safeRoomId(msg.roomId || socketState.roomId);
-      if (!roomId) return send(ws, 'error', { error: 'Invalid room code.' });
+      if (!roomId) return send(ws, "error", { error: "Invalid room code." });
       const game = rooms.get(roomId);
-      if (!game) return send(ws, 'error', { error: 'Game not found or expired.' });
+      if (!game)
+        return send(ws, "error", { error: "Game not found or expired." });
       const result = leaveWaitingList(game, msg.clientId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       socketState.roomId = roomId;
       socketState.clientId = cleanClientId(msg.clientId);
-      send(ws, 'waitingListLeft', { roomId });
+      send(ws, "waitingListLeft", { roomId });
       broadcast(roomId);
       return;
     }
 
     const game = socketState.roomId ? rooms.get(socketState.roomId) : null;
-    if (!game) return send(ws, 'error', { error: 'Join a room first.' });
+    if (!game) return send(ws, "error", { error: "Join a room first." });
 
-    if (msg.type === 'move') {
+    if (msg.type === "move") {
       const timeout = applyTurnTimeout(game);
       if (timeout.ok) {
         broadcast(socketState.roomId);
         const timeoutMessage = timeout.paused
-          ? timeout.origin === 'repeated-player-timeouts'
-            ? 'Same player timed out too often — game paused.'
-            : 'Both players timed out — game paused.'
-          : 'Time expired — turn passed.';
-        return send(ws, 'error', { error: timeoutMessage });
+          ? timeout.origin === "repeated-player-timeouts"
+            ? "Same player timed out too often — game paused."
+            : "Both players timed out — game paused."
+          : "Time expired — turn passed.";
+        return send(ws, "error", { error: timeoutMessage });
       }
       const result = makeMove(game, socketState.playerId, msg.to);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       broadcast(socketState.roomId);
       return;
     }
 
-    if (msg.type === 'leave') {
-      if (!socketState.playerId) return send(ws, 'error', { error: 'You are not occupying a seat.' });
+    if (msg.type === "leave") {
+      if (!socketState.playerId)
+        return send(ws, "error", { error: "You are not occupying a seat." });
       const leavingPlayerId = socketState.playerId;
       const result = leavePlayerAfterOpponentGrace(game, leavingPlayerId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       socketState.playerId = null;
       clearPlayerSocketState(socketState.roomId, leavingPlayerId);
-      send(ws, 'left', {
+      send(ws, "left", {
         playerId: leavingPlayerId,
         roomId: socketState.roomId,
         forfeit: result.forfeit,
@@ -216,11 +267,18 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (msg.type === 'freeSeat') {
-      if (!socketState.playerId) return send(ws, 'error', { error: 'Only the seated opponent can free a disconnected seat.' });
-      const result = freeDisconnectedSeat(game, socketState.playerId, msg.seatId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
-      send(ws, 'seatFreed', {
+    if (msg.type === "freeSeat") {
+      if (!socketState.playerId)
+        return send(ws, "error", {
+          error: "Only the seated opponent can free a disconnected seat.",
+        });
+      const result = freeDisconnectedSeat(
+        game,
+        socketState.playerId,
+        msg.seatId,
+      );
+      if (!result.ok) return send(ws, "error", { error: result.error });
+      send(ws, "seatFreed", {
         playerId: result.playerId,
         roomId: socketState.roomId,
         winner: result.winner,
@@ -230,26 +288,41 @@ wss.on('connection', (ws) => {
       return;
     }
 
-    if (msg.type === 'pause') {
-      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can pause.' });
-      const result = pauseGame(game, { reason: 'manual', byPlayerId: socketState.playerId });
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+    if (msg.type === "pause") {
+      if (!socketState.playerId)
+        return send(ws, "error", { error: "Only joined players can pause." });
+      const result = pauseGame(game, {
+        reason: "manual",
+        byPlayerId: socketState.playerId,
+      });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       broadcast(socketState.roomId);
       return;
     }
 
-    if (msg.type === 'resume') {
-      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can resume.' });
+    if (msg.type === "resume") {
+      if (!socketState.playerId)
+        return send(ws, "error", { error: "Only joined players can resume." });
       const result = resumeGame(game, Date.now(), socketState.playerId);
-      if (!result.ok) return send(ws, 'error', { error: result.error });
+      if (!result.ok) return send(ws, "error", { error: result.error });
       broadcast(socketState.roomId);
       return;
     }
 
-    if (msg.type === 'reset') {
-      if (!socketState.playerId) return send(ws, 'error', { error: 'Only joined players can start a new round.' });
-      if (game.status === 'paused' && game.pause?.byPlayerId && game.pause.byPlayerId !== socketState.playerId) {
-        return send(ws, 'error', { error: 'Only the player who paused or timed out can start a new round while paused.' });
+    if (msg.type === "reset") {
+      if (!socketState.playerId)
+        return send(ws, "error", {
+          error: "Only joined players can start a new round.",
+        });
+      if (
+        game.status === "paused" &&
+        game.pause?.byPlayerId &&
+        game.pause.byPlayerId !== socketState.playerId
+      ) {
+        return send(ws, "error", {
+          error:
+            "Only the player who paused or timed out can start a new round while paused.",
+        });
       }
       resetGame(game);
       broadcast(socketState.roomId);
@@ -257,7 +330,7 @@ wss.on('connection', (ws) => {
     }
   });
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     const state = sockets.get(ws);
     sockets.delete(ws);
     if (!state?.roomId || !state.playerId) return;
@@ -280,35 +353,41 @@ function cleanupExpiredRooms(now = Date.now()) {
       if (state.roomId !== roomId) continue;
       state.roomId = null;
       state.playerId = null;
-      send(client, 'BoardNotFound', { boardCode: roomId, reason: 'not_found_or_expired', message: 'Board not found or expired.' });
+      send(client, "BoardNotFound", {
+        boardCode: roomId,
+        reason: "not_found_or_expired",
+        message: "Board not found or expired.",
+      });
     }
   }
 }
 
 function safeRoomId(value) {
-  const roomId = String(value || '').trim();
+  const roomId = String(value || "").trim();
   return /^[A-Za-z0-9_-]{6,32}$/.test(roomId) ? roomId : null;
 }
 
 function cleanClientId(value) {
-  const clientId = String(value || '').trim();
+  const clientId = String(value || "").trim();
   return clientId ? clientId.slice(0, 96) : null;
 }
 
 function hasOpenPlayerSocket(roomId, playerId) {
   for (const [client, state] of sockets.entries()) {
     if (
-      state.roomId === roomId
-      && state.playerId === playerId
-      && client.readyState === client.OPEN
-    ) return true;
+      state.roomId === roomId &&
+      state.playerId === playerId &&
+      client.readyState === client.OPEN
+    )
+      return true;
   }
   return false;
 }
 
 function clearPlayerSocketState(roomId, playerId) {
   for (const state of sockets.values()) {
-    if (state.roomId === roomId && state.playerId === playerId) state.playerId = null;
+    if (state.roomId === roomId && state.playerId === playerId)
+      state.playerId = null;
   }
 }
 
@@ -317,10 +396,10 @@ function broadcast(roomId) {
   if (!game) return;
   releaseExpiredDisconnectedSeats(game);
   applyTurnTimeout(game);
-  const payload = toLegacyCompatibleStateMessage(game);
+  const payload = statePayloadFromGame(game);
   for (const [client, state] of sockets.entries()) {
     if (state.roomId === roomId && client.readyState === client.OPEN) {
-      send(client, 'state', payload);
+      send(client, "state", payload);
     }
   }
   scheduleRoomTimeout(roomId);
@@ -333,11 +412,14 @@ function scheduleRoomTimeout(roomId) {
   if (!game) return;
   const now = Date.now();
   const delays = [];
-  if (game.status === 'playing' && game.moveTimeLimitMs && game.turnStartedAt) {
+  if (game.status === "playing" && game.moveTimeLimitMs && game.turnStartedAt) {
     delays.push(game.turnStartedAt + game.moveTimeLimitMs - now + 30);
   }
-  for (const playerId of ['p1', 'p2']) {
-    const canBeFreedAt = game.players?.[playerId]?.status === 'disconnected' ? game.players[playerId].canBeFreedAt : null;
+  for (const playerId of ["p1", "p2"]) {
+    const canBeFreedAt =
+      game.players?.[playerId]?.status === "disconnected"
+        ? game.players[playerId].canBeFreedAt
+        : null;
     if (Number.isFinite(canBeFreedAt)) delays.push(canBeFreedAt - now + 30);
   }
   if (!delays.length) return;
@@ -357,23 +439,41 @@ function send(ws, type, payload) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type, ...payload }));
 }
 
+function statePayloadFromGame(game) {
+  return {
+    boardCode: game.roomId,
+    version: Number(game.version || 1),
+    game: publicGame(game),
+  };
+}
+
 function publicRoomSummary(game, requestOrigin) {
   const activeCount = activeSeatCount(game);
   const publicState = publicGame(game);
-  const lastResult = publicState.history.length ? publicState.history[publicState.history.length - 1] : null;
+  const lastResult = publicState.history.length
+    ? publicState.history[publicState.history.length - 1]
+    : null;
   return {
     roomId: game.roomId,
     url: roomUrl(game.roomId, requestOrigin),
     elmUrl: elmRoomUrl(game.roomId, requestOrigin),
-    legacyUrl: legacyRoomUrl(game.roomId, requestOrigin),
     status: game.status,
-    state: publicState.status === 'finished' ? 'BetweenRounds' : publicState.status === 'playing' ? 'SessionActive' : publicState.status === 'paused' ? 'SessionPaused' : activeCount === 1 ? 'OneSeatOccupied' : 'WaitingForPlayers',
+    state:
+      publicState.status === "finished"
+        ? "BetweenRounds"
+        : publicState.status === "playing"
+          ? "SessionActive"
+          : publicState.status === "paused"
+            ? "SessionPaused"
+            : activeCount === 1
+              ? "OneSeatOccupied"
+              : "WaitingForPlayers",
     players: publicState.players,
     occupancy: {
       activeCount,
       vacantCount: 2 - activeCount,
-      p1: publicState.players.p1?.status || 'vacant',
-      p2: publicState.players.p2?.status || 'vacant',
+      p1: publicState.players.p1?.status || "vacant",
+      p2: publicState.players.p2?.status || "vacant",
     },
     score: publicState.score,
     moveCount: Array.isArray(game.moves) ? game.moves.length : 0,
@@ -387,13 +487,13 @@ function publicRoomSummary(game, requestOrigin) {
 }
 
 function roomUrl(roomId, requestOrigin) {
-  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
+  const base =
+    requestOrigin ||
+    process.env.PUBLIC_URL ||
+    (process.env.RAILWAY_PUBLIC_DOMAIN &&
+      `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) ||
+    `http://localhost:${PORT}`;
   return `${base}/?board=${encodeURIComponent(roomId)}`;
-}
-
-function legacyRoomUrl(roomId, requestOrigin) {
-  const base = requestOrigin || process.env.PUBLIC_URL || (process.env.RAILWAY_PUBLIC_DOMAIN && `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`) || `http://localhost:${PORT}`;
-  return `${base}/legacy/room/${encodeURIComponent(roomId)}`;
 }
 
 function elmRoomUrl(roomId, requestOrigin) {
@@ -401,9 +501,9 @@ function elmRoomUrl(roomId, requestOrigin) {
 }
 
 function originFromRequest(req) {
-  const host = req.get('x-forwarded-host') || req.get('host');
+  const host = req.get("x-forwarded-host") || req.get("host");
   if (!host) return null;
-  const protocol = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const protocol = req.get("x-forwarded-proto") || req.protocol || "http";
   return `${protocol}://${host}`;
 }
 

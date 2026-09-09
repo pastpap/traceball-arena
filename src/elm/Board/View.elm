@@ -102,8 +102,8 @@ allBoardPoints =
 -- ── Main view ─────────────────────────────────────────────────────────────────
 
 
-viewBoard : (Point -> msg) -> Maybe String -> Maybe Int -> Board -> Html msg
-viewBoard onMove ownSeat replayIndex board =
+viewBoard : (Point -> msg) -> Maybe String -> Maybe Int -> Bool -> Board -> Html msg
+viewBoard onMove ownSeat replayIndex flipVertical board =
     let
         session =
             board.currentSession
@@ -164,112 +164,122 @@ viewBoard onMove ownSeat replayIndex board =
         , SA.style "width:100%;height:auto;display:block;margin:0 auto"
         , SA.preserveAspectRatio "xMidYMid meet"
         ]
-        [ -- Main pitch background
-          S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "#0cb240" ] []
+        [ S.g
+            [ SA.transform
+                (if flipVertical then
+                    "translate(0 920) scale(1 -1)"
 
-        -- Pitch stripe overlay
-        , S.g [ SA.opacity "0.06", SA.fill "white" ]
-            [ S.polygon [ SA.points "-80,1300 120,0 240,0 40,1300" ] []
-            , S.polygon [ SA.points "300,1300 500,0 620,0 420,1300" ] []
-            , S.polygon [ SA.points "680,1300 880,0 1000,0 800,1300" ] []
+                 else
+                    ""
+                )
             ]
+            [ -- Main pitch background
+              S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "#0cb240" ] []
 
-        -- Gate mesh (goal net texture)
-        , viewGateMesh 0
-        , viewGateMesh 11
-
-        -- Pitch outline lines
-        , S.g
-            [ SA.stroke "#f8fff8"
-            , SA.strokeWidth "8"
-            , SA.fill "none"
-            , SA.strokeLinecap "round"
-            , SA.strokeLinejoin "round"
-            ]
-            [ -- Top side (split at gate)
-              S.line [ SA.x1 (sx 0), SA.y1 (sy 1), SA.x2 (sx 3), SA.y2 (sy 1) ] []
-            , S.line [ SA.x1 (sx 5), SA.y1 (sy 1), SA.x2 (sx 8), SA.y2 (sy 1) ] []
-
-            -- Bottom side (split at gate)
-            , S.line [ SA.x1 (sx 0), SA.y1 (sy 11), SA.x2 (sx 3), SA.y2 (sy 11) ] []
-            , S.line [ SA.x1 (sx 5), SA.y1 (sy 11), SA.x2 (sx 8), SA.y2 (sy 11) ] []
-
-            -- Left side
-            , S.line [ SA.x1 (sx 0), SA.y1 (sy 1), SA.x2 (sx 0), SA.y2 (sy 11) ] []
-
-            -- Right side
-            , S.line [ SA.x1 (sx 8), SA.y1 (sy 1), SA.x2 (sx 8), SA.y2 (sy 11) ] []
-
-            -- Red gate (top)
-            , S.line [ SA.x1 (sx 3), SA.y1 (sy 1), SA.x2 (sx 3), SA.y2 (sy 0) ] []
-            , S.line [ SA.x1 (sx 3), SA.y1 (sy 0), SA.x2 (sx 5), SA.y2 (sy 0) ] []
-            , S.line [ SA.x1 (sx 5), SA.y1 (sy 0), SA.x2 (sx 5), SA.y2 (sy 1) ] []
-
-            -- Blue gate (bottom)
-            , S.line [ SA.x1 (sx 3), SA.y1 (sy 11), SA.x2 (sx 3), SA.y2 (sy 12) ] []
-            , S.line [ SA.x1 (sx 3), SA.y1 (sy 12), SA.x2 (sx 5), SA.y2 (sy 12) ] []
-            , S.line [ SA.x1 (sx 5), SA.y1 (sy 12), SA.x2 (sx 5), SA.y2 (sy 11) ] []
-            ]
-
-        -- Gate post caps (circles at each gate post corner)
-        , viewPostCap 3 1
-        , viewPostCap 5 1
-        , viewPostCap 3 11
-        , viewPostCap 5 11
-        , viewPostCap 3 0
-        , viewPostCap 5 0
-        , viewPostCap 3 12
-        , viewPostCap 5 12
-
-        -- Corner flags
-        , viewCornerFlag 0 1 "#ff3b30"
-        , viewCornerFlag 8 1 "#ff3b30"
-        , viewCornerFlag 0 11 "#0b7cff"
-        , viewCornerFlag 8 11 "#0b7cff"
-
-        -- Grid dots
-        , S.g [] (List.map (viewGridDot visited (pk ball)) allBoardPoints)
-
-        -- Traced move segments
-        , S.g [] (List.map viewMoveSegment moves)
-
-        -- Winner confetti over the scoring gate
-        , case winner of
-            Just winnerId ->
-                viewWinnerConfetti board.version winnerId
-
-            Nothing ->
-                S.g [] []
-
-        -- Legal move targets
-        , S.g [] <|
-            if interactive then
-                List.map (viewLegalTarget onMove turn) legalMoves
-
-            else if not (List.isEmpty legalMoves) then
-                List.map (viewLegalPreview turn) legalMoves
-
-            else
-                []
-
-        -- Ball
-        , S.g []
-            [ S.circle
-                [ SA.cx (sx ball.x)
-                , SA.cy (sy ball.y)
-                , SA.r "15"
-                , SA.fill "#f8fff8"
-                , SA.stroke "rgba(0,0,0,0.2)"
-                , SA.strokeWidth "2"
+            -- Pitch stripe overlay
+            , S.g [ SA.opacity "0.06", SA.fill "white" ]
+                [ S.polygon [ SA.points "-80,1300 120,0 240,0 40,1300" ] []
+                , S.polygon [ SA.points "300,1300 500,0 620,0 420,1300" ] []
+                , S.polygon [ SA.points "680,1300 880,0 1000,0 800,1300" ] []
                 ]
-                []
-            , S.circle
-                [ SA.cx (sx ball.x)
-                , SA.cy (sy ball.y)
-                , SA.r "5"
-                , SA.fill "#101820"
+
+            -- Gate mesh (goal net texture)
+            , viewGateMesh 0
+            , viewGateMesh 11
+
+            -- Pitch outline lines
+            , S.g
+                [ SA.stroke "#f8fff8"
+                , SA.strokeWidth "8"
+                , SA.fill "none"
+                , SA.strokeLinecap "round"
+                , SA.strokeLinejoin "round"
                 ]
-                []
+                [ -- Top side (split at gate)
+                  S.line [ SA.x1 (sx 0), SA.y1 (sy 1), SA.x2 (sx 3), SA.y2 (sy 1) ] []
+                , S.line [ SA.x1 (sx 5), SA.y1 (sy 1), SA.x2 (sx 8), SA.y2 (sy 1) ] []
+
+                -- Bottom side (split at gate)
+                , S.line [ SA.x1 (sx 0), SA.y1 (sy 11), SA.x2 (sx 3), SA.y2 (sy 11) ] []
+                , S.line [ SA.x1 (sx 5), SA.y1 (sy 11), SA.x2 (sx 8), SA.y2 (sy 11) ] []
+
+                -- Left side
+                , S.line [ SA.x1 (sx 0), SA.y1 (sy 1), SA.x2 (sx 0), SA.y2 (sy 11) ] []
+
+                -- Right side
+                , S.line [ SA.x1 (sx 8), SA.y1 (sy 1), SA.x2 (sx 8), SA.y2 (sy 11) ] []
+
+                -- Red gate (top)
+                , S.line [ SA.x1 (sx 3), SA.y1 (sy 1), SA.x2 (sx 3), SA.y2 (sy 0) ] []
+                , S.line [ SA.x1 (sx 3), SA.y1 (sy 0), SA.x2 (sx 5), SA.y2 (sy 0) ] []
+                , S.line [ SA.x1 (sx 5), SA.y1 (sy 0), SA.x2 (sx 5), SA.y2 (sy 1) ] []
+
+                -- Blue gate (bottom)
+                , S.line [ SA.x1 (sx 3), SA.y1 (sy 11), SA.x2 (sx 3), SA.y2 (sy 12) ] []
+                , S.line [ SA.x1 (sx 3), SA.y1 (sy 12), SA.x2 (sx 5), SA.y2 (sy 12) ] []
+                , S.line [ SA.x1 (sx 5), SA.y1 (sy 12), SA.x2 (sx 5), SA.y2 (sy 11) ] []
+                ]
+
+            -- Gate post caps (circles at each gate post corner)
+            , viewPostCap 3 1
+            , viewPostCap 5 1
+            , viewPostCap 3 11
+            , viewPostCap 5 11
+            , viewPostCap 3 0
+            , viewPostCap 5 0
+            , viewPostCap 3 12
+            , viewPostCap 5 12
+
+            -- Corner flags
+            , viewCornerFlag 0 1 "#ff3b30"
+            , viewCornerFlag 8 1 "#ff3b30"
+            , viewCornerFlag 0 11 "#0b7cff"
+            , viewCornerFlag 8 11 "#0b7cff"
+
+            -- Grid dots
+            , S.g [] (List.map (viewGridDot visited (pk ball)) allBoardPoints)
+
+            -- Traced move segments
+            , S.g [] (List.map viewMoveSegment moves)
+
+            -- Winner confetti over the scoring gate
+            , case winner of
+                Just winnerId ->
+                    viewWinnerConfetti board.version winnerId
+
+                Nothing ->
+                    S.g [] []
+
+            -- Legal move targets
+            , S.g [] <|
+                if interactive then
+                    List.map (viewLegalTarget onMove turn) legalMoves
+
+                else if not (List.isEmpty legalMoves) then
+                    List.map (viewLegalPreview turn) legalMoves
+
+                else
+                    []
+
+            -- Ball
+            , S.g []
+                [ S.circle
+                    [ SA.cx (sx ball.x)
+                    , SA.cy (sy ball.y)
+                    , SA.r "15"
+                    , SA.fill "#f8fff8"
+                    , SA.stroke "rgba(0,0,0,0.2)"
+                    , SA.strokeWidth "2"
+                    ]
+                    []
+                , S.circle
+                    [ SA.cx (sx ball.x)
+                    , SA.cy (sy ball.y)
+                    , SA.r "5"
+                    , SA.fill "#101820"
+                    ]
+                    []
+                ]
             ]
         ]
 

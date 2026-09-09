@@ -25,7 +25,6 @@ Use this checklist during the manual browser pass. Capture one screenshot per ro
 | Replay controls       |                |                |               |                | Show replay step-through and return to live board. |
 | Winner overlay        |                |                |               |                | Show winner banner and new-round button.           |
 | PWA refresh behavior  |                |                |               |                | Show version/cache proof and refreshed shell.      |
-| Legacy fallback       |                |                |               |                | Show /legacy and TRACEBALL_FRONTEND=legacy route.  |
 
 ## Screenshot naming convention
 

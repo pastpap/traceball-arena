@@ -1,4 +1,4 @@
-module Board.Decode exposing (boardDecoder, boardStateDecoder, personDecoder, pointDecoder, roundDecoder, seatDecoder, seatStateDecoder, sessionDecoder)
+module Board.Decode exposing (boardDecoder, boardFromPublicGameDecoder, boardStateDecoder, personDecoder, pointDecoder, roundDecoder, seatDecoder, seatStateDecoder, sessionDecoder)
 
 import Board.Types exposing (..)
 import Json.Decode as Decode exposing (Decoder)
@@ -43,8 +43,8 @@ boardPartial code version state blue red currentSession watchers waitingList cre
 personDecoder : Decoder Person
 personDecoder =
     Decode.map2 Person
-        (Decode.field "displayName" Decode.string)
-        (Decode.maybe (Decode.field "joinedAt" Decode.int))
+        (Decode.oneOf [ Decode.field "displayName" Decode.string, Decode.field "name" Decode.string, Decode.succeed "Guest" ])
+        (Decode.oneOf [ Decode.field "joinedAt" (Decode.nullable Decode.int), Decode.succeed Nothing ])
 
 
 seatDecoder : Decoder Seat
@@ -267,3 +267,268 @@ sessionStateDecoder =
                     other ->
                         UnknownSessionState other
             )
+
+
+boardFromPublicGameDecoder : String -> Int -> Decoder Board
+boardFromPublicGameDecoder boardCode version =
+    Decode.value
+        |> Decode.andThen
+            (\value ->
+                let
+                    defaultBlue =
+                        { color = "blue", state = Vacant, player = Nothing, disconnectedAt = Nothing, canBeFreedAt = Nothing, canBeFreed = False }
+
+                    defaultRed =
+                        { color = "red", state = Vacant, player = Nothing, disconnectedAt = Nothing, canBeFreedAt = Nothing, canBeFreed = False }
+
+                    roomId =
+                        decodeWithDefault (Decode.field "roomId" Decode.string) boardCode value
+
+                    status =
+                        decodeWithDefault (Decode.field "status" Decode.string) "waiting" value
+
+                    seats =
+                        decodeWithDefault (Decode.field "players" publicSeatsDecoder) ( defaultBlue, defaultRed ) value
+
+                    turn =
+                        decodeWithDefault (Decode.field "turn" Decode.string) "p1" value
+
+                    ball =
+                        decodeWithDefault (Decode.field "ball" pointDecoder) { x = 4, y = 6 } value
+
+                    visited =
+                        decodeWithDefault (Decode.field "visited" (Decode.list Decode.string)) [] value
+
+                    segments =
+                        decodeWithDefault (Decode.field "segments" (Decode.list Decode.string)) [] value
+
+                    moves =
+                        decodeWithDefault (Decode.field "moves" (Decode.list moveDecoder)) [] value
+
+                    score =
+                        decodeWithDefault (Decode.field "score" publicScoreDecoder) { blue = 0, red = 0 } value
+
+                    timerMs =
+                        decodeWithDefault (Decode.field "moveTimeLimitMs" Decode.int) 0 value
+
+                    turnStartedAt =
+                        decodeWithDefault (Decode.field "turnStartedAt" (Decode.nullable Decode.int)) Nothing value
+
+                    winner =
+                        decodeWithDefault (Decode.field "winner" (Decode.nullable Decode.string)) Nothing value
+
+                    endReason =
+                        decodeWithDefault (Decode.field "endReason" (Decode.nullable Decode.string)) Nothing value
+
+                    waitingList =
+                        decodeWithDefault (Decode.field "waitingList" (Decode.list personDecoder)) [] value
+
+                    watchers =
+                        decodeWithDefault (Decode.field "watchers" (Decode.list personDecoder)) [] value
+
+                    legalMoves =
+                        decodeWithDefault (Decode.field "legalMoves" (Decode.list pointDecoder)) [] value
+
+                    createdAt =
+                        decodeWithDefault (Decode.field "createdAt" Decode.int) 0 value
+
+                    updatedAt =
+                        decodeWithDefault (Decode.field "updatedAt" Decode.int) 0 value
+
+                    expiresAt =
+                        decodeWithDefault (Decode.field "expiresAt" Decode.int) 0 value
+
+                    code =
+                        if String.isEmpty roomId then
+                            boardCode
+
+                        else
+                            roomId
+
+                    timerSeconds =
+                        if timerMs >= 0 then
+                            Just (round (toFloat timerMs / 1000))
+
+                        else
+                            Nothing
+
+                    deadlineAt =
+                        if timerMs > 0 then
+                            turnStartedAt |> Maybe.map (\ts -> ts + timerMs)
+
+                        else
+                            Nothing
+
+                    roundState =
+                        if status == "finished" then
+                            "PendingContinue"
+
+                        else
+                            "Active"
+
+                    round_ =
+                        { state = roundState
+                        , turn = normalizeTurnSeat turn
+                        , ball = ball
+                        , visited = visited
+                        , segments = segments
+                        , moves = moves
+                        , legalMoves = legalMoves
+                        , deadlineAt = deadlineAt
+                        , winner = winner
+                        , endReason = endReason
+                        }
+
+                    currentSession =
+                        if status == "playing" || status == "paused" || status == "finished" then
+                            Just
+                                { id = decodeWithDefault (Decode.field "sessionId" (Decode.nullable Decode.string)) Nothing value
+                                , state = sessionStateFromPublicGame status
+                                , score = score
+                                , turn = Just (normalizeTurnSeat turn)
+                                , winner = winner
+                                , endReason = endReason
+                                , moveCount = List.length moves
+                                , round = Just round_
+                                , moveTimeLimitSeconds = timerSeconds
+                                }
+
+                        else
+                            Nothing
+                in
+                Decode.succeed
+                    { code = code
+                    , version = version
+                    , state = boardStateFromPublicGame status seats
+                    , blue = Tuple.first seats
+                    , red = Tuple.second seats
+                    , currentSession = currentSession
+                    , watchers = watchers
+                    , waitingList = waitingList
+                    , createdAt = createdAt
+                    , updatedAt = updatedAt
+                    , expiresAt = expiresAt
+                    }
+            )
+
+
+decodeWithDefault : Decoder a -> a -> Decode.Value -> a
+decodeWithDefault decoder fallback value =
+    case Decode.decodeValue decoder value of
+        Ok result ->
+            result
+
+        Err _ ->
+            fallback
+
+
+publicScoreDecoder : Decoder Score
+publicScoreDecoder =
+    Decode.map2 Score
+        (Decode.oneOf [ Decode.field "p1" Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.field "p2" Decode.int, Decode.succeed 0 ])
+
+
+publicSeatsDecoder : Decoder ( Seat, Seat )
+publicSeatsDecoder =
+    Decode.map2 Tuple.pair
+        (Decode.field "p1" (publicSeatDecoder "blue" "Blue"))
+        (Decode.field "p2" (publicSeatDecoder "red" "Red"))
+
+
+publicSeatDecoder : String -> String -> Decoder Seat
+publicSeatDecoder color fallbackName =
+    Decode.map5
+        (\rawStatus name disconnectedAt canBeFreedAt canBeFreed ->
+            let
+                status =
+                    publicSeatState rawStatus
+            in
+            { color = color
+            , state = status
+            , player =
+                if status == Vacant then
+                    Nothing
+
+                else
+                    Just { displayName = name, joinedAt = Nothing }
+            , disconnectedAt = disconnectedAt
+            , canBeFreedAt = canBeFreedAt
+            , canBeFreed = canBeFreed
+            }
+        )
+        (Decode.oneOf [ Decode.field "status" Decode.string, Decode.succeed "vacant" ])
+        (Decode.oneOf [ Decode.field "name" Decode.string, Decode.succeed fallbackName ])
+        (Decode.oneOf [ Decode.field "disconnectedAt" (Decode.nullable Decode.int), Decode.succeed Nothing ])
+        (Decode.oneOf [ Decode.field "canBeFreedAt" (Decode.nullable Decode.int), Decode.succeed Nothing ])
+        (Decode.oneOf [ Decode.field "canBeFreed" Decode.bool, Decode.succeed False ])
+
+
+publicSeatState : String -> SeatState
+publicSeatState rawStatus =
+    case rawStatus of
+        "active" ->
+            Occupied
+
+        "disconnected" ->
+            DisconnectedReserved
+
+        "vacant" ->
+            Vacant
+
+        other ->
+            UnknownSeatState other
+
+
+boardStateFromPublicGame : String -> ( Seat, Seat ) -> BoardState
+boardStateFromPublicGame status seats =
+    if status == "finished" then
+        BetweenRounds
+
+    else if status == "playing" then
+        SessionActive
+
+    else if status == "paused" then
+        SessionPaused
+
+    else
+        let
+            blueSeat =
+                Tuple.first seats
+
+            redSeat =
+                Tuple.second seats
+
+            activeCount =
+                List.length (List.filter identity [ blueSeat.state == Occupied, redSeat.state == Occupied ])
+        in
+        if activeCount == 1 then
+            OneSeatOccupied
+
+        else
+            WaitingForPlayers
+
+
+sessionStateFromPublicGame : String -> SessionState
+sessionStateFromPublicGame status =
+    case status of
+        "playing" ->
+            Active
+
+        "paused" ->
+            Paused
+
+        "finished" ->
+            BetweenRoundSession
+
+        other ->
+            UnknownSessionState other
+
+
+normalizeTurnSeat : String -> String
+normalizeTurnSeat turn =
+    if turn == "p2" || turn == "red" then
+        "red"
+
+    else
+        "blue"
