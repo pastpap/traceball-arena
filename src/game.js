@@ -14,6 +14,7 @@ export function createGame(roomId, options = {}) {
   const now = Number.isFinite(options.now) ? options.now : Date.now();
   const game = {
     roomId,
+    creatorClientId: cleanClient(options.creatorClientId),
     status: "waiting",
     players: { p1: createSeat("p1"), p2: createSeat("p2") },
     turn: "p1",

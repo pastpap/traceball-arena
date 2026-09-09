@@ -739,6 +739,7 @@ h2 {
 .elm-match-actions {
   display: flex;
   gap: 10px;
+  justify-content: flex-end;
 }
 .elm-match-icon {
   display: inline-grid;
@@ -749,6 +750,25 @@ h2 {
   padding: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.08);
+}
+.elm-match-icon.share {
+  border-color: rgba(98, 232, 248, 0.58);
+  background: rgba(11, 124, 255, 0.14);
+  color: #e8fbff;
+}
+.elm-match-share-corner {
+  /* removes from default actions flow when placed in heading row */
+  flex-shrink: 0;
+}
+.elm-match-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+}
+.elm-match-heading-title {
+  margin: 0;
 }
 .elm-match-icon.danger {
   border-color: rgba(255, 59, 48, 0.55);

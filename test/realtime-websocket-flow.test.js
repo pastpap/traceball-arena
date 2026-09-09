@@ -47,11 +47,11 @@ async function stopServer(child) {
   if (child.exitCode == null) child.kill("SIGKILL");
 }
 
-async function createRoom(baseUrl, moveTimeLimitSeconds = 5) {
+async function createRoom(baseUrl, moveTimeLimitSeconds = 5, clientId = null) {
   const response = await fetch(`${baseUrl}/api/rooms`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ moveTimeLimitSeconds }),
+    body: JSON.stringify({ moveTimeLimitSeconds, clientId }),
   });
   expect(response.ok).toBe(true);
   return response.json();
@@ -59,6 +59,16 @@ async function createRoom(baseUrl, moveTimeLimitSeconds = 5) {
 
 async function roomSummary(baseUrl, roomId) {
   const response = await fetch(`${baseUrl}/api/rooms`, { cache: "no-store" });
+  expect(response.ok).toBe(true);
+  const payload = await response.json();
+  return payload.rooms.find((room) => room.roomId === roomId);
+}
+
+async function roomSummaryForClient(baseUrl, roomId, clientId) {
+  const response = await fetch(
+    `${baseUrl}/api/rooms?clientId=${encodeURIComponent(clientId)}`,
+    { cache: "no-store" },
+  );
   expect(response.ok).toBe(true);
   const payload = await response.json();
   return payload.rooms.find((room) => room.roomId === roomId);
@@ -100,6 +110,49 @@ async function closeClient(client) {
 }
 
 describe("realtime WebSocket main playing flows", () => {
+  it("marks owned boards in room summaries and only lets the creator delete them", async () => {
+    const port = randomPort();
+    const server = await startServer(port);
+    try {
+      const { roomId } = await createRoom(server.baseUrl, 5, "owner-client");
+
+      const ownerSummary = await roomSummaryForClient(
+        server.baseUrl,
+        roomId,
+        "owner-client",
+      );
+      const otherSummary = await roomSummaryForClient(
+        server.baseUrl,
+        roomId,
+        "other-client",
+      );
+
+      expect(ownerSummary?.isOwner).toBe(true);
+      expect(otherSummary?.isOwner).toBe(false);
+
+      const forbiddenDelete = await fetch(
+        `${server.baseUrl}/api/rooms/${roomId}?clientId=other-client`,
+        { method: "DELETE" },
+      );
+      expect(forbiddenDelete.status).toBe(403);
+
+      const allowedDelete = await fetch(
+        `${server.baseUrl}/api/rooms/${roomId}?clientId=owner-client`,
+        { method: "DELETE" },
+      );
+      expect(allowedDelete.ok).toBe(true);
+
+      const deletedSummary = await roomSummaryForClient(
+        server.baseUrl,
+        roomId,
+        "owner-client",
+      );
+      expect(deletedSummary).toBeUndefined();
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
   it("does not disconnect a seated player when an older duplicate socket closes after same-client rejoin", async () => {
     const port = randomPort();
     const server = await startServer(port);

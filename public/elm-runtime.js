@@ -5612,7 +5612,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -5639,6 +5639,9 @@ var $author$project$Main$init = function (flags) {
 			model,
 			{connectionStatus: 'connecting', showLobby: false}) : model,
 		$elm$core$Platform$Cmd$batch(initialCommands));
+};
+var $author$project$Main$ClientNotice = function (a) {
+	return {$: 'ClientNotice', a: a};
 };
 var $author$project$Main$ConnectionChanged = function (a) {
 	return {$: 'ConnectionChanged', a: a};
@@ -6059,6 +6062,7 @@ var $elm$time$Time$every = F2(
 var $elm$json$Json$Decode$value = _Json_decodeValue;
 var $author$project$Main$incomingBoardCreated = _Platform_incomingPort('incomingBoardCreated', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingBoardList = _Platform_incomingPort('incomingBoardList', $elm$json$Json$Decode$value);
+var $author$project$Main$incomingClientNotice = _Platform_incomingPort('incomingClientNotice', $elm$json$Json$Decode$string);
 var $author$project$Main$incomingConnectionStatus = _Platform_incomingPort('incomingConnectionStatus', $elm$json$Json$Decode$string);
 var $author$project$Main$incomingSocketMessage = _Platform_incomingPort('incomingSocketMessage', $elm$json$Json$Decode$value);
 var $elm$browser$Browser$Events$Window = {$: 'Window'};
@@ -6284,6 +6288,7 @@ var $author$project$Main$subscriptions = function (_v0) {
 				$author$project$Main$incomingConnectionStatus($author$project$Main$ConnectionChanged),
 				$author$project$Main$incomingBoardList($author$project$Main$ReceiveBoardList),
 				$author$project$Main$incomingBoardCreated($author$project$Main$ReceiveBoardCreated),
+				$author$project$Main$incomingClientNotice($author$project$Main$ClientNotice),
 				$elm$browser$Browser$Events$onResize($author$project$Main$ViewportResized),
 				A2($elm$time$Time$every, 250, $author$project$Main$Tick)
 			]));
@@ -6759,6 +6764,18 @@ var $author$project$Main$applyLocalMove = F3(
 			}
 		}
 	});
+var $author$project$Main$applyToastTick = F2(
+	function (nowMs, model) {
+		var _v0 = _Utils_Tuple2(model.toast, model.toastExpiresAtMs);
+		if ((_v0.a.$ === 'Just') && (_v0.b.$ === 'Just')) {
+			var expiresAtMs = _v0.b.a;
+			return (_Utils_cmp(nowMs, expiresAtMs) > -1) ? _Utils_update(
+				model,
+				{toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing}) : model;
+		} else {
+			return model;
+		}
+	});
 var $author$project$Protocol$boardNotFoundCode = F2(
 	function (payload, fallback) {
 		var _v0 = payload.boardCode;
@@ -6769,12 +6786,12 @@ var $author$project$Protocol$boardNotFoundCode = F2(
 			return fallback;
 		}
 	});
-var $author$project$Main$BoardSummary = F5(
-	function (roomId, state, activeCount, vacantCount, moveCount) {
-		return {activeCount: activeCount, moveCount: moveCount, roomId: roomId, state: state, vacantCount: vacantCount};
+var $author$project$Main$BoardSummary = F6(
+	function (roomId, state, activeCount, vacantCount, moveCount, isOwner) {
+		return {activeCount: activeCount, isOwner: isOwner, moveCount: moveCount, roomId: roomId, state: state, vacantCount: vacantCount};
 	});
-var $author$project$Main$boardSummaryDecoder = A6(
-	$elm$json$Json$Decode$map5,
+var $author$project$Main$boardSummaryDecoder = A7(
+	$elm$json$Json$Decode$map6,
 	$author$project$Main$BoardSummary,
 	A2($elm$json$Json$Decode$field, 'roomId', $elm$json$Json$Decode$string),
 	$elm$json$Json$Decode$oneOf(
@@ -6808,6 +6825,12 @@ var $author$project$Main$boardSummaryDecoder = A6(
 			[
 				A2($elm$json$Json$Decode$field, 'moveCount', $elm$json$Json$Decode$int),
 				$elm$json$Json$Decode$succeed(0)
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$field, 'isOwner', $elm$json$Json$Decode$bool),
+				$elm$json$Json$Decode$succeed(false)
 			])));
 var $author$project$Main$CreatedBoardInfo = F2(
 	function (roomId, url) {
@@ -7987,7 +8010,12 @@ var $author$project$Main$update = F2(
 							return _Utils_Tuple2(
 								_Utils_update(
 									model,
-									{error: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing}),
+									{
+										error: $elm$core$Maybe$Nothing,
+										joinedSeat: $elm$core$Maybe$Nothing,
+										toast: $elm$core$Maybe$Just('You left the board.'),
+										toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 2200)
+									}),
 								$elm$core$Platform$Cmd$none);
 						case 'WaitingListJoined':
 							return _Utils_Tuple2(
@@ -7999,13 +8027,21 @@ var $author$project$Main$update = F2(
 							return _Utils_Tuple2(
 								_Utils_update(
 									model,
-									{error: $elm$core$Maybe$Nothing}),
+									{
+										error: $elm$core$Maybe$Nothing,
+										toast: $elm$core$Maybe$Just('You left the waiting list.'),
+										toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 2200)
+									}),
 								$elm$core$Platform$Cmd$none);
 						case 'SeatFreed':
 							return _Utils_Tuple2(
 								_Utils_update(
 									model,
-									{error: $elm$core$Maybe$Nothing}),
+									{
+										error: $elm$core$Maybe$Nothing,
+										toast: $elm$core$Maybe$Just('Seat released.'),
+										toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 2200)
+									}),
 								$elm$core$Platform$Cmd$none);
 						case 'ServerError':
 							var message = serverMessage.a;
@@ -8047,44 +8083,51 @@ var $author$project$Main$update = F2(
 			case 'Tick':
 				var now = msg.a;
 				var nowMs = $elm$time$Time$posixToMillis(now);
+				var withToast = function (updatedModel) {
+					return A2($author$project$Main$applyToastTick, nowMs, updatedModel);
+				};
 				var _v4 = model.localGame;
 				if (_v4.$ === 'Just') {
 					var lg = _v4.a;
 					if (model.localPaused) {
 						return _Utils_Tuple2(
-							_Utils_update(
-								model,
-								{currentTimeMs: nowMs}),
+							withToast(
+								_Utils_update(
+									model,
+									{currentTimeMs: nowMs})),
 							$elm$core$Platform$Cmd$none);
 					} else {
 						var _v5 = A2($author$project$Main$expireLocalTurnIfNeeded, nowMs, lg);
 						if (_v5.$ === 'Just') {
 							var nextGame = _v5.a;
 							return _Utils_Tuple2(
-								_Utils_update(
-									model,
-									{
-										currentTimeMs: nowMs,
-										localGame: $elm$core$Maybe$Just(nextGame),
-										localPaused: _Utils_eq(nextGame.turnStartedAtMs, $elm$core$Maybe$Nothing) && _Utils_eq(nextGame.winner, $elm$core$Maybe$Nothing)
-									}),
+								withToast(
+									_Utils_update(
+										model,
+										{
+											currentTimeMs: nowMs,
+											localGame: $elm$core$Maybe$Just(nextGame),
+											localPaused: _Utils_eq(nextGame.turnStartedAtMs, $elm$core$Maybe$Nothing) && _Utils_eq(nextGame.winner, $elm$core$Maybe$Nothing)
+										})),
 								A2(
 									$author$project$Main$persistLocalCmd,
 									$elm$core$Maybe$Just(nextGame),
 									_Utils_eq(nextGame.turnStartedAtMs, $elm$core$Maybe$Nothing) && _Utils_eq(nextGame.winner, $elm$core$Maybe$Nothing)));
 						} else {
 							return _Utils_Tuple2(
-								_Utils_update(
-									model,
-									{currentTimeMs: nowMs}),
+								withToast(
+									_Utils_update(
+										model,
+										{currentTimeMs: nowMs})),
 								$elm$core$Platform$Cmd$none);
 						}
 					}
 				} else {
 					return _Utils_Tuple2(
-						_Utils_update(
-							model,
-							{currentTimeMs: nowMs}),
+						withToast(
+							_Utils_update(
+								model,
+								{currentTimeMs: nowMs})),
 						$elm$core$Platform$Cmd$none);
 				}
 			case 'ViewportMeasured':
@@ -8197,6 +8240,32 @@ var $author$project$Main$update = F2(
 									'roomId',
 									$elm$json$Json$Encode$string(roomId))
 								])))) : _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'DeleteBoard':
+				var roomId = msg.a;
+				return $author$project$Main$isValidBoardCode(roomId) ? _Utils_Tuple2(
+					model,
+					$author$project$Main$outgoingClientCommand(
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'type',
+									$elm$json$Json$Encode$string('deleteBoard')),
+									_Utils_Tuple2(
+									'roomId',
+									$elm$json$Json$Encode$string(roomId))
+								])))) : _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'ClientNotice':
+				var message = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							error: $elm$core$Maybe$Nothing,
+							toast: $elm$core$Maybe$Just(message),
+							toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 2200)
+						}),
+					$elm$core$Platform$Cmd$none);
 			case 'PauseOnlineGame':
 				return _Utils_Tuple2(
 					model,
@@ -8552,7 +8621,14 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{dismissedWinnerKey: $elm$core$Maybe$Nothing, error: $elm$core$Maybe$Nothing, localGame: $elm$core$Maybe$Nothing, localPaused: false}),
+						{
+							dismissedWinnerKey: $elm$core$Maybe$Nothing,
+							error: $elm$core$Maybe$Nothing,
+							localGame: $elm$core$Maybe$Nothing,
+							localPaused: false,
+							toast: $elm$core$Maybe$Just('Local game discarded.'),
+							toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 2200)
+						}),
 					A2($author$project$Main$persistLocalCmd, $elm$core$Maybe$Nothing, false));
 			case 'UpdateLocalBlueName':
 				var raw = msg.a;
@@ -14820,6 +14896,9 @@ var $mdgriffith$elm_ui$Element$text = function (content) {
 var $author$project$Main$CopyBoardLink = function (a) {
 	return {$: 'CopyBoardLink', a: a};
 };
+var $author$project$Main$DeleteBoard = function (a) {
+	return {$: 'DeleteBoard', a: a};
+};
 var $author$project$Main$boardSummaryStateLabel = function (state) {
 	switch (state) {
 		case 'WaitingForPlayers':
@@ -15154,7 +15233,36 @@ var $author$project$Main$viewBoardCard = function (board) {
 						$mdgriffith$elm_ui$Element$text('Copy')),
 					onPress: $elm$core$Maybe$Just(
 						$author$project$Main$CopyBoardLink(board.roomId))
-				})
+				}),
+				board.isOwner ? A2(
+				$mdgriffith$elm_ui$Element$Input$button,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width(
+						$mdgriffith$elm_ui$Element$px(86)),
+						$mdgriffith$elm_ui$Element$height(
+						$mdgriffith$elm_ui$Element$px(44)),
+						$mdgriffith$elm_ui$Element$Border$rounded(14),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 219, 80, 73)),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 59, 48, 36)),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 255, 211, 208)),
+						$mdgriffith$elm_ui$Element$Font$size(14),
+						$mdgriffith$elm_ui$Element$Font$bold,
+						$mdgriffith$elm_ui$Element$padding(0)
+					]),
+				{
+					label: A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+						$mdgriffith$elm_ui$Element$text('Delete')),
+					onPress: $elm$core$Maybe$Just(
+						$author$project$Main$DeleteBoard(board.roomId))
+				}) : $mdgriffith$elm_ui$Element$none
 			]));
 };
 var $author$project$Main$viewBoardListSection = function (model) {
@@ -19226,6 +19334,94 @@ var $author$project$Main$viewRoundSummaryHtml = F4(
 					A4($author$project$Main$viewGhostButtonHtml, 'elm-match-continue', true, onNewRound, 'Continue / New Round')
 				]));
 	});
+var $author$project$Main$shareIconSvg = A2(
+	$elm$svg$Svg$svg,
+	_List_fromArray(
+		[
+			$elm$svg$Svg$Attributes$viewBox('0 0 24 24'),
+			$elm$svg$Svg$Attributes$fill('none'),
+			$elm$svg$Svg$Attributes$stroke('currentColor'),
+			$elm$svg$Svg$Attributes$strokeWidth('2.2'),
+			$elm$svg$Svg$Attributes$strokeLinecap('round'),
+			$elm$svg$Svg$Attributes$strokeLinejoin('round'),
+			A2($elm$html$Html$Attributes$attribute, 'aria-hidden', 'true'),
+			$elm$svg$Svg$Attributes$width('18'),
+			$elm$svg$Svg$Attributes$height('18')
+		]),
+	_List_fromArray(
+		[
+			A2(
+			$elm$svg$Svg$circle,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$cx('18'),
+					$elm$svg$Svg$Attributes$cy('5'),
+					$elm$svg$Svg$Attributes$r('3')
+				]),
+			_List_Nil),
+			A2(
+			$elm$svg$Svg$circle,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$cx('6'),
+					$elm$svg$Svg$Attributes$cy('12'),
+					$elm$svg$Svg$Attributes$r('3')
+				]),
+			_List_Nil),
+			A2(
+			$elm$svg$Svg$circle,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$cx('18'),
+					$elm$svg$Svg$Attributes$cy('19'),
+					$elm$svg$Svg$Attributes$r('3')
+				]),
+			_List_Nil),
+			A2(
+			$elm$svg$Svg$line,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$x1('8.59'),
+					$elm$svg$Svg$Attributes$y1('13.51'),
+					$elm$svg$Svg$Attributes$x2('15.42'),
+					$elm$svg$Svg$Attributes$y2('17.49')
+				]),
+			_List_Nil),
+			A2(
+			$elm$svg$Svg$line,
+			_List_fromArray(
+				[
+					$elm$svg$Svg$Attributes$x1('15.41'),
+					$elm$svg$Svg$Attributes$y1('6.51'),
+					$elm$svg$Svg$Attributes$x2('8.59'),
+					$elm$svg$Svg$Attributes$y2('10.49')
+				]),
+			_List_Nil)
+		]));
+var $author$project$Main$viewShareIconButtonHtml = F3(
+	function (className, onPress, ariaLabel) {
+		return A2(
+			$elm$html$Html$button,
+			_Utils_ap(
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$type_('button'),
+						$elm$html$Html$Attributes$classList(
+						_List_fromArray(
+							[
+								_Utils_Tuple2(className, true),
+								_Utils_Tuple2(
+								'hidden',
+								_Utils_eq(onPress, $elm$core$Maybe$Nothing))
+							])),
+						$elm$html$Html$Attributes$disabled(
+						_Utils_eq(onPress, $elm$core$Maybe$Nothing)),
+						A2($elm$html$Html$Attributes$attribute, 'aria-label', ariaLabel)
+					]),
+				$author$project$Main$onClickAttributes(onPress)),
+			_List_fromArray(
+				[$author$project$Main$shareIconSvg]));
+	});
 var $author$project$Main$viewSquareIconButtonHtml = F4(
 	function (className, onPress, icon, ariaLabel) {
 		return A2(
@@ -19415,29 +19611,6 @@ var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 							[
 								$elm$html$Html$text(config.turnIndicatorText)
 							])),
-						function () {
-						var _v0 = config.shareAction;
-						if (_v0.$ === 'Just') {
-							var shareMsg = _v0.a;
-							return A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('play-board-actions active')
-									]),
-								_List_fromArray(
-									[
-										A4(
-										$author$project$Main$viewGhostButtonHtml,
-										'play-share-button ghost',
-										true,
-										$elm$core$Maybe$Just(shareMsg),
-										'Share board')
-									]));
-						} else {
-							return $elm$html$Html$text('');
-						}
-					}(),
 						A7($author$project$Main$viewBoardStageHtml, true, config, blueName, redName, blueScore, redScore, winnerName),
 						A2($author$project$Main$viewReplayHtml, config.replayIndex, config.moveCount)
 					])),
@@ -19460,11 +19633,24 @@ var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 							_List_fromArray(
 								[
 									A2(
-									$elm$html$Html$h2,
-									_List_Nil,
+									$elm$html$Html$div,
 									_List_fromArray(
 										[
-											$elm$html$Html$text('Match')
+											$elm$html$Html$Attributes$class('elm-match-heading')
+										]),
+									_List_fromArray(
+										[
+											A2(
+											$elm$html$Html$h2,
+											_List_fromArray(
+												[
+													$elm$html$Html$Attributes$class('elm-match-heading-title')
+												]),
+											_List_fromArray(
+												[
+													$elm$html$Html$text('Match')
+												])),
+											A3($author$project$Main$viewShareIconButtonHtml, 'elm-match-icon share elm-match-share-corner', config.shareAction, 'Share board')
 										])),
 									A2(
 									$elm$html$Html$p,
@@ -20095,6 +20281,35 @@ var $author$project$Main$viewMobileTimerChip = F2(
 			return $mdgriffith$elm_ui$Element$none;
 		}
 	});
+var $author$project$Main$viewShareMobileButton = function (shareMsg) {
+	return A2(
+		$mdgriffith$elm_ui$Element$Input$button,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				A2($mdgriffith$elm_ui$Element$paddingXY, 0, 10),
+				$mdgriffith$elm_ui$Element$Border$rounded(16),
+				$mdgriffith$elm_ui$Element$Border$width(1),
+				$mdgriffith$elm_ui$Element$Border$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 98, 232, 248)),
+				$mdgriffith$elm_ui$Element$Background$color(
+				A4($mdgriffith$elm_ui$Element$rgba255, 11, 124, 255, 36)),
+				$mdgriffith$elm_ui$Element$Font$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 232, 251, 255)),
+				$mdgriffith$elm_ui$Element$Font$size(16),
+				$mdgriffith$elm_ui$Element$Font$bold,
+				$mdgriffith$elm_ui$Element$htmlAttribute(
+				A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Share'))
+			]),
+		{
+			label: A2(
+				$mdgriffith$elm_ui$Element$el,
+				_List_fromArray(
+					[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+				$mdgriffith$elm_ui$Element$html($author$project$Main$shareIconSvg)),
+			onPress: $elm$core$Maybe$Just(shareMsg)
+		});
+};
 var $mdgriffith$elm_ui$Internal$Model$Padding = F5(
 	function (a, b, c, d, e) {
 		return {$: 'Padding', a: a, b: b, c: c, d: d, e: e};
@@ -20452,7 +20667,7 @@ var $author$project$Main$viewMobileTopCard = F6(
 								A2(
 								$elm$core$Maybe$map,
 								function (msg) {
-									return A4($author$project$Main$viewMobileActionButton, false, msg, '↗', 'Share');
+									return $author$project$Main$viewShareMobileButton(msg);
 								},
 								config.shareAction),
 								A2(
@@ -21370,6 +21585,18 @@ var $author$project$Main$viewTimerBottomSheet = function (current) {
 								]))))
 				])));
 };
+var $author$project$Main$viewToast = function (message) {
+	return A2(
+		$mdgriffith$elm_ui$Element$el,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$htmlAttribute(
+				$elm$html$Html$Attributes$id('toast')),
+				$mdgriffith$elm_ui$Element$htmlAttribute(
+				$elm$html$Html$Attributes$class('show'))
+			]),
+		$mdgriffith$elm_ui$Element$text(message));
+};
 var $author$project$Main$view = function (model) {
 	var hasGame = (!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing));
 	return A2(
@@ -21408,7 +21635,17 @@ var $author$project$Main$view = function (model) {
 						[
 							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
 							$mdgriffith$elm_ui$Element$inFront(
-							(model.showTimerSheet && (model.viewportWidth <= 640)) ? $author$project$Main$viewTimerBottomSheet(model.onlineMoveTimer) : $mdgriffith$elm_ui$Element$none)
+							(model.showTimerSheet && (model.viewportWidth <= 640)) ? $author$project$Main$viewTimerBottomSheet(model.onlineMoveTimer) : $mdgriffith$elm_ui$Element$none),
+							$mdgriffith$elm_ui$Element$inFront(
+							function () {
+								var _v0 = model.toast;
+								if (_v0.$ === 'Just') {
+									var message = _v0.a;
+									return $author$project$Main$viewToast(message);
+								} else {
+									return $mdgriffith$elm_ui$Element$none;
+								}
+							}())
 						]),
 					$author$project$Main$viewApp(model)))
 			]));

@@ -184,6 +184,8 @@ async function mountElmRuntime(root, { boardCode } = {}) {
 
   const push = (msg) => app?.ports?.incomingSocketMessage?.send?.(msg);
   const pushStatus = (s) => app?.ports?.incomingConnectionStatus?.send?.(s);
+  const pushNotice = (message) =>
+    app?.ports?.incomingClientNotice?.send?.(message);
   let sock = null;
 
   const closeSocket = () => {
@@ -269,7 +271,9 @@ async function mountElmRuntime(root, { boardCode } = {}) {
       return;
     }
     if (t === "fetchBoardList") {
-      fetch("/api/rooms", { cache: "no-store" })
+      fetch(`/api/rooms?clientId=${encodeURIComponent(clientId)}`, {
+        cache: "no-store",
+      })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((d) => app?.ports?.incomingBoardList?.send?.(d))
         .catch(() => app?.ports?.incomingBoardList?.send?.({ rooms: [] }));
@@ -280,14 +284,21 @@ async function mountElmRuntime(root, { boardCode } = {}) {
       fetch("/api/rooms", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ moveTimeLimitSeconds: sec }),
+        body: JSON.stringify({ moveTimeLimitSeconds: sec, clientId }),
       })
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((d) => {
           const c = String(d?.roomId || "").trim();
           const createdUrl = String(d?.url || "").trim();
-          if (c) connect(c, clientId, true, createdUrl);
-          else
+          if (c) {
+            connect(c, clientId, true, createdUrl);
+            fetch(`/api/rooms?clientId=${encodeURIComponent(clientId)}`, {
+              cache: "no-store",
+            })
+              .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+              .then((rooms) => app?.ports?.incomingBoardList?.send?.(rooms))
+              .catch(() => {});
+          } else
             push({
               type: "error",
               error: "Board creation failed: no board code returned.",
@@ -319,9 +330,44 @@ async function mountElmRuntime(root, { boardCode } = {}) {
         window.navigator?.clipboard?.writeText
           ? window.navigator.clipboard.writeText(text)
           : fallbackCopy(),
-      ).catch(() =>
-        push({ type: "error", error: "Could not copy invite link." }),
-      );
+      )
+        .then(() => pushNotice("Link copied to clipboard."))
+        .catch(() =>
+          push({ type: "error", error: "Could not copy invite link." }),
+        );
+      return;
+    }
+    if (t === "deleteBoard") {
+      const roomId = String(cmd.roomId || "").trim();
+      if (!roomId) return;
+      fetch(
+        `/api/rooms/${encodeURIComponent(roomId)}?clientId=${encodeURIComponent(clientId)}`,
+        { method: "DELETE" },
+      )
+        .then((r) =>
+          r.ok
+            ? r.json()
+            : r.json().then((body) => Promise.reject(body?.error || r.status)),
+        )
+        .then(() =>
+          fetch(`/api/rooms?clientId=${encodeURIComponent(clientId)}`, {
+            cache: "no-store",
+          })
+            .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+            .then((d) => {
+              app?.ports?.incomingBoardList?.send?.(d);
+              pushNotice("Board deleted.");
+            }),
+        )
+        .catch((error) =>
+          push({
+            type: "error",
+            error:
+              typeof error === "string" && error
+                ? error
+                : "Could not delete board.",
+          }),
+        );
       return;
     }
     if (!sock || typeof sock.send !== "function") {

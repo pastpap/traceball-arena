@@ -27,8 +27,10 @@ function loadBridge(overrides = {}) {
       WebSocket: overrides.WebSocket,
       Elm: overrides.Elm,
       history: overrides.history,
+      navigator: overrides.navigator,
     },
     document: overrides.document ?? { querySelector: () => null },
+    navigator: overrides.navigator,
     location,
     localStorage: storage,
     WebSocket: overrides.WebSocket,
@@ -308,6 +310,37 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
     getSendCommand()({ type: "persistOnlineMoveTimer", seconds: 30 });
     expect(storage.values.get("traceballOnlineMoveTimer")).toBe("30");
+  });
+
+  it("copies a board link and notifies Elm when the clipboard update succeeds", async () => {
+    let notice = null;
+    let copied = null;
+    const { elm, getSendCommand } = makeElmWithPorts({
+      incomingClientNotice: {
+        send: (value) => {
+          notice = value;
+        },
+      },
+    });
+    const { bridge } = loadBridge({
+      Elm: elm,
+      navigator: {
+        clipboard: {
+          writeText: async (value) => {
+            copied = value;
+          },
+        },
+      },
+      document: { querySelector: () => null },
+      location: { protocol: "https:", host: "example.test", search: "" },
+    });
+
+    await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
+    getSendCommand()({ type: "copyBoardLink", roomId: "ROOM123" });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(copied).toBe("https://example.test/?board=ROOM123");
+    expect(notice).toBe("Link copied to clipboard.");
   });
 
   it("persists Elm local runtime snapshot when Elm emits persistLocalRuntime", async () => {

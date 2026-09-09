@@ -66,11 +66,12 @@ app.get("/api/health", (_req, res) => {
 app.post("/api/rooms", express.json(), (req, res) => {
   cleanupExpiredRooms();
   const roomId = nanoid(8);
+  const creatorClientId = cleanClientId(req.body?.clientId);
   const moveTimeLimitMs = normalizeMoveTimeLimitMs(
     Number(req.body?.moveTimeLimitSeconds) * 1000,
     15000,
   );
-  const game = createGame(roomId, { moveTimeLimitMs });
+  const game = createGame(roomId, { moveTimeLimitMs, creatorClientId });
   rooms.set(roomId, game);
   res.json({
     roomId,
@@ -82,10 +83,35 @@ app.post("/api/rooms", express.json(), (req, res) => {
 app.get("/api/rooms", (req, res) => {
   cleanupExpiredRooms();
   const origin = originFromRequest(req);
+  const requestClientId = cleanClientId(req.query.clientId);
   const summaries = [...rooms.values()]
-    .map((game) => publicRoomSummary(game, origin))
+    .map((game) => publicRoomSummary(game, origin, requestClientId))
     .sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
   res.json({ rooms: summaries });
+});
+
+app.delete("/api/rooms/:roomId", (req, res) => {
+  cleanupExpiredRooms();
+  const roomId = safeRoomId(req.params.roomId);
+  if (!roomId) return res.status(400).json({ error: "Invalid room code." });
+  const game = rooms.get(roomId);
+  if (!game)
+    return res.status(404).json({ error: "Game not found or expired." });
+  const requestClientId = cleanClientId(req.query.clientId);
+  if (!requestClientId || requestClientId !== game.creatorClientId) {
+    return res.status(403).json({
+      error: "Only the board creator can delete this board.",
+    });
+  }
+  deleteRoom(roomId, {
+    notifyType: "BoardNotFound",
+    payload: {
+      boardCode: roomId,
+      reason: "deleted_by_owner",
+      message: "Board deleted by owner.",
+    },
+  });
+  return res.json({ ok: true, roomId });
 });
 
 app.get("/api/rooms/:roomId", (req, res) => {
@@ -346,19 +372,26 @@ function cleanupExpiredRooms(now = Date.now()) {
   for (const [roomId, game] of rooms.entries()) {
     releaseExpiredDisconnectedSeats(game, now);
     if (!isBoardExpired(game, now)) continue;
-    clearTimeout(roomTimers.get(roomId));
-    roomTimers.delete(roomId);
-    rooms.delete(roomId);
-    for (const [client, state] of sockets.entries()) {
-      if (state.roomId !== roomId) continue;
-      state.roomId = null;
-      state.playerId = null;
-      send(client, "BoardNotFound", {
+    deleteRoom(roomId, {
+      notifyType: "BoardNotFound",
+      payload: {
         boardCode: roomId,
         reason: "not_found_or_expired",
         message: "Board not found or expired.",
-      });
-    }
+      },
+    });
+  }
+}
+
+function deleteRoom(roomId, { notifyType = null, payload = null } = {}) {
+  clearTimeout(roomTimers.get(roomId));
+  roomTimers.delete(roomId);
+  rooms.delete(roomId);
+  for (const [client, state] of sockets.entries()) {
+    if (state.roomId !== roomId) continue;
+    state.roomId = null;
+    state.playerId = null;
+    if (notifyType && payload) send(client, notifyType, payload);
   }
 }
 
@@ -447,7 +480,7 @@ function statePayloadFromGame(game) {
   };
 }
 
-function publicRoomSummary(game, requestOrigin) {
+function publicRoomSummary(game, requestOrigin, requestClientId = null) {
   const activeCount = activeSeatCount(game);
   const publicState = publicGame(game);
   const lastResult = publicState.history.length
@@ -478,6 +511,8 @@ function publicRoomSummary(game, requestOrigin) {
     score: publicState.score,
     moveCount: Array.isArray(game.moves) ? game.moves.length : 0,
     historyCount: Array.isArray(game.history) ? game.history.length : 0,
+    isOwner:
+      Boolean(requestClientId) && requestClientId === game.creatorClientId,
     lastResult,
     createdAt: game.createdAt,
     updatedAt: game.updatedAt,

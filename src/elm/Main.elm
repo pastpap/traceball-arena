@@ -16,6 +16,8 @@ import Html.Events
 import Json.Decode as Decode
 import Json.Encode as Encode
 import Protocol exposing (ServerMessage(..), StateMessage, boardNotFoundCode)
+import Svg
+import Svg.Attributes as SvgA
 import Task
 import Time
 
@@ -30,6 +32,8 @@ type alias Model =
     , inviteUrl : Maybe String
     , version : Int
     , error : Maybe String
+    , toast : Maybe String
+    , toastExpiresAtMs : Maybe Int
     , ignoredStaleVersion : Maybe Int
     , connectionStatus : String
     , clientId : String
@@ -111,6 +115,7 @@ type alias BoardSummary =
     , activeCount : Int
     , vacantCount : Int
     , moveCount : Int
+    , isOwner : Bool
     }
 
 
@@ -131,6 +136,8 @@ type Msg
     | SubmitWatchBoard
     | UpdatePlayerName String
     | CopyBoardLink String
+    | DeleteBoard String
+    | ClientNotice String
     | PauseOnlineGame
     | ClaimSeat String
     | JoinWaitingList
@@ -185,6 +192,9 @@ port incomingBoardList : (Decode.Value -> msg) -> Sub msg
 port incomingBoardCreated : (Decode.Value -> msg) -> Sub msg
 
 
+port incomingClientNotice : (String -> msg) -> Sub msg
+
+
 port outgoingClientCommand : Encode.Value -> Cmd msg
 
 
@@ -215,6 +225,8 @@ init flags =
             , inviteUrl = Nothing
             , version = 0
             , error = Nothing
+            , toast = Nothing
+            , toastExpiresAtMs = Nothing
             , ignoredStaleVersion = Nothing
             , connectionStatus = "idle"
             , clientId = ""
@@ -270,6 +282,7 @@ subscriptions _ =
         , incomingConnectionStatus ConnectionChanged
         , incomingBoardList ReceiveBoardList
         , incomingBoardCreated ReceiveBoardCreated
+        , incomingClientNotice ClientNotice
         , Browser.Events.onResize ViewportResized
         , Time.every 250 Tick
         ]
@@ -430,16 +443,35 @@ update msg model =
                             )
 
                         Left ->
-                            ( { model | error = Nothing, joinedSeat = Nothing }, Cmd.none )
+                            ( { model
+                                | error = Nothing
+                                , joinedSeat = Nothing
+                                , toast = Just "You left the board."
+                                , toastExpiresAtMs = Just (model.currentTimeMs + 2200)
+                              }
+                            , Cmd.none
+                            )
 
                         WaitingListJoined ->
                             ( { model | error = Nothing }, Cmd.none )
 
                         WaitingListLeft ->
-                            ( { model | error = Nothing }, Cmd.none )
+                            ( { model
+                                | error = Nothing
+                                , toast = Just "You left the waiting list."
+                                , toastExpiresAtMs = Just (model.currentTimeMs + 2200)
+                              }
+                            , Cmd.none
+                            )
 
                         SeatFreed ->
-                            ( { model | error = Nothing }, Cmd.none )
+                            ( { model
+                                | error = Nothing
+                                , toast = Just "Seat released."
+                                , toastExpiresAtMs = Just (model.currentTimeMs + 2200)
+                              }
+                            , Cmd.none
+                            )
 
                         ServerError message ->
                             ( { model | error = Just message }, Cmd.none )
@@ -457,24 +489,27 @@ update msg model =
             let
                 nowMs =
                     Time.posixToMillis now
+
+                withToast updatedModel =
+                    applyToastTick nowMs updatedModel
             in
             case model.localGame of
                 Just lg ->
                     if model.localPaused then
-                        ( { model | currentTimeMs = nowMs }, Cmd.none )
+                        ( withToast { model | currentTimeMs = nowMs }, Cmd.none )
 
                     else
                         case expireLocalTurnIfNeeded nowMs lg of
                             Just nextGame ->
-                                ( { model | currentTimeMs = nowMs, localGame = Just nextGame, localPaused = nextGame.turnStartedAtMs == Nothing && nextGame.winner == Nothing }
+                                ( withToast { model | currentTimeMs = nowMs, localGame = Just nextGame, localPaused = nextGame.turnStartedAtMs == Nothing && nextGame.winner == Nothing }
                                 , persistLocalCmd (Just nextGame) (nextGame.turnStartedAtMs == Nothing && nextGame.winner == Nothing)
                                 )
 
                             Nothing ->
-                                ( { model | currentTimeMs = nowMs }, Cmd.none )
+                                ( withToast { model | currentTimeMs = nowMs }, Cmd.none )
 
                 Nothing ->
-                    ( { model | currentTimeMs = nowMs }, Cmd.none )
+                    ( withToast { model | currentTimeMs = nowMs }, Cmd.none )
 
         ViewportMeasured viewport ->
             ( { model | viewportWidth = round viewport.viewport.width }, Cmd.none )
@@ -557,6 +592,29 @@ update msg model =
 
             else
                 ( model, Cmd.none )
+
+        DeleteBoard roomId ->
+            if isValidBoardCode roomId then
+                ( model
+                , outgoingClientCommand
+                    (Encode.object
+                        [ ( "type", Encode.string "deleteBoard" )
+                        , ( "roomId", Encode.string roomId )
+                        ]
+                    )
+                )
+
+            else
+                ( model, Cmd.none )
+
+        ClientNotice message ->
+            ( { model
+                | toast = Just message
+                , toastExpiresAtMs = Just (model.currentTimeMs + 2200)
+                , error = Nothing
+              }
+            , Cmd.none
+            )
 
         PauseOnlineGame ->
             ( model
@@ -777,7 +835,14 @@ update msg model =
                     ( model, Cmd.none )
 
         LeaveLocalGame ->
-            ( { model | localGame = Nothing, localPaused = False, error = Nothing, dismissedWinnerKey = Nothing }
+            ( { model
+                | localGame = Nothing
+                , localPaused = False
+                , error = Nothing
+                , dismissedWinnerKey = Nothing
+                , toast = Just "Local game discarded."
+                , toastExpiresAtMs = Just (model.currentTimeMs + 2200)
+              }
             , persistLocalCmd Nothing False
             )
 
@@ -945,6 +1010,14 @@ view model =
 
                      else
                         none
+                    )
+                , inFront
+                    (case model.toast of
+                        Just message ->
+                            viewToast message
+
+                        Nothing ->
+                            none
                     )
                 ]
                 (viewApp model)
@@ -1697,13 +1770,6 @@ viewDesktopBoardScreenHtml config =
                     ]
                 ]
                 [ Html.text config.turnIndicatorText ]
-            , case config.shareAction of
-                Just shareMsg ->
-                    Html.div [ Html.Attributes.class "play-board-actions active" ]
-                        [ viewGhostButtonHtml "play-share-button ghost" True (Just shareMsg) "Share board" ]
-
-                Nothing ->
-                    Html.text ""
             , viewBoardStageHtml True config blueName redName blueScore redScore winnerName
             , viewReplayHtml config.replayIndex config.moveCount
             ]
@@ -1712,7 +1778,10 @@ viewDesktopBoardScreenHtml config =
             , Html.Attributes.attribute "data-mobile-page" "match"
             ]
             [ Html.div [ Html.Attributes.class "card scoreboard elm-match-panel" ]
-                ([ Html.h2 [] [ Html.text "Match" ]
+                ([ Html.div [ Html.Attributes.class "elm-match-heading" ]
+                    [ Html.h2 [ Html.Attributes.class "elm-match-heading-title" ] [ Html.text "Match" ]
+                    , viewShareIconButtonHtml "elm-match-icon share elm-match-share-corner" config.shareAction "Share board"
+                    ]
                  , Html.p [ Html.Attributes.class "elm-match-subtitle" ] [ Html.text config.matchSubtitle ]
                  , Html.div [ Html.Attributes.id "status" ] [ Html.text config.statusText ]
                  , Html.div [ Html.Attributes.class "players score-strip", Html.Attributes.attribute "aria-label" "Room score" ]
@@ -2062,7 +2131,7 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                                         "Pause"
                                     )
                             )
-                    , config.shareAction |> Maybe.map (\msg -> viewMobileActionButton False msg "↗" "Share")
+                    , config.shareAction |> Maybe.map (\msg -> viewShareMobileButton msg)
                     , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
                     ]
             ]
@@ -2468,6 +2537,12 @@ viewWinnerOverlayHtml isCompactLayout winnerName onNewRound =
         ]
 
 
+viewToast : String -> Element Msg
+viewToast message =
+    el [ Element.htmlAttribute (Html.Attributes.id "toast"), Element.htmlAttribute (Html.Attributes.class "show") ]
+        (text message)
+
+
 viewReplayHtml : Maybe Int -> Int -> Html Msg
 viewReplayHtml replayIndex moveCount =
     let
@@ -2596,6 +2671,79 @@ viewSquareIconButtonHtml className onPress icon ariaLabel =
             ++ onClickAttributes onPress
         )
         [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ] ]
+
+
+shareIconSvg : Html Msg
+shareIconSvg =
+    Svg.svg
+        [ SvgA.viewBox "0 0 24 24"
+        , SvgA.fill "none"
+        , SvgA.stroke "currentColor"
+        , SvgA.strokeWidth "2.2"
+        , SvgA.strokeLinecap "round"
+        , SvgA.strokeLinejoin "round"
+        , Html.Attributes.attribute "aria-hidden" "true"
+        , SvgA.width "18"
+        , SvgA.height "18"
+        ]
+        -- three circles connected: right-top (18,5), left-mid (6,12), right-bottom (18,19)
+        [ Svg.circle [ SvgA.cx "18", SvgA.cy "5", SvgA.r "3" ] []
+        , Svg.circle [ SvgA.cx "6", SvgA.cy "12", SvgA.r "3" ] []
+        , Svg.circle [ SvgA.cx "18", SvgA.cy "19", SvgA.r "3" ] []
+        , Svg.line [ SvgA.x1 "8.59", SvgA.y1 "13.51", SvgA.x2 "15.42", SvgA.y2 "17.49" ] []
+        , Svg.line [ SvgA.x1 "15.41", SvgA.y1 "6.51", SvgA.x2 "8.59", SvgA.y2 "10.49" ] []
+        ]
+
+
+viewShareIconButtonHtml : String -> Maybe Msg -> String -> Html Msg
+viewShareIconButtonHtml className onPress ariaLabel =
+    Html.button
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.classList
+            [ ( className, True )
+            , ( "hidden", onPress == Nothing )
+            ]
+         , Html.Attributes.disabled (onPress == Nothing)
+         , Html.Attributes.attribute "aria-label" ariaLabel
+         ]
+            ++ onClickAttributes onPress
+        )
+        [ shareIconSvg ]
+
+
+viewShareMobileButton : Msg -> Element Msg
+viewShareMobileButton shareMsg =
+    Input.button
+        [ width fill
+        , paddingXY 0 10
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color (rgb255 98 232 248)
+        , Bg.color (rgba255 11 124 255 36)
+        , Font.color (rgb255 232 251 255)
+        , Font.size 16
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" "Share")
+        ]
+        { onPress = Just shareMsg
+        , label =
+            el [ centerX, centerY ]
+                (Element.html shareIconSvg)
+        }
+
+
+applyToastTick : Int -> Model -> Model
+applyToastTick nowMs model =
+    case ( model.toast, model.toastExpiresAtMs ) of
+        ( Just _, Just expiresAtMs ) ->
+            if nowMs >= expiresAtMs then
+                { model | toast = Nothing, toastExpiresAtMs = Nothing }
+
+            else
+                model
+
+        _ ->
+            model
 
 
 onClickAttributes : Maybe Msg -> List (Html.Attribute Msg)
@@ -3139,6 +3287,25 @@ viewBoardCard board =
             { onPress = Just (CopyBoardLink board.roomId)
             , label = el [ centerX, centerY ] (text "Copy")
             }
+        , if board.isOwner then
+            Input.button
+                [ width (px 86)
+                , height (px 44)
+                , Border.rounded 14
+                , Border.width 1
+                , Border.color (rgb255 219 80 73)
+                , Bg.color (rgba255 255 59 48 36)
+                , Font.color (rgb255 255 211 208)
+                , Font.size 14
+                , Font.bold
+                , padding 0
+                ]
+                { onPress = Just (DeleteBoard board.roomId)
+                , label = el [ centerX, centerY ] (text "Delete")
+                }
+
+          else
+            none
         ]
 
 
@@ -3623,12 +3790,13 @@ persistLocalCmd localGame paused =
 
 boardSummaryDecoder : Decode.Decoder BoardSummary
 boardSummaryDecoder =
-    Decode.map5 BoardSummary
+    Decode.map6 BoardSummary
         (Decode.field "roomId" Decode.string)
         (Decode.oneOf [ Decode.field "state" Decode.string, Decode.succeed "unknown" ])
         (Decode.oneOf [ Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.at [ "occupancy", "vacantCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.field "moveCount" Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.field "isOwner" Decode.bool, Decode.succeed False ])
 
 
 createdBoardInfoDecoder : Decode.Decoder CreatedBoardInfo
