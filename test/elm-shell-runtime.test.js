@@ -403,11 +403,11 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
 
   it("creates board via POST, connects WebSocket, and notifies Elm via incomingBoardCreated", async () => {
     const sockets = [];
-    let boardCreatedCode = null;
+    let boardCreatedInfo = null;
     const { elm, getSendCommand } = makeElmWithPorts({
       incomingBoardCreated: {
-        send: (c) => {
-          boardCreatedCode = c;
+        send: (value) => {
+          boardCreatedInfo = value;
         },
       },
     });
@@ -429,7 +429,13 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
       document: { querySelector: () => null },
       fetch: async (url, opts) =>
         opts?.method === "POST"
-          ? { ok: true, json: async () => ({ roomId: "NEWRM1" }) }
+          ? {
+              ok: true,
+              json: async () => ({
+                roomId: "NEWRM1",
+                url: "https://example.test/room/NEWRM1",
+              }),
+            }
           : { ok: false, status: 404 },
     });
     await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
@@ -437,7 +443,10 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
     await new Promise((r) => setTimeout(r, 20));
     sockets[0].onopen();
     expect(sockets.length).toBe(1);
-    expect(boardCreatedCode).toBe("NEWRM1");
+    expect(boardCreatedInfo).toEqual({
+      roomId: "NEWRM1",
+      url: "https://example.test/room/NEWRM1",
+    });
     expect(sockets[0].sent[0]).toMatchObject({
       type: "watch",
       roomId: "NEWRM1",

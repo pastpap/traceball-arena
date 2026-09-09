@@ -5539,6 +5539,7 @@ var $author$project$Main$applyFlags = F2(
 					clientId: parsed.clientId,
 					draftBoardCode: sanitized,
 					error: invalid ? $elm$core$Maybe$Just('Enter a valid board code.') : $elm$core$Maybe$Nothing,
+					inviteUrl: $elm$core$Maybe$Nothing,
 					localBlueName: $author$project$Main$sanitizePlayerName(parsed.playerName),
 					localGame: parsed.savedLocalGame,
 					localLobbyTab: false,
@@ -5611,7 +5612,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -6055,8 +6056,8 @@ var $elm$time$Time$every = F2(
 		return $elm$time$Time$subscription(
 			A2($elm$time$Time$Every, interval, tagger));
 	});
-var $author$project$Main$incomingBoardCreated = _Platform_incomingPort('incomingBoardCreated', $elm$json$Json$Decode$string);
 var $elm$json$Json$Decode$value = _Json_decodeValue;
+var $author$project$Main$incomingBoardCreated = _Platform_incomingPort('incomingBoardCreated', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingBoardList = _Platform_incomingPort('incomingBoardList', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingConnectionStatus = _Platform_incomingPort('incomingConnectionStatus', $elm$json$Json$Decode$string);
 var $author$project$Main$incomingSocketMessage = _Platform_incomingPort('incomingSocketMessage', $elm$json$Json$Decode$value);
@@ -6808,6 +6809,15 @@ var $author$project$Main$boardSummaryDecoder = A6(
 				A2($elm$json$Json$Decode$field, 'moveCount', $elm$json$Json$Decode$int),
 				$elm$json$Json$Decode$succeed(0)
 			])));
+var $author$project$Main$CreatedBoardInfo = F2(
+	function (roomId, url) {
+		return {roomId: roomId, url: url};
+	});
+var $author$project$Main$createdBoardInfoDecoder = A3(
+	$elm$json$Json$Decode$map2,
+	$author$project$Main$CreatedBoardInfo,
+	A2($elm$json$Json$Decode$field, 'roomId', $elm$json$Json$Decode$string),
+	A2($elm$json$Json$Decode$field, 'url', $elm$json$Json$Decode$string));
 var $author$project$Main$currentMoveCount = function (model) {
 	var _v0 = $author$project$Main$activeBoard(model);
 	if (_v0.$ === 'Just') {
@@ -7951,6 +7961,7 @@ var $author$project$Main$update = F2(
 										board: $elm$core$Maybe$Nothing,
 										boardCode: A2($author$project$Protocol$boardNotFoundCode, payload, model.boardCode),
 										error: $elm$core$Maybe$Just(payload.message),
+										inviteUrl: $elm$core$Maybe$Nothing,
 										joinedSeat: $elm$core$Maybe$Nothing
 									}),
 								$elm$core$Platform$Cmd$none);
@@ -8129,7 +8140,7 @@ var $author$project$Main$update = F2(
 				return $author$project$Main$isValidBoardCode(boardCode) ? _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{board: $elm$core$Maybe$Nothing, boardCode: boardCode, connectionStatus: 'connecting', dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: boardCode, error: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, replayIndex: $elm$core$Maybe$Nothing, showLobby: false, version: 0}),
+						{board: $elm$core$Maybe$Nothing, boardCode: boardCode, connectionStatus: 'connecting', dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: boardCode, error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, replayIndex: $elm$core$Maybe$Nothing, showLobby: false, version: 0}),
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
 							[
@@ -8171,6 +8182,21 @@ var $author$project$Main$update = F2(
 									$elm$json$Json$Encode$string(
 										$author$project$Main$sanitizePlayerName(name)))
 								]))));
+			case 'CopyBoardLink':
+				var roomId = msg.a;
+				return $author$project$Main$isValidBoardCode(roomId) ? _Utils_Tuple2(
+					model,
+					$author$project$Main$outgoingClientCommand(
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'type',
+									$elm$json$Json$Encode$string('copyBoardLink')),
+									_Utils_Tuple2(
+									'roomId',
+									$elm$json$Json$Encode$string(roomId))
+								])))) : _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 			case 'PauseOnlineGame':
 				return _Utils_Tuple2(
 					model,
@@ -8578,53 +8604,80 @@ var $author$project$Main$update = F2(
 						{boardList: rooms}),
 					$elm$core$Platform$Cmd$none);
 			case 'ReceiveBoardCreated':
-				var newCode = msg.a;
-				var sanitized = $author$project$Main$sanitizeBoardCode(newCode);
-				return $author$project$Main$isValidBoardCode(sanitized) ? _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{board: $elm$core$Maybe$Nothing, boardCode: sanitized, connectionStatus: 'connecting', dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: sanitized, joinedSeat: $elm$core$Maybe$Nothing, replayIndex: $elm$core$Maybe$Nothing, showLobby: false, version: 0}),
-					$elm$core$Platform$Cmd$batch(
-						_List_fromArray(
-							[
-								$author$project$Main$outgoingClientCommand(
-								$elm$json$Json$Encode$object(
-									_List_fromArray(
-										[
-											_Utils_Tuple2(
-											'type',
-											$elm$json$Json$Encode$string('claimSeat')),
-											_Utils_Tuple2(
-											'seatId',
-											$elm$json$Json$Encode$string('p1')),
-											_Utils_Tuple2(
-											'name',
-											$elm$json$Json$Encode$string(model.playerName)),
-											_Utils_Tuple2(
-											'roomId',
-											$elm$json$Json$Encode$string(sanitized)),
-											_Utils_Tuple2(
-											'clientId',
-											$elm$json$Json$Encode$string(model.clientId))
-										]))),
-								$author$project$Main$outgoingClientCommand(
-								$elm$json$Json$Encode$object(
-									_List_fromArray(
-										[
-											_Utils_Tuple2(
-											'type',
-											$elm$json$Json$Encode$string('updateUrl')),
-											_Utils_Tuple2(
-											'url',
-											$elm$json$Json$Encode$string('/?board=' + sanitized))
-										])))
-							]))) : _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{
-							error: $elm$core$Maybe$Just('Board creation failed.')
-						}),
-					$elm$core$Platform$Cmd$none);
+				var value = msg.a;
+				var _v13 = A2($elm$json$Json$Decode$decodeValue, $author$project$Main$createdBoardInfoDecoder, value);
+				if (_v13.$ === 'Ok') {
+					var info = _v13.a;
+					var sanitized = $author$project$Main$sanitizeBoardCode(info.roomId);
+					return $author$project$Main$isValidBoardCode(sanitized) ? _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								board: $elm$core$Maybe$Nothing,
+								boardCode: sanitized,
+								connectionStatus: 'connecting',
+								dismissedWinnerKey: $elm$core$Maybe$Nothing,
+								draftBoardCode: sanitized,
+								error: $elm$core$Maybe$Nothing,
+								inviteUrl: $elm$core$Maybe$Just(info.url),
+								joinedSeat: $elm$core$Maybe$Nothing,
+								mainTab: 'game',
+								replayIndex: $elm$core$Maybe$Nothing,
+								showLobby: true,
+								version: 0
+							}),
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									$author$project$Main$outgoingClientCommand(
+									$elm$json$Json$Encode$object(
+										_List_fromArray(
+											[
+												_Utils_Tuple2(
+												'type',
+												$elm$json$Json$Encode$string('claimSeat')),
+												_Utils_Tuple2(
+												'seatId',
+												$elm$json$Json$Encode$string('p1')),
+												_Utils_Tuple2(
+												'name',
+												$elm$json$Json$Encode$string(model.playerName)),
+												_Utils_Tuple2(
+												'roomId',
+												$elm$json$Json$Encode$string(sanitized)),
+												_Utils_Tuple2(
+												'clientId',
+												$elm$json$Json$Encode$string(model.clientId))
+											]))),
+									$author$project$Main$outgoingClientCommand(
+									$elm$json$Json$Encode$object(
+										_List_fromArray(
+											[
+												_Utils_Tuple2(
+												'type',
+												$elm$json$Json$Encode$string('updateUrl')),
+												_Utils_Tuple2(
+												'url',
+												$elm$json$Json$Encode$string('/?board=' + sanitized))
+											])))
+								]))) : _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								error: $elm$core$Maybe$Just('Board creation failed.'),
+								inviteUrl: $elm$core$Maybe$Nothing
+							}),
+						$elm$core$Platform$Cmd$none);
+				} else {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								error: $elm$core$Maybe$Just('Board creation failed.'),
+								inviteUrl: $elm$core$Maybe$Nothing
+							}),
+						$elm$core$Platform$Cmd$none);
+				}
 			case 'RequestBoardList':
 				return _Utils_Tuple2(
 					model,
@@ -8640,7 +8693,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{showLobby: false, showTimerSheet: false}),
+						{error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, mainTab: 'game', showLobby: true, showTimerSheet: false}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -14764,6 +14817,9 @@ var $mdgriffith$elm_ui$Internal$Model$Text = function (a) {
 var $mdgriffith$elm_ui$Element$text = function (content) {
 	return $mdgriffith$elm_ui$Internal$Model$Text(content);
 };
+var $author$project$Main$CopyBoardLink = function (a) {
+	return {$: 'CopyBoardLink', a: a};
+};
 var $author$project$Main$boardSummaryStateLabel = function (state) {
 	switch (state) {
 		case 'WaitingForPlayers':
@@ -14969,81 +15025,6 @@ var $mdgriffith$elm_ui$Element$paragraph = F2(
 						attrs))),
 			$mdgriffith$elm_ui$Internal$Model$Unkeyed(children));
 	});
-var $author$project$Main$viewBoardCard = function (board) {
-	return A2(
-		$mdgriffith$elm_ui$Element$link,
-		_List_fromArray(
-			[
-				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$Background$color(
-				A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.06)),
-				$mdgriffith$elm_ui$Element$Border$rounded(8),
-				$mdgriffith$elm_ui$Element$padding(10),
-				$mdgriffith$elm_ui$Element$mouseOver(
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$Background$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.12))
-					]))
-			]),
-		{
-			label: A2(
-				$mdgriffith$elm_ui$Element$column,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$spacing(6)
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$row,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$spacing(8)
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$Font$bold,
-										$mdgriffith$elm_ui$Element$Font$size(14),
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
-									]),
-								$mdgriffith$elm_ui$Element$text(board.roomId)),
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$Font$size(12),
-										$mdgriffith$elm_ui$Element$Font$color(
-										A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.5)),
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink)
-									]),
-								$mdgriffith$elm_ui$Element$text(
-									$elm$core$String$fromInt(board.activeCount) + '/2 seated'))
-							])),
-						A2(
-						$mdgriffith$elm_ui$Element$paragraph,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$Font$size(12),
-								$mdgriffith$elm_ui$Element$Font$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.68))
-							]),
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$text(
-								$author$project$Main$boardSummaryStateLabel(board.state))
-							]))
-					])),
-			url: '/?board=' + board.roomId
-		});
-};
 var $mdgriffith$elm_ui$Internal$Model$BorderWidth = F5(
 	function (a, b, c, d, e) {
 		return {$: 'BorderWidth', a: a, b: b, c: c, d: d, e: e};
@@ -15059,6 +15040,122 @@ var $mdgriffith$elm_ui$Element$Border$width = function (v) {
 			v,
 			v,
 			v));
+};
+var $author$project$Main$viewBoardCard = function (board) {
+	return A2(
+		$mdgriffith$elm_ui$Element$row,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$spacing(10),
+				$mdgriffith$elm_ui$Element$Background$color(
+				A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.06)),
+				$mdgriffith$elm_ui$Element$Border$rounded(8),
+				$mdgriffith$elm_ui$Element$padding(10)
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$mdgriffith$elm_ui$Element$link,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$mouseOver(
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Background$color(
+								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.04))
+							])),
+						$mdgriffith$elm_ui$Element$Border$rounded(8),
+						A2($mdgriffith$elm_ui$Element$paddingXY, 2, 2)
+					]),
+				{
+					label: A2(
+						$mdgriffith$elm_ui$Element$column,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$spacing(6)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$row,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$spacing(8)
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$bold,
+												$mdgriffith$elm_ui$Element$Font$size(14),
+												$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+											]),
+										$mdgriffith$elm_ui$Element$text(board.roomId)),
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$size(12),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.5)),
+												$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink)
+											]),
+										$mdgriffith$elm_ui$Element$text(
+											$elm$core$String$fromInt(board.activeCount) + '/2 seated'))
+									])),
+								A2(
+								$mdgriffith$elm_ui$Element$paragraph,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$Font$size(12),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.68))
+									]),
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$text(
+										$author$project$Main$boardSummaryStateLabel(board.state))
+									]))
+							])),
+					url: '/?board=' + board.roomId
+				}),
+				A2(
+				$mdgriffith$elm_ui$Element$Input$button,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width(
+						$mdgriffith$elm_ui$Element$px(86)),
+						$mdgriffith$elm_ui$Element$height(
+						$mdgriffith$elm_ui$Element$px(44)),
+						$mdgriffith$elm_ui$Element$Border$rounded(14),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 98, 232, 248)),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 9, 32, 18, 0.9)),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
+						$mdgriffith$elm_ui$Element$Font$size(14),
+						$mdgriffith$elm_ui$Element$Font$bold,
+						$mdgriffith$elm_ui$Element$padding(0)
+					]),
+				{
+					label: A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[$mdgriffith$elm_ui$Element$centerX, $mdgriffith$elm_ui$Element$centerY]),
+						$mdgriffith$elm_ui$Element$text('Copy')),
+					onPress: $elm$core$Maybe$Just(
+						$author$project$Main$CopyBoardLink(board.roomId))
+				})
+			]));
 };
 var $author$project$Main$viewBoardListSection = function (model) {
 	return A2(
@@ -16577,6 +16674,7 @@ var $author$project$Main$moveTimerLabel = function (seconds) {
 var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
 	return {$: 'UpdateOnlineMoveTimer', a: a};
 };
+var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$option = _VirtualDom_node('option');
 var $elm$html$Html$select = _VirtualDom_node('select');
 var $elm$html$Html$Attributes$selected = $elm$html$Html$Attributes$boolProperty('selected');
@@ -16586,6 +16684,7 @@ var $author$project$Main$viewTimerSelect = function (current) {
 			$elm$html$Html$select,
 			_List_fromArray(
 				[
+					$elm$html$Html$Attributes$id('onlineMoveTimer'),
 					A2($elm$html$Html$Attributes$style, 'background', 'rgba(0,0,0,0.5)'),
 					A2($elm$html$Html$Attributes$style, 'color', '#e0ffe0'),
 					A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(255,255,255,0.1)'),
@@ -16959,6 +17058,97 @@ var $author$project$Main$formSubpanelAttrs = _List_fromArray(
 		A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
 		$mdgriffith$elm_ui$Element$padding(14)
 	]);
+var $elm$html$Html$Attributes$for = $elm$html$Html$Attributes$stringProperty('htmlFor');
+var $elm$html$Html$input = _VirtualDom_node('input');
+var $elm$html$Html$label = _VirtualDom_node('label');
+var $elm$html$Html$Attributes$readonly = $elm$html$Html$Attributes$boolProperty('readOnly');
+var $author$project$Main$viewInviteCard = F2(
+	function (boardCode, inviteUrl) {
+		return $mdgriffith$elm_ui$Element$html(
+			A2(
+				$elm$html$Html$section,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('invite'),
+						$elm$html$Html$Attributes$id('inviteCard')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$img,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$src('/api/qr?room=' + boardCode),
+								$elm$html$Html$Attributes$alt('QR code for board ' + boardCode)
+							]),
+						_List_Nil),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('invite-copy-panel')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$label,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$for('inviteUrl')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Share this board')
+									])),
+								A2(
+								$elm$html$Html$input,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$id('inviteUrl'),
+										$elm$html$Html$Attributes$type_('text'),
+										$elm$html$Html$Attributes$readonly(true),
+										$elm$html$Html$Attributes$value(inviteUrl)
+									]),
+								_List_Nil),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('invite-actions')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$id('copyInviteCard'),
+												$elm$html$Html$Attributes$type_('button'),
+												$elm$html$Html$Attributes$class('compact'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$CopyBoardLink(boardCode))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Copy link')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$id('openCreatedBoard'),
+												$elm$html$Html$Attributes$type_('button'),
+												$elm$html$Html$Attributes$class('compact primary'),
+												$elm$html$Html$Events$onClick($author$project$Main$ToggleLobby)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Open game now')
+											]))
+									]))
+							]))
+					])));
+	});
 var $author$project$Main$viewOnlineLobbyContent = function (model) {
 	return A2(
 		$mdgriffith$elm_ui$Element$column,
@@ -16988,7 +17178,13 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 						$mdgriffith$elm_ui$Element$text('Your name')),
 						A2(
 						$mdgriffith$elm_ui$Element$Input$text,
-						$author$project$Main$formFieldAttrs,
+						_Utils_ap(
+							$author$project$Main$formFieldAttrs,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$id('playerNameInput'))
+								])),
 						{
 							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Your name'),
 							onChange: $author$project$Main$UpdatePlayerName,
@@ -17000,6 +17196,15 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 							text: model.playerName
 						})
 					])),
+				function () {
+				var _v0 = model.inviteUrl;
+				if (_v0.$ === 'Just') {
+					var inviteUrl = _v0.a;
+					return A2($author$project$Main$viewInviteCard, model.boardCode, inviteUrl);
+				} else {
+					return $mdgriffith$elm_ui$Element$none;
+				}
+			}(),
 				A2(
 				$mdgriffith$elm_ui$Element$column,
 				_Utils_ap(
@@ -17020,7 +17225,13 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 						$mdgriffith$elm_ui$Element$text('Open board as watcher')),
 						A2(
 						$mdgriffith$elm_ui$Element$Input$text,
-						$author$project$Main$formFieldAttrs,
+						_Utils_ap(
+							$author$project$Main$formFieldAttrs,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$id('boardCodeInput'))
+								])),
 						{
 							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Board code'),
 							onChange: $author$project$Main$UpdateBoardCodeInput,
@@ -17065,7 +17276,9 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 								$mdgriffith$elm_ui$Element$Font$color(
 								A3($mdgriffith$elm_ui$Element$rgb255, 8, 18, 8)),
 								$mdgriffith$elm_ui$Element$htmlAttribute(
-								A2($elm$html$Html$Attributes$style, 'background', '#11c2d8'))
+								A2($elm$html$Html$Attributes$style, 'background', '#11c2d8')),
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								$elm$html$Html$Attributes$id('elmCreateBoard'))
 							]),
 						{
 							label: A2(
@@ -17111,9 +17324,9 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 					]),
 				$mdgriffith$elm_ui$Element$text('Connection: ' + model.connectionStatus)),
 				function () {
-				var _v0 = model.error;
-				if (_v0.$ === 'Just') {
-					var e = _v0.a;
+				var _v1 = model.error;
+				if (_v1.$ === 'Just') {
+					var e = _v1.a;
 					return A2(
 						$mdgriffith$elm_ui$Element$el,
 						_List_fromArray(
@@ -17311,7 +17524,6 @@ var $elm$html$Html$Attributes$classList = function (classes) {
 				A2($elm$core$List$filter, $elm$core$Tuple$second, classes))));
 };
 var $elm$html$Html$h2 = _VirtualDom_node('h2');
-var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $author$project$Main$ClickLegalMove = function (a) {
 	return {$: 'ClickLegalMove', a: a};
@@ -19203,6 +19415,29 @@ var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 							[
 								$elm$html$Html$text(config.turnIndicatorText)
 							])),
+						function () {
+						var _v0 = config.shareAction;
+						if (_v0.$ === 'Just') {
+							var shareMsg = _v0.a;
+							return A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('play-board-actions active')
+									]),
+								_List_fromArray(
+									[
+										A4(
+										$author$project$Main$viewGhostButtonHtml,
+										'play-share-button ghost',
+										true,
+										$elm$core$Maybe$Just(shareMsg),
+										'Share board')
+									]));
+						} else {
+							return $elm$html$Html$text('');
+						}
+					}(),
 						A7($author$project$Main$viewBoardStageHtml, true, config, blueName, redName, blueScore, redScore, winnerName),
 						A2($author$project$Main$viewReplayHtml, config.replayIndex, config.moveCount)
 					])),
@@ -20217,6 +20452,12 @@ var $author$project$Main$viewMobileTopCard = F6(
 								A2(
 								$elm$core$Maybe$map,
 								function (msg) {
+									return A4($author$project$Main$viewMobileActionButton, false, msg, '↗', 'Share');
+								},
+								config.shareAction),
+								A2(
+								$elm$core$Maybe$map,
+								function (msg) {
 									return A4($author$project$Main$viewMobileActionButton, true, msg, '✕', 'Leave');
 								},
 								config.leaveAction)
@@ -20358,6 +20599,7 @@ var $author$project$Main$viewLocalGameHtml = F2(
 				pauseAction: $elm$core$Maybe$Just($author$project$Main$ToggleLocalPause),
 				pauseOverlay: pauseOverlay,
 				replayIndex: model.replayIndex,
+				shareAction: $elm$core$Maybe$Nothing,
 				showJoinBlue: false,
 				showJoinRed: false,
 				showSeatActions: false,
@@ -20665,6 +20907,26 @@ var $author$project$Main$LeaveSeat = {$: 'LeaveSeat'};
 var $author$project$Main$PauseOnlineGame = {$: 'PauseOnlineGame'};
 var $author$project$Main$ResumeOnlinePause = {$: 'ResumeOnlinePause'};
 var $author$project$Main$StartNewRound = {$: 'StartNewRound'};
+var $author$project$Main$boardHasOnlyOwnSeat = F2(
+	function (ownSeat, board) {
+		var _v0 = A2($elm$core$Maybe$map, $author$project$Main$normalizeSeatId, ownSeat);
+		_v0$2:
+		while (true) {
+			if (_v0.$ === 'Just') {
+				switch (_v0.a) {
+					case 'blue':
+						return $author$project$Main$seatIsVacant(board.red);
+					case 'red':
+						return $author$project$Main$seatIsVacant(board.blue);
+					default:
+						break _v0$2;
+				}
+			} else {
+				break _v0$2;
+			}
+		}
+		return false;
+	});
 var $author$project$Main$seatMatchesTurn = F2(
 	function (ownSeat, turn) {
 		if (ownSeat.$ === 'Just') {
@@ -20756,6 +21018,8 @@ var $author$project$Main$viewOnlineGameHtml = F2(
 				},
 				round)) : $elm$core$Maybe$Nothing;
 		var ownSeat = A2($author$project$Main$derivedOwnSeat, model, board);
+		var shareAction = A2($author$project$Main$boardHasOnlyOwnSeat, ownSeat, board) ? $elm$core$Maybe$Just(
+			$author$project$Main$CopyBoardLink(board.code)) : $elm$core$Maybe$Nothing;
 		var onlineTimerSecs = A2(
 			$elm$core$Maybe$andThen,
 			$author$project$Main$positiveMaybe,
@@ -20801,6 +21065,7 @@ var $author$project$Main$viewOnlineGameHtml = F2(
 				pauseAction: (_Utils_eq(board.state, $author$project$Board$Types$SessionActive) && A2($author$project$Main$seatMatchesTurn, ownSeat, turn)) ? $elm$core$Maybe$Just($author$project$Main$PauseOnlineGame) : $elm$core$Maybe$Nothing,
 				pauseOverlay: onlinePauseOverlay,
 				replayIndex: model.replayIndex,
+				shareAction: shareAction,
 				showJoinBlue: _Utils_eq(ownSeat, $elm$core$Maybe$Nothing) && $author$project$Main$seatIsVacant(board.blue),
 				showJoinRed: _Utils_eq(ownSeat, $elm$core$Maybe$Nothing) && $author$project$Main$seatIsVacant(board.red),
 				showSeatActions: true,
@@ -20890,7 +21155,7 @@ var $author$project$Main$viewApp = function (model) {
 						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 					]),
 				model.showLobby ? _List_fromArray(
-					[lobbyLayout, gameView]) : _List_fromArray(
+					[lobbyLayout]) : _List_fromArray(
 					[gameView])) : lobbyLayout
 			]));
 };

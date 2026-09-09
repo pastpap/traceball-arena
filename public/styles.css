@@ -345,9 +345,25 @@ h2 {
   color: var(--muted);
   margin-bottom: 6px;
 }
-#copyInviteCard {
+.invite-copy-panel {
+  min-width: 0;
+}
+.invite-copy-panel input {
   width: 100%;
+}
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 10px;
+}
+.invite-actions button {
+  margin-top: 0;
+}
+#copyInviteCard,
+#openCreatedBoard {
+  width: auto;
+  min-width: 170px;
 }
 .local-panel p {
   margin: 0;
@@ -595,8 +611,21 @@ h2 {
   width: min(100%, 720px);
   margin: 0 auto 8px;
 }
+.play-board-actions.active {
+  display: flex;
+}
 .play-board-actions .ghost {
   margin: 0;
+}
+.play-share-button.ghost {
+  display: inline-flex;
+  width: fit-content;
+  padding: 10px 18px;
+  min-width: 0;
+  border-color: rgba(98, 232, 248, 0.82);
+  background: rgba(11, 124, 255, 0.16);
+  color: #e8fbff;
+  font-weight: 850;
 }
 .play-leave-button.ghost {
   display: inline-flex;

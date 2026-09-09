@@ -100,6 +100,12 @@ function websocketUrl() {
   return `${loc.protocol === "https:" ? "wss:" : "ws:"}//${loc.host}/ws`;
 }
 
+function absoluteBoardUrl(roomId) {
+  const loc = window.location || location;
+  const base = `${loc.protocol}//${loc.host}`;
+  return `${base}/?board=${encodeURIComponent(String(roomId || "").trim())}`;
+}
+
 function parseRawBoardCodeFromLocation() {
   const loc = window.location || location;
   const p = new URLSearchParams(loc.search || "");
@@ -187,7 +193,12 @@ async function mountElmRuntime(root, { boardCode } = {}) {
     sock = null;
   };
 
-  const connect = (code, reqClientId = clientId, isNew = false) => {
+  const connect = (
+    code,
+    reqClientId = clientId,
+    isNew = false,
+    createdUrl = "",
+  ) => {
     if (!(window.WebSocket || typeof WebSocket !== "undefined")) {
       pushStatus("error");
       push({ type: "error", error: "WebSocket unavailable." });
@@ -205,7 +216,12 @@ async function mountElmRuntime(root, { boardCode } = {}) {
           clientId: String(reqClientId || clientId || "").trim(),
         }),
       );
-      if (isNew) app?.ports?.incomingBoardCreated?.send?.(code);
+      if (isNew) {
+        app?.ports?.incomingBoardCreated?.send?.({
+          roomId: code,
+          url: String(createdUrl || "").trim(),
+        });
+      }
     };
     ws.onmessage = (e) => {
       try {
@@ -269,7 +285,8 @@ async function mountElmRuntime(root, { boardCode } = {}) {
         .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
         .then((d) => {
           const c = String(d?.roomId || "").trim();
-          if (c) connect(c, clientId, true);
+          const createdUrl = String(d?.url || "").trim();
+          if (c) connect(c, clientId, true, createdUrl);
           else
             push({
               type: "error",
@@ -277,6 +294,34 @@ async function mountElmRuntime(root, { boardCode } = {}) {
             });
         })
         .catch(() => push({ type: "error", error: "Board creation failed." }));
+      return;
+    }
+    if (t === "copyText" || t === "copyBoardLink") {
+      const text =
+        t === "copyBoardLink"
+          ? absoluteBoardUrl(cmd.roomId)
+          : String(cmd.text || "");
+      const fallbackCopy = () => {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.setAttribute("readonly", "true");
+        el.style.position = "absolute";
+        el.style.left = "-9999px";
+        document.body?.appendChild(el);
+        el.select();
+        try {
+          document.execCommand?.("copy");
+        } finally {
+          el.remove();
+        }
+      };
+      Promise.resolve(
+        window.navigator?.clipboard?.writeText
+          ? window.navigator.clipboard.writeText(text)
+          : fallbackCopy(),
+      ).catch(() =>
+        push({ type: "error", error: "Could not copy invite link." }),
+      );
       return;
     }
     if (!sock || typeof sock.send !== "function") {

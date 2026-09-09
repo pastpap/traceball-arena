@@ -27,6 +27,7 @@ import Time
 type alias Model =
     { board : Maybe Board
     , boardCode : String
+    , inviteUrl : Maybe String
     , version : Int
     , error : Maybe String
     , ignoredStaleVersion : Maybe Int
@@ -113,6 +114,12 @@ type alias BoardSummary =
     }
 
 
+type alias CreatedBoardInfo =
+    { roomId : String
+    , url : String
+    }
+
+
 
 -- ── Msg ────────────────────────────────────────────────────────────────────────
 
@@ -123,6 +130,7 @@ type Msg
     | UpdateBoardCodeInput String
     | SubmitWatchBoard
     | UpdatePlayerName String
+    | CopyBoardLink String
     | PauseOnlineGame
     | ClaimSeat String
     | JoinWaitingList
@@ -144,7 +152,7 @@ type Msg
     | UpdateLocalBlueName String
     | UpdateLocalRedName String
     | ReceiveBoardList Decode.Value
-    | ReceiveBoardCreated String
+    | ReceiveBoardCreated Decode.Value
     | RequestBoardList
     | CreateBoard
     | UpdateOnlineMoveTimer String
@@ -174,7 +182,7 @@ port incomingConnectionStatus : (String -> msg) -> Sub msg
 port incomingBoardList : (Decode.Value -> msg) -> Sub msg
 
 
-port incomingBoardCreated : (String -> msg) -> Sub msg
+port incomingBoardCreated : (Decode.Value -> msg) -> Sub msg
 
 
 port outgoingClientCommand : Encode.Value -> Cmd msg
@@ -204,6 +212,7 @@ init flags =
         emptyModel =
             { board = Nothing
             , boardCode = ""
+            , inviteUrl = Nothing
             , version = 0
             , error = Nothing
             , ignoredStaleVersion = Nothing
@@ -301,6 +310,7 @@ applyFlags flags model =
             in
             { model
                 | boardCode = sanitized
+                , inviteUrl = Nothing
                 , clientId = parsed.clientId
                 , draftBoardCode = sanitized
                 , playerName = sanitizePlayerName parsed.playerName
@@ -398,6 +408,7 @@ update msg model =
                             ( { model
                                 | board = Nothing
                                 , boardCode = boardNotFoundCode payload model.boardCode
+                                , inviteUrl = Nothing
                                 , joinedSeat = Nothing
                                 , error = Just payload.message
                               }
@@ -494,6 +505,7 @@ update msg model =
             if isValidBoardCode boardCode then
                 ( { model
                     | boardCode = boardCode
+                    , inviteUrl = Nothing
                     , draftBoardCode = boardCode
                     , board = Nothing
                     , joinedSeat = Nothing
@@ -531,6 +543,20 @@ update msg model =
                     ]
                 )
             )
+
+        CopyBoardLink roomId ->
+            if isValidBoardCode roomId then
+                ( model
+                , outgoingClientCommand
+                    (Encode.object
+                        [ ( "type", Encode.string "copyBoardLink" )
+                        , ( "roomId", Encode.string roomId )
+                        ]
+                    )
+                )
+
+            else
+                ( model, Cmd.none )
 
         PauseOnlineGame ->
             ( model
@@ -778,50 +804,58 @@ update msg model =
             in
             ( { model | boardList = rooms }, Cmd.none )
 
-        ReceiveBoardCreated newCode ->
-            let
-                sanitized =
-                    sanitizeBoardCode newCode
-            in
-            if isValidBoardCode sanitized then
-                ( { model
-                    | boardCode = sanitized
-                    , draftBoardCode = sanitized
-                    , board = Nothing
-                    , joinedSeat = Nothing
-                    , replayIndex = Nothing
-                    , version = 0
-                    , connectionStatus = "connecting"
-                    , dismissedWinnerKey = Nothing
-                    , showLobby = False
-                  }
-                , Cmd.batch
-                    [ outgoingClientCommand
-                        (Encode.object
-                            [ ( "type", Encode.string "claimSeat" )
-                            , ( "seatId", Encode.string "p1" )
-                            , ( "name", Encode.string model.playerName )
-                            , ( "roomId", Encode.string sanitized )
-                            , ( "clientId", Encode.string model.clientId )
+        ReceiveBoardCreated value ->
+            case Decode.decodeValue createdBoardInfoDecoder value of
+                Ok info ->
+                    let
+                        sanitized =
+                            sanitizeBoardCode info.roomId
+                    in
+                    if isValidBoardCode sanitized then
+                        ( { model
+                            | boardCode = sanitized
+                            , inviteUrl = Just info.url
+                            , draftBoardCode = sanitized
+                            , board = Nothing
+                            , joinedSeat = Nothing
+                            , replayIndex = Nothing
+                            , version = 0
+                            , connectionStatus = "connecting"
+                            , dismissedWinnerKey = Nothing
+                            , showLobby = True
+                            , mainTab = "game"
+                            , error = Nothing
+                          }
+                        , Cmd.batch
+                            [ outgoingClientCommand
+                                (Encode.object
+                                    [ ( "type", Encode.string "claimSeat" )
+                                    , ( "seatId", Encode.string "p1" )
+                                    , ( "name", Encode.string model.playerName )
+                                    , ( "roomId", Encode.string sanitized )
+                                    , ( "clientId", Encode.string model.clientId )
+                                    ]
+                                )
+                            , outgoingClientCommand
+                                (Encode.object
+                                    [ ( "type", Encode.string "updateUrl" )
+                                    , ( "url", Encode.string ("/?board=" ++ sanitized) )
+                                    ]
+                                )
                             ]
                         )
-                    , outgoingClientCommand
-                        (Encode.object
-                            [ ( "type", Encode.string "updateUrl" )
-                            , ( "url", Encode.string ("/?board=" ++ sanitized) )
-                            ]
-                        )
-                    ]
-                )
 
-            else
-                ( { model | error = Just "Board creation failed." }, Cmd.none )
+                    else
+                        ( { model | inviteUrl = Nothing, error = Just "Board creation failed." }, Cmd.none )
+
+                Err _ ->
+                    ( { model | inviteUrl = Nothing, error = Just "Board creation failed." }, Cmd.none )
 
         RequestBoardList ->
             ( model, outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchBoardList" ) ]) )
 
         CreateBoard ->
-            ( { model | showLobby = False, showTimerSheet = False }
+            ( { model | inviteUrl = Nothing, showLobby = True, showTimerSheet = False, mainTab = "game", error = Nothing }
             , outgoingClientCommand
                 (Encode.object
                     [ ( "type", Encode.string "createBoard" )
@@ -974,7 +1008,7 @@ viewApp model =
             , if hasGame then
                 column [ width fill ]
                     (if model.showLobby then
-                        [ lobbyLayout, gameView ]
+                        [ lobbyLayout ]
 
                      else
                         [ gameView ]
@@ -1332,6 +1366,7 @@ type alias BoardScreenConfig =
     , showJoinBlue : Bool
     , showJoinRed : Bool
     , showSeatActions : Bool
+    , shareAction : Maybe Msg
     , leaveAction : Maybe Msg
     , pauseAction : Maybe Msg
     , newRoundAction : Maybe Msg
@@ -1504,6 +1539,7 @@ viewLocalGameHtml model lg =
         , showJoinBlue = False
         , showJoinRed = False
         , showSeatActions = False
+        , shareAction = Nothing
         , leaveAction = Just LeaveLocalGame
         , pauseAction = Just ToggleLocalPause
         , newRoundAction =
@@ -1565,6 +1601,13 @@ viewOnlineGameHtml model board =
 
             else
                 Nothing
+
+        shareAction =
+            if boardHasOnlyOwnSeat ownSeat board then
+                Just (CopyBoardLink board.code)
+
+            else
+                Nothing
     in
     viewBoardScreenHtml
         { board = board
@@ -1585,6 +1628,7 @@ viewOnlineGameHtml model board =
         , showJoinBlue = ownSeat == Nothing && seatIsVacant board.blue
         , showJoinRed = ownSeat == Nothing && seatIsVacant board.red
         , showSeatActions = True
+        , shareAction = shareAction
         , leaveAction = ownSeat |> Maybe.map (\_ -> LeaveSeat)
         , pauseAction =
             if board.state == SessionActive && seatMatchesTurn ownSeat turn then
@@ -1653,6 +1697,13 @@ viewDesktopBoardScreenHtml config =
                     ]
                 ]
                 [ Html.text config.turnIndicatorText ]
+            , case config.shareAction of
+                Just shareMsg ->
+                    Html.div [ Html.Attributes.class "play-board-actions active" ]
+                        [ viewGhostButtonHtml "play-share-button ghost" True (Just shareMsg) "Share board" ]
+
+                Nothing ->
+                    Html.text ""
             , viewBoardStageHtml True config blueName redName blueScore redScore winnerName
             , viewReplayHtml config.replayIndex config.moveCount
             ]
@@ -2011,6 +2062,7 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                                         "Pause"
                                     )
                             )
+                    , config.shareAction |> Maybe.map (\msg -> viewMobileActionButton False msg "↗" "Share")
                     , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
                     ]
             ]
@@ -2714,6 +2766,19 @@ seatMatchesTurn ownSeat turn =
             False
 
 
+boardHasOnlyOwnSeat : Maybe String -> Board -> Bool
+boardHasOnlyOwnSeat ownSeat board =
+    case ownSeat |> Maybe.map normalizeSeatId of
+        Just "blue" ->
+            seatIsVacant board.red
+
+        Just "red" ->
+            seatIsVacant board.blue
+
+        _ ->
+            False
+
+
 timerSentence : Maybe Int -> String
 timerSentence timerSecs =
     case timerSecs of
@@ -2776,20 +2841,26 @@ viewOnlineLobbyContent model =
           column [ width fill, spacing 6 ]
             [ el [ Font.size 13, Font.bold ] (text "Your name")
             , Input.text
-                formFieldAttrs
+                (formFieldAttrs ++ [ Element.htmlAttribute (Html.Attributes.id "playerNameInput") ])
                 { onChange = UpdatePlayerName
                 , text = model.playerName
                 , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Your name"))
                 , label = Input.labelHidden "Your name"
                 }
             ]
+        , case model.inviteUrl of
+            Just inviteUrl ->
+                viewInviteCard model.boardCode inviteUrl
+
+            Nothing ->
+                none
 
         -- Open board section
         , column
             (formSubpanelAttrs ++ [ spacing 10 ])
             [ el [ Font.size 13, Font.bold ] (text "Open board as watcher")
             , Input.text
-                formFieldAttrs
+                (formFieldAttrs ++ [ Element.htmlAttribute (Html.Attributes.id "boardCodeInput") ])
                 { onChange = UpdateBoardCodeInput
                 , text = model.draftBoardCode
                 , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Board code"))
@@ -2813,6 +2884,7 @@ viewOnlineLobbyContent model =
                 , Font.size 15
                 , Font.color (rgb255 8 18 8)
                 , Element.htmlAttribute (Html.Attributes.style "background" "#11c2d8")
+                , Element.htmlAttribute (Html.Attributes.id "elmCreateBoard")
                 ]
                 { onPress = Just CreateBoard, label = el [ centerX ] (text "Create board as Blue") }
             ]
@@ -2833,6 +2905,44 @@ viewOnlineLobbyContent model =
             Nothing ->
                 none
         ]
+
+
+viewInviteCard : String -> String -> Element Msg
+viewInviteCard boardCode inviteUrl =
+    Element.html <|
+        Html.section [ Html.Attributes.class "invite", Html.Attributes.id "inviteCard" ]
+            [ Html.img
+                [ Html.Attributes.src ("/api/qr?room=" ++ boardCode)
+                , Html.Attributes.alt ("QR code for board " ++ boardCode)
+                ]
+                []
+            , Html.div [ Html.Attributes.class "invite-copy-panel" ]
+                [ Html.label [ Html.Attributes.for "inviteUrl" ] [ Html.text "Share this board" ]
+                , Html.input
+                    [ Html.Attributes.id "inviteUrl"
+                    , Html.Attributes.type_ "text"
+                    , Html.Attributes.readonly True
+                    , Html.Attributes.value inviteUrl
+                    ]
+                    []
+                , Html.div [ Html.Attributes.class "invite-actions" ]
+                    [ Html.button
+                        [ Html.Attributes.id "copyInviteCard"
+                        , Html.Attributes.type_ "button"
+                        , Html.Attributes.class "compact"
+                        , Html.Events.onClick (CopyBoardLink boardCode)
+                        ]
+                        [ Html.text "Copy link" ]
+                    , Html.button
+                        [ Html.Attributes.id "openCreatedBoard"
+                        , Html.Attributes.type_ "button"
+                        , Html.Attributes.class "compact primary"
+                        , Html.Events.onClick ToggleLobby
+                        ]
+                        [ Html.text "Open game now" ]
+                    ]
+                ]
+            ]
 
 
 viewLocalLobbyContent : Model -> Element Msg
@@ -2989,25 +3099,47 @@ viewBoardListSection model =
 
 viewBoardCard : BoardSummary -> Element Msg
 viewBoardCard board =
-    link
+    row
         [ width fill
+        , spacing 10
         , Bg.color (rgba255 255 255 255 0.06)
         , Border.rounded 8
         , padding 10
-        , mouseOver [ Bg.color (rgba255 255 255 255 0.12) ]
         ]
-        { url = "/?board=" ++ board.roomId
-        , label =
-            column [ width fill, spacing 6 ]
-                [ row [ width fill, spacing 8 ]
-                    [ el [ Font.bold, Font.size 14, width fill ] (text board.roomId)
-                    , el [ Font.size 12, Font.color (rgba255 255 255 255 0.5), width shrink ]
-                        (text (String.fromInt board.activeCount ++ "/2 seated"))
+        [ link
+            [ width fill
+            , mouseOver [ Bg.color (rgba255 255 255 255 0.04) ]
+            , Border.rounded 8
+            , paddingXY 2 2
+            ]
+            { url = "/?board=" ++ board.roomId
+            , label =
+                column [ width fill, spacing 6 ]
+                    [ row [ width fill, spacing 8 ]
+                        [ el [ Font.bold, Font.size 14, width fill ] (text board.roomId)
+                        , el [ Font.size 12, Font.color (rgba255 255 255 255 0.5), width shrink ]
+                            (text (String.fromInt board.activeCount ++ "/2 seated"))
+                        ]
+                    , paragraph [ width fill, Font.size 12, Font.color (rgba255 255 255 255 0.68) ]
+                        [ text (boardSummaryStateLabel board.state) ]
                     ]
-                , paragraph [ width fill, Font.size 12, Font.color (rgba255 255 255 255 0.68) ]
-                    [ text (boardSummaryStateLabel board.state) ]
-                ]
-        }
+            }
+        , Input.button
+            [ width (px 86)
+            , height (px 44)
+            , Border.rounded 14
+            , Border.width 1
+            , Border.color (rgb255 98 232 248)
+            , Bg.color (rgba255 9 32 18 0.9)
+            , Font.color (rgb255 141 255 174)
+            , Font.size 14
+            , Font.bold
+            , padding 0
+            ]
+            { onPress = Just (CopyBoardLink board.roomId)
+            , label = el [ centerX, centerY ] (text "Copy")
+            }
+        ]
 
 
 boardSummaryStateLabel : String -> String
@@ -3061,7 +3193,8 @@ viewTimerSelect : Int -> Element Msg
 viewTimerSelect current =
     Element.html
         (Html.select
-            [ Html.Attributes.style "background" "rgba(0,0,0,0.5)"
+            [ Html.Attributes.id "onlineMoveTimer"
+            , Html.Attributes.style "background" "rgba(0,0,0,0.5)"
             , Html.Attributes.style "color" "#e0ffe0"
             , Html.Attributes.style "border" "1px solid rgba(255,255,255,0.1)"
             , Html.Attributes.style "border-radius" "10px"
@@ -3496,6 +3629,13 @@ boardSummaryDecoder =
         (Decode.oneOf [ Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.at [ "occupancy", "vacantCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.field "moveCount" Decode.int, Decode.succeed 0 ])
+
+
+createdBoardInfoDecoder : Decode.Decoder CreatedBoardInfo
+createdBoardInfoDecoder =
+    Decode.map2 CreatedBoardInfo
+        (Decode.field "roomId" Decode.string)
+        (Decode.field "url" Decode.string)
 
 
 
