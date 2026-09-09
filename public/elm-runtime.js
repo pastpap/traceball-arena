@@ -5612,7 +5612,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, historyReplayGame: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', rawHistoryEntries: _List_Nil, replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -6303,7 +6303,13 @@ var $author$project$Main$activeBoard = function (model) {
 };
 var $elm$core$Basics$neq = _Utils_notEqual;
 var $author$project$Main$activeLocalGame = function (model) {
-	return (!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) ? $elm$core$Maybe$Nothing : model.localGame;
+	var _v0 = model.historyReplayGame;
+	if (_v0.$ === 'Just') {
+		var game = _v0.a;
+		return $elm$core$Maybe$Just(game);
+	} else {
+		return (!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) ? $elm$core$Maybe$Nothing : model.localGame;
+	}
 };
 var $elm$core$Maybe$andThen = F2(
 	function (callback, maybeValue) {
@@ -6967,6 +6973,27 @@ var $author$project$Main$decodeHistoryEntries = function (value) {
 			$elm$json$Json$Decode$list($author$project$Main$historyEntryDecoder),
 			value));
 };
+var $elm$core$List$drop = F2(
+	function (n, list) {
+		drop:
+		while (true) {
+			if (n <= 0) {
+				return list;
+			} else {
+				if (!list.b) {
+					return list;
+				} else {
+					var x = list.a;
+					var xs = list.b;
+					var $temp$n = n - 1,
+						$temp$list = xs;
+					n = $temp$n;
+					list = $temp$list;
+					continue drop;
+				}
+			}
+		}
+	});
 var $author$project$Main$expireLocalTurnIfNeeded = F2(
 	function (nowMs, lg) {
 		return A2(
@@ -7013,6 +7040,154 @@ var $author$project$Main$expireLocalTurnIfNeeded = F2(
 			},
 			$author$project$Main$localTurnDeadlineAt(lg));
 	});
+var $elm$core$List$head = function (list) {
+	if (list.b) {
+		var x = list.a;
+		var xs = list.b;
+		return $elm$core$Maybe$Just(x);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $author$project$Main$historyLocalGameDecoder = A2(
+	$elm$json$Json$Decode$andThen,
+	function (base) {
+		return A6(
+			$elm$json$Json$Decode$map5,
+			F5(
+				function (scoreRed, winner, endReason, timerMs, timeouts) {
+					return _Utils_update(
+						base,
+						{consecutiveTimeouts: timeouts, endReason: endReason, moveTimerSeconds: (timerMs / 1000) | 0, scoreRed: scoreRed, winner: winner});
+				}),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2(
+						$elm$json$Json$Decode$at,
+						_List_fromArray(
+							['score', 'p2']),
+						$elm$json$Json$Decode$int),
+						$elm$json$Json$Decode$succeed(0)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2(
+						$elm$json$Json$Decode$field,
+						'winner',
+						$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+						$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2(
+						$elm$json$Json$Decode$field,
+						'endReason',
+						$elm$json$Json$Decode$nullable($elm$json$Json$Decode$string)),
+						$elm$json$Json$Decode$succeed($elm$core$Maybe$Nothing)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2($elm$json$Json$Decode$field, 'moveTimeLimitMs', $elm$json$Json$Decode$int),
+						$elm$json$Json$Decode$succeed(0)
+					])),
+			$elm$json$Json$Decode$oneOf(
+				_List_fromArray(
+					[
+						A2($elm$json$Json$Decode$field, 'consecutiveTimeouts', $elm$json$Json$Decode$int),
+						$elm$json$Json$Decode$succeed(0)
+					])));
+	},
+	A9(
+		$elm$json$Json$Decode$map8,
+		F8(
+			function (blueName, redName, turn, ball, visited, segments, moves, scoreBlue) {
+				return {ball: ball, blueName: blueName, consecutiveTimeouts: 0, endReason: $elm$core$Maybe$Nothing, moveTimerSeconds: 0, moves: moves, redName: redName, scoreBlue: scoreBlue, scoreRed: 0, segments: segments, turn: turn, turnStartedAtMs: $elm$core$Maybe$Nothing, visited: visited, winner: $elm$core$Maybe$Nothing};
+			}),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$at,
+					_List_fromArray(
+						['players', 'p1', 'name']),
+					$elm$json$Json$Decode$string),
+					$elm$json$Json$Decode$succeed('Blue')
+				])),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$at,
+					_List_fromArray(
+						['players', 'p2', 'name']),
+					$elm$json$Json$Decode$string),
+					$elm$json$Json$Decode$succeed('Red')
+				])),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2($elm$json$Json$Decode$field, 'turn', $elm$json$Json$Decode$string),
+					$elm$json$Json$Decode$succeed('p1')
+				])),
+		A3(
+			$elm$json$Json$Decode$map2,
+			F2(
+				function (x, y) {
+					return {x: x, y: y};
+				}),
+			A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['ball', 'x']),
+				$elm$json$Json$Decode$int),
+			A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['ball', 'y']),
+				$elm$json$Json$Decode$int)),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$field,
+					'visited',
+					$elm$json$Json$Decode$list($elm$json$Json$Decode$string)),
+					$elm$json$Json$Decode$succeed(
+					_List_fromArray(
+						['4,6']))
+				])),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$field,
+					'segments',
+					$elm$json$Json$Decode$list($elm$json$Json$Decode$string)),
+					$elm$json$Json$Decode$succeed(_List_Nil)
+				])),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$field,
+					'moves',
+					$elm$json$Json$Decode$list($author$project$Main$localMoveDecoderHelper)),
+					$elm$json$Json$Decode$succeed(_List_Nil)
+				])),
+		$elm$json$Json$Decode$oneOf(
+			_List_fromArray(
+				[
+					A2(
+					$elm$json$Json$Decode$at,
+					_List_fromArray(
+						['score', 'p1']),
+					$elm$json$Json$Decode$int),
+					$elm$json$Json$Decode$succeed(0)
+				]))));
 var $elm$json$Json$Encode$int = _Json_wrap;
 var $author$project$Main$limitNameInput = function (raw) {
 	return A2($elm$core$String$left, 24, raw);
@@ -8298,11 +8473,58 @@ var $author$project$Main$update = F2(
 					$elm$core$Platform$Cmd$none);
 			case 'ReceiveGameHistory':
 				var value = msg.a;
+				var rawList = A2(
+					$elm$core$Result$withDefault,
+					_List_Nil,
+					A2(
+						$elm$json$Json$Decode$decodeValue,
+						$elm$json$Json$Decode$list($elm$json$Json$Decode$value),
+						value));
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
 						{
-							gameHistory: $author$project$Main$decodeHistoryEntries(value)
+							gameHistory: $author$project$Main$decodeHistoryEntries(value),
+							rawHistoryEntries: rawList
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'OpenHistoryReplay':
+				var index = msg.a;
+				var _v6 = $elm$core$List$head(
+					A2($elm$core$List$drop, index, model.rawHistoryEntries));
+				if (_v6.$ === 'Just') {
+					var rawEntry = _v6.a;
+					var _v7 = A2(
+						$elm$json$Json$Decode$decodeValue,
+						A2($elm$json$Json$Decode$field, 'game', $author$project$Main$historyLocalGameDecoder),
+						rawEntry);
+					if (_v7.$ === 'Ok') {
+						var game = _v7.a;
+						return _Utils_Tuple2(
+							_Utils_update(
+								model,
+								{
+									historyReplayGame: $elm$core$Maybe$Just(game),
+									menuPanel: $elm$core$Maybe$Nothing,
+									replayIndex: $elm$core$Maybe$Just(0),
+									showLobby: false
+								}),
+							$elm$core$Platform$Cmd$none);
+					} else {
+						return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+					}
+				} else {
+					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+				}
+			case 'CloseHistoryReplay':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							historyReplayGame: $elm$core$Maybe$Nothing,
+							menuPanel: $elm$core$Maybe$Just('history'),
+							replayIndex: $elm$core$Maybe$Nothing,
+							showLobby: _Utils_eq(model.board, $elm$core$Maybe$Nothing) && _Utils_eq(model.localGame, $elm$core$Maybe$Nothing)
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'UpdateBoardCodeInput':
@@ -8528,9 +8750,9 @@ var $author$project$Main$update = F2(
 												])))
 									]))));
 				} else {
-					var _v6 = $author$project$Main$activeLocalGame(model);
-					if (_v6.$ === 'Just') {
-						var lg = _v6.a;
+					var _v8 = $author$project$Main$activeLocalGame(model);
+					if (_v8.$ === 'Just') {
+						var lg = _v8.a;
 						if (model.localPaused) {
 							return _Utils_Tuple2(
 								_Utils_update(
@@ -8540,9 +8762,9 @@ var $author$project$Main$update = F2(
 									}),
 								$elm$core$Platform$Cmd$none);
 						} else {
-							var _v7 = A3($author$project$Main$applyLocalMove, model.currentTimeMs, lg, point);
-							if (_v7.$ === 'Ok') {
-								var nextGame = _v7.a;
+							var _v9 = A3($author$project$Main$applyLocalMove, model.currentTimeMs, lg, point);
+							if (_v9.$ === 'Ok') {
+								var nextGame = _v9.a;
 								return _Utils_Tuple2(
 									_Utils_update(
 										model,
@@ -8556,7 +8778,7 @@ var $author$project$Main$update = F2(
 										$elm$core$Maybe$Just(nextGame),
 										false));
 							} else {
-								var reason = _v7.a;
+								var reason = _v9.a;
 								return _Utils_Tuple2(
 									_Utils_update(
 										model,
@@ -8592,9 +8814,9 @@ var $author$project$Main$update = F2(
 					}
 				}
 			case 'StartNewRound':
-				var _v8 = model.localGame;
-				if (_v8.$ === 'Just') {
-					var lg = _v8.a;
+				var _v10 = model.localGame;
+				if (_v10.$ === 'Just') {
+					var lg = _v10.a;
 					var nextGame = A2($author$project$Main$restartLocalRound, model.currentTimeMs, lg);
 					return _Utils_Tuple2(
 						_Utils_update(
@@ -8694,22 +8916,50 @@ var $author$project$Main$update = F2(
 					_Utils_update(
 						model,
 						{
+							board: $elm$core$Maybe$Nothing,
+							boardCode: '',
+							connectionStatus: 'idle',
 							dismissedWinnerKey: $elm$core$Maybe$Nothing,
 							error: $elm$core$Maybe$Nothing,
+							historyReplayGame: $elm$core$Maybe$Nothing,
+							joinedSeat: $elm$core$Maybe$Nothing,
 							localGame: $elm$core$Maybe$Just(game),
 							localPaused: false,
 							replayIndex: $elm$core$Maybe$Nothing,
 							showLobby: false,
 							showTimerSheet: false
 						}),
-					A2(
-						$author$project$Main$persistLocalCmd,
-						$elm$core$Maybe$Just(game),
-						false));
+					$elm$core$Platform$Cmd$batch(
+						_List_fromArray(
+							[
+								A2(
+								$author$project$Main$persistLocalCmd,
+								$elm$core$Maybe$Just(game),
+								false),
+								$author$project$Main$outgoingClientCommand(
+								$elm$json$Json$Encode$object(
+									_List_fromArray(
+										[
+											_Utils_Tuple2(
+											'type',
+											$elm$json$Json$Encode$string('disconnectSocket'))
+										]))),
+								$author$project$Main$outgoingClientCommand(
+								$elm$json$Json$Encode$object(
+									_List_fromArray(
+										[
+											_Utils_Tuple2(
+											'type',
+											$elm$json$Json$Encode$string('updateUrl')),
+											_Utils_Tuple2(
+											'url',
+											$elm$json$Json$Encode$string('/'))
+										])))
+							])));
 			case 'ToggleLocalPause':
-				var _v9 = model.localGame;
-				if (_v9.$ === 'Just') {
-					var lg = _v9.a;
+				var _v11 = model.localGame;
+				if (_v11.$ === 'Just') {
+					var lg = _v11.a;
 					var nextPaused = !model.localPaused;
 					var nextGame = nextPaused ? _Utils_update(
 						lg,
@@ -8734,9 +8984,9 @@ var $author$project$Main$update = F2(
 					return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
 				}
 			case 'LocalNewRound':
-				var _v10 = model.localGame;
-				if (_v10.$ === 'Just') {
-					var lg = _v10.a;
+				var _v12 = model.localGame;
+				if (_v12.$ === 'Just') {
+					var lg = _v12.a;
 					var nextGame = A2($author$project$Main$restartLocalRound, model.currentTimeMs, lg);
 					return _Utils_Tuple2(
 						_Utils_update(
@@ -8788,23 +9038,23 @@ var $author$project$Main$update = F2(
 			case 'ReceiveBoardList':
 				var value = msg.a;
 				var rooms = function () {
-					var _v11 = A2(
+					var _v13 = A2(
 						$elm$json$Json$Decode$decodeValue,
 						A2(
 							$elm$json$Json$Decode$field,
 							'rooms',
 							$elm$json$Json$Decode$list($author$project$Main$boardSummaryDecoder)),
 						value);
-					if (_v11.$ === 'Ok') {
-						var list = _v11.a;
+					if (_v13.$ === 'Ok') {
+						var list = _v13.a;
 						return list;
 					} else {
-						var _v12 = A2(
+						var _v14 = A2(
 							$elm$json$Json$Decode$decodeValue,
 							$elm$json$Json$Decode$list($author$project$Main$boardSummaryDecoder),
 							value);
-						if (_v12.$ === 'Ok') {
-							var list = _v12.a;
+						if (_v14.$ === 'Ok') {
+							var list = _v14.a;
 							return list;
 						} else {
 							return _List_Nil;
@@ -8818,9 +9068,9 @@ var $author$project$Main$update = F2(
 					$elm$core$Platform$Cmd$none);
 			case 'ReceiveBoardCreated':
 				var value = msg.a;
-				var _v13 = A2($elm$json$Json$Decode$decodeValue, $author$project$Main$createdBoardInfoDecoder, value);
-				if (_v13.$ === 'Ok') {
-					var info = _v13.a;
+				var _v15 = A2($elm$json$Json$Decode$decodeValue, $author$project$Main$createdBoardInfoDecoder, value);
+				if (_v15.$ === 'Ok') {
+					var info = _v15.a;
 					var sanitized = $author$project$Main$sanitizeBoardCode(info.roomId);
 					return $author$project$Main$isValidBoardCode(sanitized) ? _Utils_Tuple2(
 						_Utils_update(
@@ -15996,1758 +16246,7 @@ var $author$project$Main$viewHeaderHtml = F2(
 						]))
 				]));
 	});
-var $author$project$Main$SetLobbyTab = function (a) {
-	return {$: 'SetLobbyTab', a: a};
-};
-var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
-var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
-var $author$project$Main$gradientTabButton = F3(
-	function (label, active, onPress) {
-		return A2(
-			$mdgriffith$elm_ui$Element$Input$button,
-			_Utils_ap(
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						A2($mdgriffith$elm_ui$Element$paddingXY, 0, 11),
-						$mdgriffith$elm_ui$Element$Border$rounded(24),
-						$mdgriffith$elm_ui$Element$Font$bold,
-						$mdgriffith$elm_ui$Element$Font$size(15),
-						$mdgriffith$elm_ui$Element$Font$color(
-						active ? A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10) : A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 140))
-					]),
-				active ? _List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$htmlAttribute(
-						A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)'))
-					]) : _List_Nil),
-			{
-				label: A2(
-					$mdgriffith$elm_ui$Element$el,
-					_List_fromArray(
-						[$mdgriffith$elm_ui$Element$centerX]),
-					$mdgriffith$elm_ui$Element$text(label)),
-				onPress: $elm$core$Maybe$Just(onPress)
-			});
-	});
-var $author$project$Main$LeaveLocalGame = {$: 'LeaveLocalGame'};
-var $author$project$Main$StartLocalMatch = {$: 'StartLocalMatch'};
-var $author$project$Main$UpdateLocalBlueName = function (a) {
-	return {$: 'UpdateLocalBlueName', a: a};
-};
-var $author$project$Main$UpdateLocalRedName = function (a) {
-	return {$: 'UpdateLocalRedName', a: a};
-};
-var $author$project$Main$formFieldAttrs = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-		A2($mdgriffith$elm_ui$Element$paddingXY, 14, 14),
-		$mdgriffith$elm_ui$Element$Border$width(1),
-		$mdgriffith$elm_ui$Element$Border$rounded(14),
-		$mdgriffith$elm_ui$Element$Border$color(
-		A3($mdgriffith$elm_ui$Element$rgb255, 92, 132, 99)),
-		$mdgriffith$elm_ui$Element$Background$color(
-		A4($mdgriffith$elm_ui$Element$rgba255, 31, 72, 41, 226)),
-		$mdgriffith$elm_ui$Element$Font$color(
-		A3($mdgriffith$elm_ui$Element$rgb255, 242, 255, 245))
-	]);
-var $author$project$Main$formPlaceholderAttrs = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$Font$color(
-		A4($mdgriffith$elm_ui$Element$rgba255, 228, 244, 232, 138))
-	]);
-var $mdgriffith$elm_ui$Element$Input$HiddenLabel = function (a) {
-	return {$: 'HiddenLabel', a: a};
-};
-var $mdgriffith$elm_ui$Element$Input$labelHidden = $mdgriffith$elm_ui$Element$Input$HiddenLabel;
-var $mdgriffith$elm_ui$Element$Input$Placeholder = F2(
-	function (a, b) {
-		return {$: 'Placeholder', a: a, b: b};
-	});
-var $mdgriffith$elm_ui$Element$Input$placeholder = $mdgriffith$elm_ui$Element$Input$Placeholder;
-var $mdgriffith$elm_ui$Element$Input$TextInputNode = function (a) {
-	return {$: 'TextInputNode', a: a};
-};
-var $mdgriffith$elm_ui$Element$Input$TextArea = {$: 'TextArea'};
-var $mdgriffith$elm_ui$Internal$Model$LivePolite = {$: 'LivePolite'};
-var $mdgriffith$elm_ui$Element$Region$announce = $mdgriffith$elm_ui$Internal$Model$Describe($mdgriffith$elm_ui$Internal$Model$LivePolite);
-var $mdgriffith$elm_ui$Element$Input$applyLabel = F3(
-	function (attrs, label, input) {
-		if (label.$ === 'HiddenLabel') {
-			var labelText = label.a;
-			return A4(
-				$mdgriffith$elm_ui$Internal$Model$element,
-				$mdgriffith$elm_ui$Internal$Model$asColumn,
-				$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
-				attrs,
-				$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-					_List_fromArray(
-						[input])));
-		} else {
-			var position = label.a;
-			var labelAttrs = label.b;
-			var labelChild = label.c;
-			var labelElement = A4(
-				$mdgriffith$elm_ui$Internal$Model$element,
-				$mdgriffith$elm_ui$Internal$Model$asEl,
-				$mdgriffith$elm_ui$Internal$Model$div,
-				labelAttrs,
-				$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-					_List_fromArray(
-						[labelChild])));
-			switch (position.$) {
-				case 'Above':
-					return A4(
-						$mdgriffith$elm_ui$Internal$Model$element,
-						$mdgriffith$elm_ui$Internal$Model$asColumn,
-						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
-						A2(
-							$elm$core$List$cons,
-							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
-							attrs),
-						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-							_List_fromArray(
-								[labelElement, input])));
-				case 'Below':
-					return A4(
-						$mdgriffith$elm_ui$Internal$Model$element,
-						$mdgriffith$elm_ui$Internal$Model$asColumn,
-						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
-						A2(
-							$elm$core$List$cons,
-							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
-							attrs),
-						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-							_List_fromArray(
-								[input, labelElement])));
-				case 'OnRight':
-					return A4(
-						$mdgriffith$elm_ui$Internal$Model$element,
-						$mdgriffith$elm_ui$Internal$Model$asRow,
-						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
-						A2(
-							$elm$core$List$cons,
-							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
-							attrs),
-						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-							_List_fromArray(
-								[input, labelElement])));
-				default:
-					return A4(
-						$mdgriffith$elm_ui$Internal$Model$element,
-						$mdgriffith$elm_ui$Internal$Model$asRow,
-						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
-						A2(
-							$elm$core$List$cons,
-							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
-							attrs),
-						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-							_List_fromArray(
-								[labelElement, input])));
-			}
-		}
-	});
-var $mdgriffith$elm_ui$Element$Input$autofill = A2(
-	$elm$core$Basics$composeL,
-	$mdgriffith$elm_ui$Internal$Model$Attr,
-	$elm$html$Html$Attributes$attribute('autocomplete'));
-var $mdgriffith$elm_ui$Internal$Model$Behind = {$: 'Behind'};
-var $mdgriffith$elm_ui$Element$behindContent = function (element) {
-	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$Behind, element);
-};
-var $mdgriffith$elm_ui$Internal$Model$MoveY = function (a) {
-	return {$: 'MoveY', a: a};
-};
-var $mdgriffith$elm_ui$Internal$Flag$moveY = $mdgriffith$elm_ui$Internal$Flag$flag(26);
-var $mdgriffith$elm_ui$Element$moveUp = function (y) {
-	return A2(
-		$mdgriffith$elm_ui$Internal$Model$TransformComponent,
-		$mdgriffith$elm_ui$Internal$Flag$moveY,
-		$mdgriffith$elm_ui$Internal$Model$MoveY(-y));
-};
-var $mdgriffith$elm_ui$Element$Input$calcMoveToCompensateForPadding = function (attrs) {
-	var gatherSpacing = F2(
-		function (attr, found) {
-			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'SpacingStyle')) {
-				var _v2 = attr.b;
-				var x = _v2.b;
-				var y = _v2.c;
-				if (found.$ === 'Nothing') {
-					return $elm$core$Maybe$Just(y);
-				} else {
-					return found;
-				}
-			} else {
-				return found;
-			}
-		});
-	var _v0 = A3($elm$core$List$foldr, gatherSpacing, $elm$core$Maybe$Nothing, attrs);
-	if (_v0.$ === 'Nothing') {
-		return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
-	} else {
-		var vSpace = _v0.a;
-		return $mdgriffith$elm_ui$Element$moveUp(
-			$elm$core$Basics$floor(vSpace / 2));
-	}
-};
-var $mdgriffith$elm_ui$Internal$Flag$overflow = $mdgriffith$elm_ui$Internal$Flag$flag(20);
-var $mdgriffith$elm_ui$Element$clip = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$overflow, $mdgriffith$elm_ui$Internal$Style$classes.clip);
-var $mdgriffith$elm_ui$Element$rgb = F3(
-	function (r, g, b) {
-		return A4($mdgriffith$elm_ui$Internal$Model$Rgba, r, g, b, 1);
-	});
-var $mdgriffith$elm_ui$Element$Input$darkGrey = A3($mdgriffith$elm_ui$Element$rgb, 186 / 255, 189 / 255, 182 / 255);
-var $mdgriffith$elm_ui$Element$Input$defaultTextPadding = A2($mdgriffith$elm_ui$Element$paddingXY, 12, 12);
-var $mdgriffith$elm_ui$Element$Input$white = A3($mdgriffith$elm_ui$Element$rgb, 1, 1, 1);
-var $mdgriffith$elm_ui$Element$Input$defaultTextBoxStyle = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$Input$defaultTextPadding,
-		$mdgriffith$elm_ui$Element$Border$rounded(3),
-		$mdgriffith$elm_ui$Element$Border$color($mdgriffith$elm_ui$Element$Input$darkGrey),
-		$mdgriffith$elm_ui$Element$Background$color($mdgriffith$elm_ui$Element$Input$white),
-		$mdgriffith$elm_ui$Element$Border$width(1),
-		$mdgriffith$elm_ui$Element$spacing(5),
-		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-		$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink)
-	]);
-var $mdgriffith$elm_ui$Element$Input$getHeight = function (attr) {
-	if (attr.$ === 'Height') {
-		var h = attr.a;
-		return $elm$core$Maybe$Just(h);
-	} else {
-		return $elm$core$Maybe$Nothing;
-	}
-};
-var $elm$core$List$head = function (list) {
-	if (list.b) {
-		var x = list.a;
-		var xs = list.b;
-		return $elm$core$Maybe$Just(x);
-	} else {
-		return $elm$core$Maybe$Nothing;
-	}
-};
-var $mdgriffith$elm_ui$Internal$Model$Label = function (a) {
-	return {$: 'Label', a: a};
-};
-var $mdgriffith$elm_ui$Element$Input$hiddenLabelAttribute = function (label) {
-	if (label.$ === 'HiddenLabel') {
-		var textLabel = label.a;
-		return $mdgriffith$elm_ui$Internal$Model$Describe(
-			$mdgriffith$elm_ui$Internal$Model$Label(textLabel));
-	} else {
-		return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$isConstrained = function (len) {
-	isConstrained:
-	while (true) {
-		switch (len.$) {
-			case 'Content':
-				return false;
-			case 'Px':
-				return true;
-			case 'Fill':
-				return true;
-			case 'Min':
-				var l = len.b;
-				var $temp$len = l;
-				len = $temp$len;
-				continue isConstrained;
-			default:
-				var l = len.b;
-				return true;
-		}
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$isHiddenLabel = function (label) {
-	if (label.$ === 'HiddenLabel') {
-		return true;
-	} else {
-		return false;
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$isStacked = function (label) {
-	if (label.$ === 'Label') {
-		var loc = label.a;
-		switch (loc.$) {
-			case 'OnRight':
-				return false;
-			case 'OnLeft':
-				return false;
-			case 'Above':
-				return true;
-			default:
-				return true;
-		}
-	} else {
-		return true;
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$negateBox = function (box) {
-	return {bottom: -box.bottom, left: -box.left, right: -box.right, top: -box.top};
-};
-var $elm$html$Html$Events$alwaysStop = function (x) {
-	return _Utils_Tuple2(x, true);
-};
-var $elm$virtual_dom$VirtualDom$MayStopPropagation = function (a) {
-	return {$: 'MayStopPropagation', a: a};
-};
-var $elm$html$Html$Events$stopPropagationOn = F2(
-	function (event, decoder) {
-		return A2(
-			$elm$virtual_dom$VirtualDom$on,
-			event,
-			$elm$virtual_dom$VirtualDom$MayStopPropagation(decoder));
-	});
-var $elm$html$Html$Events$targetValue = A2(
-	$elm$json$Json$Decode$at,
-	_List_fromArray(
-		['target', 'value']),
-	$elm$json$Json$Decode$string);
-var $elm$html$Html$Events$onInput = function (tagger) {
-	return A2(
-		$elm$html$Html$Events$stopPropagationOn,
-		'input',
-		A2(
-			$elm$json$Json$Decode$map,
-			$elm$html$Html$Events$alwaysStop,
-			A2($elm$json$Json$Decode$map, tagger, $elm$html$Html$Events$targetValue)));
-};
-var $mdgriffith$elm_ui$Internal$Model$paddingName = F4(
-	function (top, right, bottom, left) {
-		return 'pad-' + ($elm$core$String$fromInt(top) + ('-' + ($elm$core$String$fromInt(right) + ('-' + ($elm$core$String$fromInt(bottom) + ('-' + $elm$core$String$fromInt(left)))))));
-	});
-var $mdgriffith$elm_ui$Element$paddingEach = function (_v0) {
-	var top = _v0.top;
-	var right = _v0.right;
-	var bottom = _v0.bottom;
-	var left = _v0.left;
-	if (_Utils_eq(top, right) && (_Utils_eq(top, bottom) && _Utils_eq(top, left))) {
-		var topFloat = top;
-		return A2(
-			$mdgriffith$elm_ui$Internal$Model$StyleClass,
-			$mdgriffith$elm_ui$Internal$Flag$padding,
-			A5(
-				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
-				'p-' + $elm$core$String$fromInt(top),
-				topFloat,
-				topFloat,
-				topFloat,
-				topFloat));
-	} else {
-		return A2(
-			$mdgriffith$elm_ui$Internal$Model$StyleClass,
-			$mdgriffith$elm_ui$Internal$Flag$padding,
-			A5(
-				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
-				A4($mdgriffith$elm_ui$Internal$Model$paddingName, top, right, bottom, left),
-				top,
-				right,
-				bottom,
-				left));
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$isFill = function (len) {
-	isFill:
-	while (true) {
-		switch (len.$) {
-			case 'Fill':
-				return true;
-			case 'Content':
-				return false;
-			case 'Px':
-				return false;
-			case 'Min':
-				var l = len.b;
-				var $temp$len = l;
-				len = $temp$len;
-				continue isFill;
-			default:
-				var l = len.b;
-				var $temp$len = l;
-				len = $temp$len;
-				continue isFill;
-		}
-	}
-};
-var $mdgriffith$elm_ui$Element$Input$isPixel = function (len) {
-	isPixel:
-	while (true) {
-		switch (len.$) {
-			case 'Content':
-				return false;
-			case 'Px':
-				return true;
-			case 'Fill':
-				return false;
-			case 'Min':
-				var l = len.b;
-				var $temp$len = l;
-				len = $temp$len;
-				continue isPixel;
-			default:
-				var l = len.b;
-				var $temp$len = l;
-				len = $temp$len;
-				continue isPixel;
-		}
-	}
-};
-var $mdgriffith$elm_ui$Internal$Model$paddingNameFloat = F4(
-	function (top, right, bottom, left) {
-		return 'pad-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(top) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(right) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(bottom) + ('-' + $mdgriffith$elm_ui$Internal$Model$floatClass(left)))))));
-	});
-var $mdgriffith$elm_ui$Element$Input$redistributeOver = F4(
-	function (isMultiline, stacked, attr, els) {
-		switch (attr.$) {
-			case 'Nearby':
-				return _Utils_update(
-					els,
-					{
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					});
-			case 'Width':
-				var width = attr.a;
-				return $mdgriffith$elm_ui$Element$Input$isFill(width) ? _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
-						input: A2($elm$core$List$cons, attr, els.input),
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					}) : (stacked ? _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
-					}) : _Utils_update(
-					els,
-					{
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					}));
-			case 'Height':
-				var height = attr.a;
-				return (!stacked) ? _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					}) : ($mdgriffith$elm_ui$Element$Input$isFill(height) ? _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					}) : ($mdgriffith$elm_ui$Element$Input$isPixel(height) ? _Utils_update(
-					els,
-					{
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					}) : _Utils_update(
-					els,
-					{
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					})));
-			case 'AlignX':
-				return _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
-					});
-			case 'AlignY':
-				return _Utils_update(
-					els,
-					{
-						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
-					});
-			case 'StyleClass':
-				switch (attr.b.$) {
-					case 'SpacingStyle':
-						var _v1 = attr.b;
-						return _Utils_update(
-							els,
-							{
-								fullParent: A2($elm$core$List$cons, attr, els.fullParent),
-								input: A2($elm$core$List$cons, attr, els.input),
-								parent: A2($elm$core$List$cons, attr, els.parent),
-								wrapper: A2($elm$core$List$cons, attr, els.wrapper)
-							});
-					case 'PaddingStyle':
-						var cls = attr.a;
-						var _v2 = attr.b;
-						var pad = _v2.a;
-						var t = _v2.b;
-						var r = _v2.c;
-						var b = _v2.d;
-						var l = _v2.e;
-						if (isMultiline) {
-							return _Utils_update(
-								els,
-								{
-									cover: A2($elm$core$List$cons, attr, els.cover),
-									parent: A2($elm$core$List$cons, attr, els.parent)
-								});
-						} else {
-							var newTop = t - A2($elm$core$Basics$min, t, b);
-							var newLineHeight = $mdgriffith$elm_ui$Element$htmlAttribute(
-								A2(
-									$elm$html$Html$Attributes$style,
-									'line-height',
-									'calc(1.0em + ' + ($elm$core$String$fromFloat(
-										2 * A2($elm$core$Basics$min, t, b)) + 'px)')));
-							var newHeight = $mdgriffith$elm_ui$Element$htmlAttribute(
-								A2(
-									$elm$html$Html$Attributes$style,
-									'height',
-									'calc(1.0em + ' + ($elm$core$String$fromFloat(
-										2 * A2($elm$core$Basics$min, t, b)) + 'px)')));
-							var newBottom = b - A2($elm$core$Basics$min, t, b);
-							var reducedVerticalPadding = A2(
-								$mdgriffith$elm_ui$Internal$Model$StyleClass,
-								$mdgriffith$elm_ui$Internal$Flag$padding,
-								A5(
-									$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
-									A4($mdgriffith$elm_ui$Internal$Model$paddingNameFloat, newTop, r, newBottom, l),
-									newTop,
-									r,
-									newBottom,
-									l));
-							return _Utils_update(
-								els,
-								{
-									cover: A2($elm$core$List$cons, attr, els.cover),
-									input: A2(
-										$elm$core$List$cons,
-										newHeight,
-										A2($elm$core$List$cons, newLineHeight, els.input)),
-									parent: A2($elm$core$List$cons, reducedVerticalPadding, els.parent)
-								});
-						}
-					case 'BorderWidth':
-						var _v3 = attr.b;
-						return _Utils_update(
-							els,
-							{
-								cover: A2($elm$core$List$cons, attr, els.cover),
-								parent: A2($elm$core$List$cons, attr, els.parent)
-							});
-					case 'Transform':
-						return _Utils_update(
-							els,
-							{
-								cover: A2($elm$core$List$cons, attr, els.cover),
-								parent: A2($elm$core$List$cons, attr, els.parent)
-							});
-					case 'FontSize':
-						return _Utils_update(
-							els,
-							{
-								fullParent: A2($elm$core$List$cons, attr, els.fullParent)
-							});
-					case 'FontFamily':
-						var _v4 = attr.b;
-						return _Utils_update(
-							els,
-							{
-								fullParent: A2($elm$core$List$cons, attr, els.fullParent)
-							});
-					default:
-						var flag = attr.a;
-						var cls = attr.b;
-						return _Utils_update(
-							els,
-							{
-								parent: A2($elm$core$List$cons, attr, els.parent)
-							});
-				}
-			case 'NoAttribute':
-				return els;
-			case 'Attr':
-				var a = attr.a;
-				return _Utils_update(
-					els,
-					{
-						input: A2($elm$core$List$cons, attr, els.input)
-					});
-			case 'Describe':
-				return _Utils_update(
-					els,
-					{
-						input: A2($elm$core$List$cons, attr, els.input)
-					});
-			case 'Class':
-				return _Utils_update(
-					els,
-					{
-						parent: A2($elm$core$List$cons, attr, els.parent)
-					});
-			default:
-				return _Utils_update(
-					els,
-					{
-						input: A2($elm$core$List$cons, attr, els.input)
-					});
-		}
-	});
-var $mdgriffith$elm_ui$Element$Input$redistribute = F3(
-	function (isMultiline, stacked, attrs) {
-		return function (redist) {
-			return {
-				cover: $elm$core$List$reverse(redist.cover),
-				fullParent: $elm$core$List$reverse(redist.fullParent),
-				input: $elm$core$List$reverse(redist.input),
-				parent: $elm$core$List$reverse(redist.parent),
-				wrapper: $elm$core$List$reverse(redist.wrapper)
-			};
-		}(
-			A3(
-				$elm$core$List$foldl,
-				A2($mdgriffith$elm_ui$Element$Input$redistributeOver, isMultiline, stacked),
-				{cover: _List_Nil, fullParent: _List_Nil, input: _List_Nil, parent: _List_Nil, wrapper: _List_Nil},
-				attrs));
-	});
-var $mdgriffith$elm_ui$Element$Input$renderBox = function (_v0) {
-	var top = _v0.top;
-	var right = _v0.right;
-	var bottom = _v0.bottom;
-	var left = _v0.left;
-	return $elm$core$String$fromInt(top) + ('px ' + ($elm$core$String$fromInt(right) + ('px ' + ($elm$core$String$fromInt(bottom) + ('px ' + ($elm$core$String$fromInt(left) + 'px'))))));
-};
-var $mdgriffith$elm_ui$Internal$Model$Transparency = F2(
-	function (a, b) {
-		return {$: 'Transparency', a: a, b: b};
-	});
-var $mdgriffith$elm_ui$Internal$Flag$transparency = $mdgriffith$elm_ui$Internal$Flag$flag(0);
-var $mdgriffith$elm_ui$Element$alpha = function (o) {
-	var transparency = function (x) {
-		return 1 - x;
-	}(
-		A2(
-			$elm$core$Basics$min,
-			1.0,
-			A2($elm$core$Basics$max, 0.0, o)));
-	return A2(
-		$mdgriffith$elm_ui$Internal$Model$StyleClass,
-		$mdgriffith$elm_ui$Internal$Flag$transparency,
-		A2(
-			$mdgriffith$elm_ui$Internal$Model$Transparency,
-			'transparency-' + $mdgriffith$elm_ui$Internal$Model$floatClass(transparency),
-			transparency));
-};
-var $mdgriffith$elm_ui$Element$Input$charcoal = A3($mdgriffith$elm_ui$Element$rgb, 136 / 255, 138 / 255, 133 / 255);
-var $mdgriffith$elm_ui$Element$rgba = $mdgriffith$elm_ui$Internal$Model$Rgba;
-var $mdgriffith$elm_ui$Element$Input$renderPlaceholder = F3(
-	function (_v0, forPlaceholder, on) {
-		var placeholderAttrs = _v0.a;
-		var placeholderEl = _v0.b;
-		return A2(
-			$mdgriffith$elm_ui$Element$el,
-			_Utils_ap(
-				forPlaceholder,
-				_Utils_ap(
-					_List_fromArray(
-						[
-							$mdgriffith$elm_ui$Element$Font$color($mdgriffith$elm_ui$Element$Input$charcoal),
-							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.noTextSelection + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.passPointerEvents)),
-							$mdgriffith$elm_ui$Element$clip,
-							$mdgriffith$elm_ui$Element$Border$color(
-							A4($mdgriffith$elm_ui$Element$rgba, 0, 0, 0, 0)),
-							$mdgriffith$elm_ui$Element$Background$color(
-							A4($mdgriffith$elm_ui$Element$rgba, 0, 0, 0, 0)),
-							$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
-							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-							$mdgriffith$elm_ui$Element$alpha(
-							on ? 1 : 0)
-						]),
-					placeholderAttrs)),
-			placeholderEl);
-	});
-var $mdgriffith$elm_ui$Element$scrollbarY = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$overflow, $mdgriffith$elm_ui$Internal$Style$classes.scrollbarsY);
-var $elm$html$Html$Attributes$spellcheck = $elm$html$Html$Attributes$boolProperty('spellcheck');
-var $mdgriffith$elm_ui$Element$Input$spellcheck = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Attr, $elm$html$Html$Attributes$spellcheck);
-var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
-var $mdgriffith$elm_ui$Element$Input$value = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Attr, $elm$html$Html$Attributes$value);
-var $mdgriffith$elm_ui$Element$Input$textHelper = F3(
-	function (textInput, attrs, textOptions) {
-		var withDefaults = _Utils_ap($mdgriffith$elm_ui$Element$Input$defaultTextBoxStyle, attrs);
-		var redistributed = A3(
-			$mdgriffith$elm_ui$Element$Input$redistribute,
-			_Utils_eq(textInput.type_, $mdgriffith$elm_ui$Element$Input$TextArea),
-			$mdgriffith$elm_ui$Element$Input$isStacked(textOptions.label),
-			withDefaults);
-		var onlySpacing = function (attr) {
-			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'SpacingStyle')) {
-				var _v9 = attr.b;
-				return true;
-			} else {
-				return false;
-			}
-		};
-		var heightConstrained = function () {
-			var _v7 = textInput.type_;
-			if (_v7.$ === 'TextInputNode') {
-				var inputType = _v7.a;
-				return false;
-			} else {
-				return A2(
-					$elm$core$Maybe$withDefault,
-					false,
-					A2(
-						$elm$core$Maybe$map,
-						$mdgriffith$elm_ui$Element$Input$isConstrained,
-						$elm$core$List$head(
-							$elm$core$List$reverse(
-								A2($elm$core$List$filterMap, $mdgriffith$elm_ui$Element$Input$getHeight, withDefaults)))));
-			}
-		}();
-		var getPadding = function (attr) {
-			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'PaddingStyle')) {
-				var cls = attr.a;
-				var _v6 = attr.b;
-				var pad = _v6.a;
-				var t = _v6.b;
-				var r = _v6.c;
-				var b = _v6.d;
-				var l = _v6.e;
-				return $elm$core$Maybe$Just(
-					{
-						bottom: A2(
-							$elm$core$Basics$max,
-							0,
-							$elm$core$Basics$floor(b - 3)),
-						left: A2(
-							$elm$core$Basics$max,
-							0,
-							$elm$core$Basics$floor(l - 3)),
-						right: A2(
-							$elm$core$Basics$max,
-							0,
-							$elm$core$Basics$floor(r - 3)),
-						top: A2(
-							$elm$core$Basics$max,
-							0,
-							$elm$core$Basics$floor(t - 3))
-					});
-			} else {
-				return $elm$core$Maybe$Nothing;
-			}
-		};
-		var parentPadding = A2(
-			$elm$core$Maybe$withDefault,
-			{bottom: 0, left: 0, right: 0, top: 0},
-			$elm$core$List$head(
-				$elm$core$List$reverse(
-					A2($elm$core$List$filterMap, getPadding, withDefaults))));
-		var inputElement = A4(
-			$mdgriffith$elm_ui$Internal$Model$element,
-			$mdgriffith$elm_ui$Internal$Model$asEl,
-			function () {
-				var _v3 = textInput.type_;
-				if (_v3.$ === 'TextInputNode') {
-					var inputType = _v3.a;
-					return $mdgriffith$elm_ui$Internal$Model$NodeName('input');
-				} else {
-					return $mdgriffith$elm_ui$Internal$Model$NodeName('textarea');
-				}
-			}(),
-			_Utils_ap(
-				function () {
-					var _v4 = textInput.type_;
-					if (_v4.$ === 'TextInputNode') {
-						var inputType = _v4.a;
-						return _List_fromArray(
-							[
-								$mdgriffith$elm_ui$Internal$Model$Attr(
-								$elm$html$Html$Attributes$type_(inputType)),
-								$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputText)
-							]);
-					} else {
-						return _List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$clip,
-								$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultiline),
-								$mdgriffith$elm_ui$Element$Input$calcMoveToCompensateForPadding(withDefaults),
-								$mdgriffith$elm_ui$Element$paddingEach(parentPadding),
-								$mdgriffith$elm_ui$Internal$Model$Attr(
-								A2(
-									$elm$html$Html$Attributes$style,
-									'margin',
-									$mdgriffith$elm_ui$Element$Input$renderBox(
-										$mdgriffith$elm_ui$Element$Input$negateBox(parentPadding)))),
-								$mdgriffith$elm_ui$Internal$Model$Attr(
-								A2($elm$html$Html$Attributes$style, 'box-sizing', 'content-box'))
-							]);
-					}
-				}(),
-				_Utils_ap(
-					_List_fromArray(
-						[
-							$mdgriffith$elm_ui$Element$Input$value(textOptions.text),
-							$mdgriffith$elm_ui$Internal$Model$Attr(
-							$elm$html$Html$Events$onInput(textOptions.onChange)),
-							$mdgriffith$elm_ui$Element$Input$hiddenLabelAttribute(textOptions.label),
-							$mdgriffith$elm_ui$Element$Input$spellcheck(textInput.spellchecked),
-							A2(
-							$elm$core$Maybe$withDefault,
-							$mdgriffith$elm_ui$Internal$Model$NoAttribute,
-							A2($elm$core$Maybe$map, $mdgriffith$elm_ui$Element$Input$autofill, textInput.autofill))
-						]),
-					redistributed.input)),
-			$mdgriffith$elm_ui$Internal$Model$Unkeyed(_List_Nil));
-		var wrappedInput = function () {
-			var _v0 = textInput.type_;
-			if (_v0.$ === 'TextArea') {
-				return A4(
-					$mdgriffith$elm_ui$Internal$Model$element,
-					$mdgriffith$elm_ui$Internal$Model$asEl,
-					$mdgriffith$elm_ui$Internal$Model$div,
-					_Utils_ap(
-						(heightConstrained ? $elm$core$List$cons($mdgriffith$elm_ui$Element$scrollbarY) : $elm$core$Basics$identity)(
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-									A2($elm$core$List$any, $mdgriffith$elm_ui$Element$Input$hasFocusStyle, withDefaults) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.focusedWithin),
-									$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineWrapper)
-								])),
-						redistributed.parent),
-					$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-						_List_fromArray(
-							[
-								A4(
-								$mdgriffith$elm_ui$Internal$Model$element,
-								$mdgriffith$elm_ui$Internal$Model$asParagraph,
-								$mdgriffith$elm_ui$Internal$Model$div,
-								A2(
-									$elm$core$List$cons,
-									$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-									A2(
-										$elm$core$List$cons,
-										$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
-										A2(
-											$elm$core$List$cons,
-											$mdgriffith$elm_ui$Element$inFront(inputElement),
-											A2(
-												$elm$core$List$cons,
-												$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineParent),
-												redistributed.wrapper)))),
-								$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-									function () {
-										if (textOptions.text === '') {
-											var _v1 = textOptions.placeholder;
-											if (_v1.$ === 'Nothing') {
-												return _List_fromArray(
-													[
-														$mdgriffith$elm_ui$Element$text('\u00A0')
-													]);
-											} else {
-												var place = _v1.a;
-												return _List_fromArray(
-													[
-														A3($mdgriffith$elm_ui$Element$Input$renderPlaceholder, place, _List_Nil, textOptions.text === '')
-													]);
-											}
-										} else {
-											return _List_fromArray(
-												[
-													$mdgriffith$elm_ui$Internal$Model$unstyled(
-													A2(
-														$elm$html$Html$span,
-														_List_fromArray(
-															[
-																$elm$html$Html$Attributes$class($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineFiller)
-															]),
-														_List_fromArray(
-															[
-																$elm$html$Html$text(textOptions.text + '\u00A0')
-															])))
-												]);
-										}
-									}()))
-							])));
-			} else {
-				var inputType = _v0.a;
-				return A4(
-					$mdgriffith$elm_ui$Internal$Model$element,
-					$mdgriffith$elm_ui$Internal$Model$asEl,
-					$mdgriffith$elm_ui$Internal$Model$div,
-					A2(
-						$elm$core$List$cons,
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						A2(
-							$elm$core$List$cons,
-							A2($elm$core$List$any, $mdgriffith$elm_ui$Element$Input$hasFocusStyle, withDefaults) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.focusedWithin),
-							$elm$core$List$concat(
-								_List_fromArray(
-									[
-										redistributed.parent,
-										function () {
-										var _v2 = textOptions.placeholder;
-										if (_v2.$ === 'Nothing') {
-											return _List_Nil;
-										} else {
-											var place = _v2.a;
-											return _List_fromArray(
-												[
-													$mdgriffith$elm_ui$Element$behindContent(
-													A3($mdgriffith$elm_ui$Element$Input$renderPlaceholder, place, redistributed.cover, textOptions.text === ''))
-												]);
-										}
-									}()
-									])))),
-					$mdgriffith$elm_ui$Internal$Model$Unkeyed(
-						_List_fromArray(
-							[inputElement])));
-			}
-		}();
-		return A3(
-			$mdgriffith$elm_ui$Element$Input$applyLabel,
-			A2(
-				$elm$core$List$cons,
-				A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$cursor, $mdgriffith$elm_ui$Internal$Style$classes.cursorText),
-				A2(
-					$elm$core$List$cons,
-					$mdgriffith$elm_ui$Element$Input$isHiddenLabel(textOptions.label) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Element$spacing(5),
-					A2($elm$core$List$cons, $mdgriffith$elm_ui$Element$Region$announce, redistributed.fullParent))),
-			textOptions.label,
-			wrappedInput);
-	});
-var $mdgriffith$elm_ui$Element$Input$text = $mdgriffith$elm_ui$Element$Input$textHelper(
-	{
-		autofill: $elm$core$Maybe$Nothing,
-		spellchecked: false,
-		type_: $mdgriffith$elm_ui$Element$Input$TextInputNode('text')
-	});
-var $author$project$Main$OpenTimerSheet = {$: 'OpenTimerSheet'};
-var $author$project$Main$moveTimerLabel = function (seconds) {
-	return (seconds <= 0) ? 'Off' : ($elm$core$String$fromInt(seconds) + ' seconds');
-};
-var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
-	return {$: 'UpdateOnlineMoveTimer', a: a};
-};
-var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
-var $elm$html$Html$option = _VirtualDom_node('option');
-var $elm$html$Html$select = _VirtualDom_node('select');
-var $elm$html$Html$Attributes$selected = $elm$html$Html$Attributes$boolProperty('selected');
-var $author$project$Main$viewTimerSelect = function (current) {
-	return $mdgriffith$elm_ui$Element$html(
-		A2(
-			$elm$html$Html$select,
-			_List_fromArray(
-				[
-					$elm$html$Html$Attributes$id('onlineMoveTimer'),
-					A2($elm$html$Html$Attributes$style, 'background', 'rgba(0,0,0,0.5)'),
-					A2($elm$html$Html$Attributes$style, 'color', '#e0ffe0'),
-					A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(255,255,255,0.1)'),
-					A2($elm$html$Html$Attributes$style, 'border-radius', '10px'),
-					A2($elm$html$Html$Attributes$style, 'padding', '12px 14px'),
-					A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
-					A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
-					A2($elm$html$Html$Attributes$style, 'width', '100%'),
-					$elm$html$Html$Events$onInput($author$project$Main$UpdateOnlineMoveTimer)
-				]),
-			A2(
-				$elm$core$List$map,
-				function (s) {
-					return A2(
-						$elm$html$Html$option,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$value(
-								$elm$core$String$fromInt(s)),
-								$elm$html$Html$Attributes$selected(
-								_Utils_eq(s, current))
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(
-								(!s) ? 'Off' : ($elm$core$String$fromInt(s) + ' seconds'))
-							]));
-				},
-				$author$project$Main$timerOptions)));
-};
-var $author$project$Main$viewTimerControl = function (model) {
-	return (model.viewportWidth <= 640) ? A2(
-		$mdgriffith$elm_ui$Element$Input$button,
-		_Utils_ap(
-			$author$project$Main$formFieldAttrs,
-			_List_fromArray(
-				[
-					$mdgriffith$elm_ui$Element$Border$rounded(16),
-					A2($mdgriffith$elm_ui$Element$paddingXY, 14, 12),
-					$mdgriffith$elm_ui$Element$Font$size(14)
-				])),
-		{
-			label: A2(
-				$mdgriffith$elm_ui$Element$row,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$centerY
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$column,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$spacing(2)
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$Font$size(11),
-										$mdgriffith$elm_ui$Element$Font$color(
-										A3($mdgriffith$elm_ui$Element$rgb255, 185, 212, 191)),
-										$mdgriffith$elm_ui$Element$Font$semiBold
-									]),
-								$mdgriffith$elm_ui$Element$text('Selected timer')),
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[$mdgriffith$elm_ui$Element$Font$bold]),
-								$mdgriffith$elm_ui$Element$text(
-									$author$project$Main$moveTimerLabel(model.onlineMoveTimer)))
-							])),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$alignRight,
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
-								$mdgriffith$elm_ui$Element$Font$bold,
-								$mdgriffith$elm_ui$Element$Font$size(12)
-							]),
-						$mdgriffith$elm_ui$Element$text('Change'))
-					])),
-			onPress: $elm$core$Maybe$Just($author$project$Main$OpenTimerSheet)
-		}) : $author$project$Main$viewTimerSelect(model.onlineMoveTimer);
-};
-var $author$project$Main$viewLocalLobbyContent = function (model) {
-	return A2(
-		$mdgriffith$elm_ui$Element$column,
-		_List_fromArray(
-			[
-				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$spacing(14)
-			]),
-		_List_fromArray(
-			[
-				function () {
-				var _v0 = model.localGame;
-				if (_v0.$ === 'Just') {
-					var lg = _v0.a;
-					return (model.viewportWidth <= 640) ? A2(
-						$mdgriffith$elm_ui$Element$column,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$Background$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
-								$mdgriffith$elm_ui$Element$Border$rounded(18),
-								$mdgriffith$elm_ui$Element$Border$width(1),
-								$mdgriffith$elm_ui$Element$Border$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
-								$mdgriffith$elm_ui$Element$padding(14),
-								$mdgriffith$elm_ui$Element$spacing(12)
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$mdgriffith$elm_ui$Element$column,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-										$mdgriffith$elm_ui$Element$spacing(4)
-									]),
-								_List_fromArray(
-									[
-										A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$Font$bold,
-												$mdgriffith$elm_ui$Element$Font$size(15),
-												$mdgriffith$elm_ui$Element$Font$color(
-												A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
-											]),
-										$mdgriffith$elm_ui$Element$text('Paused local game')),
-										A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$Font$size(13),
-												$mdgriffith$elm_ui$Element$Font$color(
-												A3($mdgriffith$elm_ui$Element$rgb255, 199, 220, 204))
-											]),
-										$mdgriffith$elm_ui$Element$text(lg.blueName + (' vs ' + lg.redName)))
-									])),
-								A2(
-								$mdgriffith$elm_ui$Element$Input$button,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-										$mdgriffith$elm_ui$Element$htmlAttribute(
-										A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)')),
-										$mdgriffith$elm_ui$Element$Border$rounded(16),
-										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
-										$mdgriffith$elm_ui$Element$Font$bold,
-										$mdgriffith$elm_ui$Element$Font$size(14),
-										$mdgriffith$elm_ui$Element$Font$color(
-										A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10))
-									]),
-								{
-									label: A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[$mdgriffith$elm_ui$Element$centerX]),
-										$mdgriffith$elm_ui$Element$text('Resume saved game')),
-									onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
-								}),
-								A2(
-								$mdgriffith$elm_ui$Element$Input$button,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-										$mdgriffith$elm_ui$Element$Background$color(
-										A3($mdgriffith$elm_ui$Element$rgb255, 56, 70, 57)),
-										$mdgriffith$elm_ui$Element$Border$rounded(16),
-										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
-										$mdgriffith$elm_ui$Element$Font$size(14),
-										$mdgriffith$elm_ui$Element$Font$color(
-										A3($mdgriffith$elm_ui$Element$rgb255, 240, 245, 241))
-									]),
-								{
-									label: A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[$mdgriffith$elm_ui$Element$centerX]),
-										$mdgriffith$elm_ui$Element$text('Discard')),
-									onPress: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame)
-								})
-							])) : A2(
-						$mdgriffith$elm_ui$Element$row,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$Background$color(
-								A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 28)),
-								$mdgriffith$elm_ui$Element$Border$rounded(10),
-								$mdgriffith$elm_ui$Element$padding(14),
-								$mdgriffith$elm_ui$Element$spacing(10)
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$mdgriffith$elm_ui$Element$column,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-										$mdgriffith$elm_ui$Element$spacing(4)
-									]),
-								_List_fromArray(
-									[
-										A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$Font$bold,
-												$mdgriffith$elm_ui$Element$Font$size(14)
-											]),
-										$mdgriffith$elm_ui$Element$text('Paused local game')),
-										A2(
-										$mdgriffith$elm_ui$Element$el,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$Font$size(13),
-												$mdgriffith$elm_ui$Element$Font$color(
-												A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100))
-											]),
-										$mdgriffith$elm_ui$Element$text(lg.blueName + (' vs ' + lg.redName)))
-									])),
-								A2(
-								$mdgriffith$elm_ui$Element$column,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$spacing(8),
-										$mdgriffith$elm_ui$Element$alignRight
-									]),
-								_List_fromArray(
-									[
-										A2(
-										$mdgriffith$elm_ui$Element$Input$button,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$htmlAttribute(
-												A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)')),
-												$mdgriffith$elm_ui$Element$Border$rounded(20),
-												A2($mdgriffith$elm_ui$Element$paddingXY, 16, 9),
-												$mdgriffith$elm_ui$Element$Font$bold,
-												$mdgriffith$elm_ui$Element$Font$size(13),
-												$mdgriffith$elm_ui$Element$Font$color(
-												A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10))
-											]),
-										{
-											label: $mdgriffith$elm_ui$Element$text('Resume saved game'),
-											onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
-										}),
-										A2(
-										$mdgriffith$elm_ui$Element$Input$button,
-										_List_fromArray(
-											[
-												$mdgriffith$elm_ui$Element$Background$color(
-												A4($mdgriffith$elm_ui$Element$rgba255, 50, 70, 50, 180)),
-												$mdgriffith$elm_ui$Element$Border$rounded(20),
-												A2($mdgriffith$elm_ui$Element$paddingXY, 16, 9),
-												$mdgriffith$elm_ui$Element$Font$size(13)
-											]),
-										{
-											label: $mdgriffith$elm_ui$Element$text('Discard'),
-											onPress: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame)
-										})
-									]))
-							]));
-				} else {
-					return $mdgriffith$elm_ui$Element$none;
-				}
-			}(),
-				A2(
-				$mdgriffith$elm_ui$Element$Input$text,
-				$author$project$Main$formFieldAttrs,
-				{
-					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Blue'),
-					onChange: $author$project$Main$UpdateLocalBlueName,
-					placeholder: $elm$core$Maybe$Just(
-						A2(
-							$mdgriffith$elm_ui$Element$Input$placeholder,
-							$author$project$Main$formPlaceholderAttrs,
-							$mdgriffith$elm_ui$Element$text('Blue'))),
-					text: model.localBlueName
-				}),
-				A2(
-				$mdgriffith$elm_ui$Element$Input$text,
-				$author$project$Main$formFieldAttrs,
-				{
-					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Red'),
-					onChange: $author$project$Main$UpdateLocalRedName,
-					placeholder: $elm$core$Maybe$Just(
-						A2(
-							$mdgriffith$elm_ui$Element$Input$placeholder,
-							$author$project$Main$formPlaceholderAttrs,
-							$mdgriffith$elm_ui$Element$text('Red'))),
-					text: model.localRedName
-				}),
-				A2(
-				$mdgriffith$elm_ui$Element$column,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$spacing(6)
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Font$size(13),
-								$mdgriffith$elm_ui$Element$Font$bold
-							]),
-						$mdgriffith$elm_ui$Element$text('Move timer')),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
-							]),
-						$author$project$Main$viewTimerControl(model))
-					])),
-				A2(
-				$mdgriffith$elm_ui$Element$Input$button,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$padding(15),
-						$mdgriffith$elm_ui$Element$Border$rounded(10),
-						$mdgriffith$elm_ui$Element$Font$bold,
-						$mdgriffith$elm_ui$Element$Font$size(15),
-						$mdgriffith$elm_ui$Element$Font$color(
-						A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10)),
-						$mdgriffith$elm_ui$Element$htmlAttribute(
-						A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)'))
-					]),
-				{
-					label: A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[$mdgriffith$elm_ui$Element$centerX]),
-						$mdgriffith$elm_ui$Element$text('Start local match')),
-					onPress: $elm$core$Maybe$Just($author$project$Main$StartLocalMatch)
-				})
-			]));
-};
-var $author$project$Main$CreateBoard = {$: 'CreateBoard'};
-var $author$project$Main$SubmitWatchBoard = {$: 'SubmitWatchBoard'};
-var $author$project$Main$UpdateBoardCodeInput = function (a) {
-	return {$: 'UpdateBoardCodeInput', a: a};
-};
-var $author$project$Main$UpdatePlayerName = function (a) {
-	return {$: 'UpdatePlayerName', a: a};
-};
-var $author$project$Main$formSubpanelAttrs = _List_fromArray(
-	[
-		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-		$mdgriffith$elm_ui$Element$Background$color(
-		A4($mdgriffith$elm_ui$Element$rgba255, 17, 53, 27, 214)),
-		$mdgriffith$elm_ui$Element$Border$rounded(18),
-		$mdgriffith$elm_ui$Element$Border$width(1),
-		$mdgriffith$elm_ui$Element$Border$color(
-		A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
-		$mdgriffith$elm_ui$Element$padding(14)
-	]);
-var $elm$html$Html$Attributes$for = $elm$html$Html$Attributes$stringProperty('htmlFor');
-var $elm$html$Html$input = _VirtualDom_node('input');
-var $elm$html$Html$label = _VirtualDom_node('label');
-var $elm$html$Html$Attributes$readonly = $elm$html$Html$Attributes$boolProperty('readOnly');
-var $author$project$Main$viewInviteCard = F2(
-	function (boardCode, inviteUrl) {
-		return $mdgriffith$elm_ui$Element$html(
-			A2(
-				$elm$html$Html$section,
-				_List_fromArray(
-					[
-						$elm$html$Html$Attributes$class('invite'),
-						$elm$html$Html$Attributes$id('inviteCard')
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$elm$html$Html$img,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$src('/api/qr?room=' + boardCode),
-								$elm$html$Html$Attributes$alt('QR code for board ' + boardCode)
-							]),
-						_List_Nil),
-						A2(
-						$elm$html$Html$div,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$class('invite-copy-panel')
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$elm$html$Html$label,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$for('inviteUrl')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('Share this board')
-									])),
-								A2(
-								$elm$html$Html$input,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$id('inviteUrl'),
-										$elm$html$Html$Attributes$type_('text'),
-										$elm$html$Html$Attributes$readonly(true),
-										$elm$html$Html$Attributes$value(inviteUrl)
-									]),
-								_List_Nil),
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										$elm$html$Html$Attributes$class('invite-actions')
-									]),
-								_List_fromArray(
-									[
-										A2(
-										$elm$html$Html$button,
-										_List_fromArray(
-											[
-												$elm$html$Html$Attributes$id('copyInviteCard'),
-												$elm$html$Html$Attributes$type_('button'),
-												$elm$html$Html$Attributes$class('compact'),
-												$elm$html$Html$Events$onClick(
-												$author$project$Main$CopyBoardLink(boardCode))
-											]),
-										_List_fromArray(
-											[
-												$elm$html$Html$text('Copy link')
-											])),
-										A2(
-										$elm$html$Html$button,
-										_List_fromArray(
-											[
-												$elm$html$Html$Attributes$id('openCreatedBoard'),
-												$elm$html$Html$Attributes$type_('button'),
-												$elm$html$Html$Attributes$class('compact primary'),
-												$elm$html$Html$Events$onClick($author$project$Main$ToggleLobby)
-											]),
-										_List_fromArray(
-											[
-												$elm$html$Html$text('Open game now')
-											]))
-									]))
-							]))
-					])));
-	});
-var $author$project$Main$viewOnlineLobbyContent = function (model) {
-	return A2(
-		$mdgriffith$elm_ui$Element$column,
-		_List_fromArray(
-			[
-				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$spacing(14)
-			]),
-		_List_fromArray(
-			[
-				A2(
-				$mdgriffith$elm_ui$Element$column,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$spacing(6)
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Font$size(13),
-								$mdgriffith$elm_ui$Element$Font$bold
-							]),
-						$mdgriffith$elm_ui$Element$text('Your name')),
-						A2(
-						$mdgriffith$elm_ui$Element$Input$text,
-						_Utils_ap(
-							$author$project$Main$formFieldAttrs,
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$htmlAttribute(
-									$elm$html$Html$Attributes$id('playerNameInput'))
-								])),
-						{
-							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Your name'),
-							onChange: $author$project$Main$UpdatePlayerName,
-							placeholder: $elm$core$Maybe$Just(
-								A2(
-									$mdgriffith$elm_ui$Element$Input$placeholder,
-									$author$project$Main$formPlaceholderAttrs,
-									$mdgriffith$elm_ui$Element$text('Your name'))),
-							text: model.playerName
-						})
-					])),
-				function () {
-				var _v0 = model.inviteUrl;
-				if (_v0.$ === 'Just') {
-					var inviteUrl = _v0.a;
-					return A2($author$project$Main$viewInviteCard, model.boardCode, inviteUrl);
-				} else {
-					return $mdgriffith$elm_ui$Element$none;
-				}
-			}(),
-				A2(
-				$mdgriffith$elm_ui$Element$column,
-				_Utils_ap(
-					$author$project$Main$formSubpanelAttrs,
-					_List_fromArray(
-						[
-							$mdgriffith$elm_ui$Element$spacing(10)
-						])),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Font$size(13),
-								$mdgriffith$elm_ui$Element$Font$bold
-							]),
-						$mdgriffith$elm_ui$Element$text('Open board as watcher')),
-						A2(
-						$mdgriffith$elm_ui$Element$Input$text,
-						_Utils_ap(
-							$author$project$Main$formFieldAttrs,
-							_List_fromArray(
-								[
-									$mdgriffith$elm_ui$Element$htmlAttribute(
-									$elm$html$Html$Attributes$id('boardCodeInput'))
-								])),
-						{
-							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Board code'),
-							onChange: $author$project$Main$UpdateBoardCodeInput,
-							placeholder: $elm$core$Maybe$Just(
-								A2(
-									$mdgriffith$elm_ui$Element$Input$placeholder,
-									$author$project$Main$formPlaceholderAttrs,
-									$mdgriffith$elm_ui$Element$text('Board code'))),
-							text: model.draftBoardCode
-						}),
-						A2(
-						$mdgriffith$elm_ui$Element$Input$button,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$padding(15),
-								$mdgriffith$elm_ui$Element$Border$rounded(10),
-								$mdgriffith$elm_ui$Element$Font$bold,
-								$mdgriffith$elm_ui$Element$Font$size(15),
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 8, 18, 8)),
-								$mdgriffith$elm_ui$Element$htmlAttribute(
-								A2($elm$html$Html$Attributes$style, 'background', '#17d2e6'))
-							]),
-						{
-							label: A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[$mdgriffith$elm_ui$Element$centerX]),
-								$mdgriffith$elm_ui$Element$text('Watch board')),
-							onPress: $elm$core$Maybe$Just($author$project$Main$SubmitWatchBoard)
-						}),
-						A2(
-						$mdgriffith$elm_ui$Element$Input$button,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-								$mdgriffith$elm_ui$Element$padding(15),
-								$mdgriffith$elm_ui$Element$Border$rounded(10),
-								$mdgriffith$elm_ui$Element$Font$bold,
-								$mdgriffith$elm_ui$Element$Font$size(15),
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 8, 18, 8)),
-								$mdgriffith$elm_ui$Element$htmlAttribute(
-								A2($elm$html$Html$Attributes$style, 'background', '#11c2d8')),
-								$mdgriffith$elm_ui$Element$htmlAttribute(
-								$elm$html$Html$Attributes$id('elmCreateBoard'))
-							]),
-						{
-							label: A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[$mdgriffith$elm_ui$Element$centerX]),
-								$mdgriffith$elm_ui$Element$text('Create board as Blue')),
-							onPress: $elm$core$Maybe$Just($author$project$Main$CreateBoard)
-						})
-					])),
-				A2(
-				$mdgriffith$elm_ui$Element$column,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$spacing(6)
-					]),
-				_List_fromArray(
-					[
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Font$size(13),
-								$mdgriffith$elm_ui$Element$Font$bold
-							]),
-						$mdgriffith$elm_ui$Element$text('Move timer')),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
-							]),
-						$author$project$Main$viewTimerControl(model))
-					])),
-				A2(
-				$mdgriffith$elm_ui$Element$el,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$Font$size(12),
-						$mdgriffith$elm_ui$Element$Font$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 55))
-					]),
-				$mdgriffith$elm_ui$Element$text('Connection: ' + model.connectionStatus)),
-				function () {
-				var _v1 = model.error;
-				if (_v1.$ === 'Just') {
-					var e = _v1.a;
-					return A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 255, 100, 80)),
-								$mdgriffith$elm_ui$Element$Font$size(13)
-							]),
-						$mdgriffith$elm_ui$Element$text(e));
-				} else {
-					return $mdgriffith$elm_ui$Element$none;
-				}
-			}()
-			]));
-};
-var $author$project$Main$viewLobbyCard = function (model) {
-	return A2(
-		$mdgriffith$elm_ui$Element$column,
-		_List_fromArray(
-			[
-				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-				$mdgriffith$elm_ui$Element$Background$color(
-				A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
-				$mdgriffith$elm_ui$Element$Border$width(1),
-				$mdgriffith$elm_ui$Element$Border$color(
-				A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
-				$mdgriffith$elm_ui$Element$Border$rounded(24),
-				$mdgriffith$elm_ui$Element$padding(20),
-				$mdgriffith$elm_ui$Element$spacing(16)
-			]),
-		_List_fromArray(
-			[
-				A2(
-				$mdgriffith$elm_ui$Element$el,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$Font$bold,
-						$mdgriffith$elm_ui$Element$Font$size(20)
-					]),
-				$mdgriffith$elm_ui$Element$text(
-					model.localLobbyTab ? 'Local same-screen PvP' : 'Online game')),
-				A2(
-				$mdgriffith$elm_ui$Element$paragraph,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$Font$size(13),
-						$mdgriffith$elm_ui$Element$Font$color(
-						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100)),
-						$mdgriffith$elm_ui$Element$spacing(4)
-					]),
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$text(
-						model.localLobbyTab ? 'Players face each other and play on this device. The pitch stays fixed for local play.' : 'Open a board as watcher, then choose an open seat when you are ready to play.')
-					])),
-				A2(
-				$mdgriffith$elm_ui$Element$row,
-				_List_fromArray(
-					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$Background$color(
-						A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
-						$mdgriffith$elm_ui$Element$Border$width(1),
-						$mdgriffith$elm_ui$Element$Border$color(
-						A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
-						$mdgriffith$elm_ui$Element$Border$rounded(28),
-						$mdgriffith$elm_ui$Element$padding(4),
-						$mdgriffith$elm_ui$Element$spacing(0)
-					]),
-				_List_fromArray(
-					[
-						A3(
-						$author$project$Main$gradientTabButton,
-						'Online',
-						!model.localLobbyTab,
-						$author$project$Main$SetLobbyTab(false)),
-						A3(
-						$author$project$Main$gradientTabButton,
-						'Local',
-						model.localLobbyTab,
-						$author$project$Main$SetLobbyTab(true))
-					])),
-				model.localLobbyTab ? $author$project$Main$viewLocalLobbyContent(model) : $author$project$Main$viewOnlineLobbyContent(model)
-			]));
-};
-var $author$project$Main$LocalNewRound = {$: 'LocalNewRound'};
-var $author$project$Main$ToggleLocalPause = {$: 'ToggleLocalPause'};
-var $author$project$Main$activeTimerRemainingSeconds = F2(
-	function (nowMs, board) {
-		return (nowMs <= 0) ? $elm$core$Maybe$Nothing : A2(
-			$elm$core$Maybe$map,
-			function (deadlineAt) {
-				return A2($elm$core$Basics$max, 0, (((deadlineAt - nowMs) + 999) / 1000) | 0);
-			},
-			A2(
-				$elm$core$Maybe$andThen,
-				function ($) {
-					return $.deadlineAt;
-				},
-				A2(
-					$elm$core$Maybe$andThen,
-					function ($) {
-						return $.round;
-					},
-					board.currentSession)));
-	});
-var $author$project$Main$positiveMaybe = function (value) {
-	return (value > 0) ? $elm$core$Maybe$Just(value) : $elm$core$Maybe$Nothing;
-};
-var $author$project$Main$timerSentence = function (timerSecs) {
-	if (timerSecs.$ === 'Just') {
-		var secs = timerSecs.a;
-		return ' - ' + ($elm$core$String$fromInt(secs) + 's timer.');
-	} else {
-		return '.';
-	}
-};
-var $author$project$Main$turnOwnerName = F2(
-	function (board, turn) {
-		var _v0 = $author$project$Main$normalizeSeatId(turn);
-		switch (_v0) {
-			case 'blue':
-				return A2(
-					$elm$core$Maybe$withDefault,
-					'Blue',
-					A2(
-						$elm$core$Maybe$map,
-						function ($) {
-							return $.displayName;
-						},
-						board.blue.player));
-			case 'red':
-				return A2(
-					$elm$core$Maybe$withDefault,
-					'Red',
-					A2(
-						$elm$core$Maybe$map,
-						function ($) {
-							return $.displayName;
-						},
-						board.red.player));
-			default:
-				return turn;
-		}
-	});
-var $author$project$Main$localStatusText = F4(
-	function (model, board, turn, winnerName) {
-		if (winnerName.$ === 'Just') {
-			var name = winnerName.a;
-			return name + ' wins. Round complete.';
-		} else {
-			return model.localPaused ? ('Paused. ' + (A2($author$project$Main$turnOwnerName, board, turn) + ' moves next.')) : (A2($author$project$Main$turnOwnerName, board, turn) + ('\'s turn' + $author$project$Main$timerSentence(
-				A2(
-					$elm$core$Maybe$andThen,
-					$author$project$Main$positiveMaybe,
-					A2(
-						$elm$core$Maybe$andThen,
-						function ($) {
-							return $.moveTimeLimitSeconds;
-						},
-						board.currentSession)))));
-		}
-	});
-var $author$project$Main$localTurnIndicatorText = F4(
-	function (model, _v0, turn, winnerName) {
-		if (winnerName.$ === 'Just') {
-			var name = winnerName.a;
-			return name + ' wins the round';
-		} else {
-			return model.localPaused ? 'Game paused' : ($author$project$Main$turnColorLabel(turn) + ' to move');
-		}
-	});
+var $author$project$Main$CloseHistoryReplay = {$: 'CloseHistoryReplay'};
 var $author$project$Main$replayShowsWinner = F2(
 	function (replayIndex, moveCount) {
 		if (replayIndex.$ === 'Nothing') {
@@ -17772,6 +16271,7 @@ var $elm$html$Html$Attributes$classList = function (classes) {
 				A2($elm$core$List$filter, $elm$core$Tuple$second, classes))));
 };
 var $elm$html$Html$h2 = _VirtualDom_node('h2');
+var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $author$project$Main$ClickLegalMove = function (a) {
 	return {$: 'ClickLegalMove', a: a};
@@ -19310,6 +17810,8 @@ var $author$project$Main$ReplayStepBack = {$: 'ReplayStepBack'};
 var $author$project$Main$ReplayStepForward = {$: 'ReplayStepForward'};
 var $author$project$Main$ReplayToLive = {$: 'ReplayToLive'};
 var $author$project$Main$ReplayToStart = {$: 'ReplayToStart'};
+var $elm$virtual_dom$VirtualDom$style = _VirtualDom_style;
+var $elm$html$Html$Attributes$style = $elm$virtual_dom$VirtualDom$style;
 var $author$project$Main$viewReplayButton = F4(
 	function (enabled, onPress, icon, label) {
 		return A2(
@@ -19640,6 +18142,34 @@ var $author$project$Main$viewTimerPillHtml = F2(
 			return $elm$html$Html$text('');
 		}
 	});
+var $author$project$Main$turnOwnerName = F2(
+	function (board, turn) {
+		var _v0 = $author$project$Main$normalizeSeatId(turn);
+		switch (_v0) {
+			case 'blue':
+				return A2(
+					$elm$core$Maybe$withDefault,
+					'Blue',
+					A2(
+						$elm$core$Maybe$map,
+						function ($) {
+							return $.displayName;
+						},
+						board.blue.player));
+			case 'red':
+				return A2(
+					$elm$core$Maybe$withDefault,
+					'Red',
+					A2(
+						$elm$core$Maybe$map,
+						function ($) {
+							return $.displayName;
+						},
+						board.red.player));
+			default:
+				return turn;
+		}
+	});
 var $author$project$Main$winnerDisplayName = F2(
 	function (board, winnerId) {
 		return A2($author$project$Main$turnOwnerName, board, winnerId);
@@ -19967,6 +18497,8 @@ var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 					]))
 			]));
 };
+var $mdgriffith$elm_ui$Internal$Flag$overflow = $mdgriffith$elm_ui$Internal$Flag$flag(20);
+var $mdgriffith$elm_ui$Element$clip = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$overflow, $mdgriffith$elm_ui$Internal$Style$classes.clip);
 var $mdgriffith$elm_ui$Element$fillPortion = $mdgriffith$elm_ui$Internal$Model$Fill;
 var $author$project$Main$mobileCard = function (children) {
 	return A2(
@@ -20506,6 +19038,10 @@ var $mdgriffith$elm_ui$Internal$Model$extractSpacingAndPadding = function (attrs
 		_Utils_Tuple2($elm$core$Maybe$Nothing, $elm$core$Maybe$Nothing),
 		attrs);
 };
+var $mdgriffith$elm_ui$Internal$Model$paddingNameFloat = F4(
+	function (top, right, bottom, left) {
+		return 'pad-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(top) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(right) + ('-' + ($mdgriffith$elm_ui$Internal$Model$floatClass(bottom) + ('-' + $mdgriffith$elm_ui$Internal$Model$floatClass(left)))))));
+	});
 var $mdgriffith$elm_ui$Element$wrappedRow = F2(
 	function (attrs, children) {
 		var _v0 = $mdgriffith$elm_ui$Internal$Model$extractSpacingAndPadding(attrs);
@@ -20921,6 +19457,1757 @@ var $author$project$Main$viewBoardScreenHtml = function (config) {
 			]),
 		$author$project$Main$viewMobileBoardScreen(config)) : $author$project$Main$viewDesktopBoardScreenHtml(config);
 };
+var $author$project$Main$viewHistoryReplayHtml = F2(
+	function (model, lg) {
+		var board = $author$project$Main$localGameToBoard(lg);
+		var winnerName = A2(
+			$author$project$Main$replayShowsWinner,
+			model.replayIndex,
+			$elm$core$List$length(lg.moves)) ? A2(
+			$elm$core$Maybe$map,
+			$author$project$Main$winnerDisplayName(board),
+			lg.winner) : $elm$core$Maybe$Nothing;
+		var statusText = function () {
+			if (winnerName.$ === 'Just') {
+				var n = winnerName.a;
+				return n + (' won · ' + A2($elm$core$Maybe$withDefault, 'game over', lg.endReason));
+			} else {
+				return lg.blueName + (' vs ' + lg.redName);
+			}
+		}();
+		return $author$project$Main$viewBoardScreenHtml(
+			{
+				board: board,
+				boardFlipped: false,
+				isCompactLayout: model.viewportWidth <= 640,
+				isPaused: false,
+				leaveAction: $elm$core$Maybe$Just($author$project$Main$CloseHistoryReplay),
+				matchSubtitle: 'History Replay',
+				moveCount: $elm$core$List$length(lg.moves),
+				newRoundAction: $elm$core$Maybe$Nothing,
+				ownSeat: $elm$core$Maybe$Nothing,
+				pauseAction: $elm$core$Maybe$Nothing,
+				pauseOverlay: $elm$core$Maybe$Nothing,
+				replayIndex: model.replayIndex,
+				shareAction: $elm$core$Maybe$Nothing,
+				showJoinBlue: false,
+				showJoinRed: false,
+				showSeatActions: false,
+				showWinnerOverlay: false,
+				statusText: statusText,
+				timerRemainingSecs: $elm$core$Maybe$Nothing,
+				timerSecs: $elm$core$Maybe$Nothing,
+				turnHopSerial: 0,
+				turnIndicatorIsRed: false,
+				turnIndicatorText: lg.blueName + (' vs ' + lg.redName)
+			});
+	});
+var $author$project$Main$SetLobbyTab = function (a) {
+	return {$: 'SetLobbyTab', a: a};
+};
+var $author$project$Main$gradientTabButton = F3(
+	function (label, active, onPress) {
+		return A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_Utils_ap(
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						A2($mdgriffith$elm_ui$Element$paddingXY, 0, 11),
+						$mdgriffith$elm_ui$Element$Border$rounded(24),
+						$mdgriffith$elm_ui$Element$Font$bold,
+						$mdgriffith$elm_ui$Element$Font$size(15),
+						$mdgriffith$elm_ui$Element$Font$color(
+						active ? A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10) : A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 140))
+					]),
+				active ? _List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$htmlAttribute(
+						A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)'))
+					]) : _List_Nil),
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$el,
+					_List_fromArray(
+						[$mdgriffith$elm_ui$Element$centerX]),
+					$mdgriffith$elm_ui$Element$text(label)),
+				onPress: $elm$core$Maybe$Just(onPress)
+			});
+	});
+var $author$project$Main$LeaveLocalGame = {$: 'LeaveLocalGame'};
+var $author$project$Main$StartLocalMatch = {$: 'StartLocalMatch'};
+var $author$project$Main$UpdateLocalBlueName = function (a) {
+	return {$: 'UpdateLocalBlueName', a: a};
+};
+var $author$project$Main$UpdateLocalRedName = function (a) {
+	return {$: 'UpdateLocalRedName', a: a};
+};
+var $author$project$Main$formFieldAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+		A2($mdgriffith$elm_ui$Element$paddingXY, 14, 14),
+		$mdgriffith$elm_ui$Element$Border$width(1),
+		$mdgriffith$elm_ui$Element$Border$rounded(14),
+		$mdgriffith$elm_ui$Element$Border$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 92, 132, 99)),
+		$mdgriffith$elm_ui$Element$Background$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 31, 72, 41, 226)),
+		$mdgriffith$elm_ui$Element$Font$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 242, 255, 245))
+	]);
+var $author$project$Main$formPlaceholderAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$Font$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 228, 244, 232, 138))
+	]);
+var $mdgriffith$elm_ui$Element$Input$HiddenLabel = function (a) {
+	return {$: 'HiddenLabel', a: a};
+};
+var $mdgriffith$elm_ui$Element$Input$labelHidden = $mdgriffith$elm_ui$Element$Input$HiddenLabel;
+var $mdgriffith$elm_ui$Element$Input$Placeholder = F2(
+	function (a, b) {
+		return {$: 'Placeholder', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Element$Input$placeholder = $mdgriffith$elm_ui$Element$Input$Placeholder;
+var $mdgriffith$elm_ui$Element$Input$TextInputNode = function (a) {
+	return {$: 'TextInputNode', a: a};
+};
+var $mdgriffith$elm_ui$Element$Input$TextArea = {$: 'TextArea'};
+var $mdgriffith$elm_ui$Internal$Model$LivePolite = {$: 'LivePolite'};
+var $mdgriffith$elm_ui$Element$Region$announce = $mdgriffith$elm_ui$Internal$Model$Describe($mdgriffith$elm_ui$Internal$Model$LivePolite);
+var $mdgriffith$elm_ui$Element$Input$applyLabel = F3(
+	function (attrs, label, input) {
+		if (label.$ === 'HiddenLabel') {
+			var labelText = label.a;
+			return A4(
+				$mdgriffith$elm_ui$Internal$Model$element,
+				$mdgriffith$elm_ui$Internal$Model$asColumn,
+				$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
+				attrs,
+				$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+					_List_fromArray(
+						[input])));
+		} else {
+			var position = label.a;
+			var labelAttrs = label.b;
+			var labelChild = label.c;
+			var labelElement = A4(
+				$mdgriffith$elm_ui$Internal$Model$element,
+				$mdgriffith$elm_ui$Internal$Model$asEl,
+				$mdgriffith$elm_ui$Internal$Model$div,
+				labelAttrs,
+				$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+					_List_fromArray(
+						[labelChild])));
+			switch (position.$) {
+				case 'Above':
+					return A4(
+						$mdgriffith$elm_ui$Internal$Model$element,
+						$mdgriffith$elm_ui$Internal$Model$asColumn,
+						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
+							attrs),
+						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+							_List_fromArray(
+								[labelElement, input])));
+				case 'Below':
+					return A4(
+						$mdgriffith$elm_ui$Internal$Model$element,
+						$mdgriffith$elm_ui$Internal$Model$asColumn,
+						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
+							attrs),
+						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+							_List_fromArray(
+								[input, labelElement])));
+				case 'OnRight':
+					return A4(
+						$mdgriffith$elm_ui$Internal$Model$element,
+						$mdgriffith$elm_ui$Internal$Model$asRow,
+						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
+							attrs),
+						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+							_List_fromArray(
+								[input, labelElement])));
+				default:
+					return A4(
+						$mdgriffith$elm_ui$Internal$Model$element,
+						$mdgriffith$elm_ui$Internal$Model$asRow,
+						$mdgriffith$elm_ui$Internal$Model$NodeName('label'),
+						A2(
+							$elm$core$List$cons,
+							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputLabel),
+							attrs),
+						$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+							_List_fromArray(
+								[labelElement, input])));
+			}
+		}
+	});
+var $mdgriffith$elm_ui$Element$Input$autofill = A2(
+	$elm$core$Basics$composeL,
+	$mdgriffith$elm_ui$Internal$Model$Attr,
+	$elm$html$Html$Attributes$attribute('autocomplete'));
+var $mdgriffith$elm_ui$Internal$Model$Behind = {$: 'Behind'};
+var $mdgriffith$elm_ui$Element$behindContent = function (element) {
+	return A2($mdgriffith$elm_ui$Element$createNearby, $mdgriffith$elm_ui$Internal$Model$Behind, element);
+};
+var $mdgriffith$elm_ui$Internal$Model$MoveY = function (a) {
+	return {$: 'MoveY', a: a};
+};
+var $mdgriffith$elm_ui$Internal$Flag$moveY = $mdgriffith$elm_ui$Internal$Flag$flag(26);
+var $mdgriffith$elm_ui$Element$moveUp = function (y) {
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$TransformComponent,
+		$mdgriffith$elm_ui$Internal$Flag$moveY,
+		$mdgriffith$elm_ui$Internal$Model$MoveY(-y));
+};
+var $mdgriffith$elm_ui$Element$Input$calcMoveToCompensateForPadding = function (attrs) {
+	var gatherSpacing = F2(
+		function (attr, found) {
+			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'SpacingStyle')) {
+				var _v2 = attr.b;
+				var x = _v2.b;
+				var y = _v2.c;
+				if (found.$ === 'Nothing') {
+					return $elm$core$Maybe$Just(y);
+				} else {
+					return found;
+				}
+			} else {
+				return found;
+			}
+		});
+	var _v0 = A3($elm$core$List$foldr, gatherSpacing, $elm$core$Maybe$Nothing, attrs);
+	if (_v0.$ === 'Nothing') {
+		return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
+	} else {
+		var vSpace = _v0.a;
+		return $mdgriffith$elm_ui$Element$moveUp(
+			$elm$core$Basics$floor(vSpace / 2));
+	}
+};
+var $mdgriffith$elm_ui$Element$rgb = F3(
+	function (r, g, b) {
+		return A4($mdgriffith$elm_ui$Internal$Model$Rgba, r, g, b, 1);
+	});
+var $mdgriffith$elm_ui$Element$Input$darkGrey = A3($mdgriffith$elm_ui$Element$rgb, 186 / 255, 189 / 255, 182 / 255);
+var $mdgriffith$elm_ui$Element$Input$defaultTextPadding = A2($mdgriffith$elm_ui$Element$paddingXY, 12, 12);
+var $mdgriffith$elm_ui$Element$Input$white = A3($mdgriffith$elm_ui$Element$rgb, 1, 1, 1);
+var $mdgriffith$elm_ui$Element$Input$defaultTextBoxStyle = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$Input$defaultTextPadding,
+		$mdgriffith$elm_ui$Element$Border$rounded(3),
+		$mdgriffith$elm_ui$Element$Border$color($mdgriffith$elm_ui$Element$Input$darkGrey),
+		$mdgriffith$elm_ui$Element$Background$color($mdgriffith$elm_ui$Element$Input$white),
+		$mdgriffith$elm_ui$Element$Border$width(1),
+		$mdgriffith$elm_ui$Element$spacing(5),
+		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+		$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$shrink)
+	]);
+var $mdgriffith$elm_ui$Element$Input$getHeight = function (attr) {
+	if (attr.$ === 'Height') {
+		var h = attr.a;
+		return $elm$core$Maybe$Just(h);
+	} else {
+		return $elm$core$Maybe$Nothing;
+	}
+};
+var $mdgriffith$elm_ui$Internal$Model$Label = function (a) {
+	return {$: 'Label', a: a};
+};
+var $mdgriffith$elm_ui$Element$Input$hiddenLabelAttribute = function (label) {
+	if (label.$ === 'HiddenLabel') {
+		var textLabel = label.a;
+		return $mdgriffith$elm_ui$Internal$Model$Describe(
+			$mdgriffith$elm_ui$Internal$Model$Label(textLabel));
+	} else {
+		return $mdgriffith$elm_ui$Internal$Model$NoAttribute;
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$isConstrained = function (len) {
+	isConstrained:
+	while (true) {
+		switch (len.$) {
+			case 'Content':
+				return false;
+			case 'Px':
+				return true;
+			case 'Fill':
+				return true;
+			case 'Min':
+				var l = len.b;
+				var $temp$len = l;
+				len = $temp$len;
+				continue isConstrained;
+			default:
+				var l = len.b;
+				return true;
+		}
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$isHiddenLabel = function (label) {
+	if (label.$ === 'HiddenLabel') {
+		return true;
+	} else {
+		return false;
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$isStacked = function (label) {
+	if (label.$ === 'Label') {
+		var loc = label.a;
+		switch (loc.$) {
+			case 'OnRight':
+				return false;
+			case 'OnLeft':
+				return false;
+			case 'Above':
+				return true;
+			default:
+				return true;
+		}
+	} else {
+		return true;
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$negateBox = function (box) {
+	return {bottom: -box.bottom, left: -box.left, right: -box.right, top: -box.top};
+};
+var $elm$html$Html$Events$alwaysStop = function (x) {
+	return _Utils_Tuple2(x, true);
+};
+var $elm$virtual_dom$VirtualDom$MayStopPropagation = function (a) {
+	return {$: 'MayStopPropagation', a: a};
+};
+var $elm$html$Html$Events$stopPropagationOn = F2(
+	function (event, decoder) {
+		return A2(
+			$elm$virtual_dom$VirtualDom$on,
+			event,
+			$elm$virtual_dom$VirtualDom$MayStopPropagation(decoder));
+	});
+var $elm$html$Html$Events$targetValue = A2(
+	$elm$json$Json$Decode$at,
+	_List_fromArray(
+		['target', 'value']),
+	$elm$json$Json$Decode$string);
+var $elm$html$Html$Events$onInput = function (tagger) {
+	return A2(
+		$elm$html$Html$Events$stopPropagationOn,
+		'input',
+		A2(
+			$elm$json$Json$Decode$map,
+			$elm$html$Html$Events$alwaysStop,
+			A2($elm$json$Json$Decode$map, tagger, $elm$html$Html$Events$targetValue)));
+};
+var $mdgriffith$elm_ui$Internal$Model$paddingName = F4(
+	function (top, right, bottom, left) {
+		return 'pad-' + ($elm$core$String$fromInt(top) + ('-' + ($elm$core$String$fromInt(right) + ('-' + ($elm$core$String$fromInt(bottom) + ('-' + $elm$core$String$fromInt(left)))))));
+	});
+var $mdgriffith$elm_ui$Element$paddingEach = function (_v0) {
+	var top = _v0.top;
+	var right = _v0.right;
+	var bottom = _v0.bottom;
+	var left = _v0.left;
+	if (_Utils_eq(top, right) && (_Utils_eq(top, bottom) && _Utils_eq(top, left))) {
+		var topFloat = top;
+		return A2(
+			$mdgriffith$elm_ui$Internal$Model$StyleClass,
+			$mdgriffith$elm_ui$Internal$Flag$padding,
+			A5(
+				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+				'p-' + $elm$core$String$fromInt(top),
+				topFloat,
+				topFloat,
+				topFloat,
+				topFloat));
+	} else {
+		return A2(
+			$mdgriffith$elm_ui$Internal$Model$StyleClass,
+			$mdgriffith$elm_ui$Internal$Flag$padding,
+			A5(
+				$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+				A4($mdgriffith$elm_ui$Internal$Model$paddingName, top, right, bottom, left),
+				top,
+				right,
+				bottom,
+				left));
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$isFill = function (len) {
+	isFill:
+	while (true) {
+		switch (len.$) {
+			case 'Fill':
+				return true;
+			case 'Content':
+				return false;
+			case 'Px':
+				return false;
+			case 'Min':
+				var l = len.b;
+				var $temp$len = l;
+				len = $temp$len;
+				continue isFill;
+			default:
+				var l = len.b;
+				var $temp$len = l;
+				len = $temp$len;
+				continue isFill;
+		}
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$isPixel = function (len) {
+	isPixel:
+	while (true) {
+		switch (len.$) {
+			case 'Content':
+				return false;
+			case 'Px':
+				return true;
+			case 'Fill':
+				return false;
+			case 'Min':
+				var l = len.b;
+				var $temp$len = l;
+				len = $temp$len;
+				continue isPixel;
+			default:
+				var l = len.b;
+				var $temp$len = l;
+				len = $temp$len;
+				continue isPixel;
+		}
+	}
+};
+var $mdgriffith$elm_ui$Element$Input$redistributeOver = F4(
+	function (isMultiline, stacked, attr, els) {
+		switch (attr.$) {
+			case 'Nearby':
+				return _Utils_update(
+					els,
+					{
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					});
+			case 'Width':
+				var width = attr.a;
+				return $mdgriffith$elm_ui$Element$Input$isFill(width) ? _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
+						input: A2($elm$core$List$cons, attr, els.input),
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					}) : (stacked ? _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
+					}) : _Utils_update(
+					els,
+					{
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					}));
+			case 'Height':
+				var height = attr.a;
+				return (!stacked) ? _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					}) : ($mdgriffith$elm_ui$Element$Input$isFill(height) ? _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent),
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					}) : ($mdgriffith$elm_ui$Element$Input$isPixel(height) ? _Utils_update(
+					els,
+					{
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					}) : _Utils_update(
+					els,
+					{
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					})));
+			case 'AlignX':
+				return _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
+					});
+			case 'AlignY':
+				return _Utils_update(
+					els,
+					{
+						fullParent: A2($elm$core$List$cons, attr, els.fullParent)
+					});
+			case 'StyleClass':
+				switch (attr.b.$) {
+					case 'SpacingStyle':
+						var _v1 = attr.b;
+						return _Utils_update(
+							els,
+							{
+								fullParent: A2($elm$core$List$cons, attr, els.fullParent),
+								input: A2($elm$core$List$cons, attr, els.input),
+								parent: A2($elm$core$List$cons, attr, els.parent),
+								wrapper: A2($elm$core$List$cons, attr, els.wrapper)
+							});
+					case 'PaddingStyle':
+						var cls = attr.a;
+						var _v2 = attr.b;
+						var pad = _v2.a;
+						var t = _v2.b;
+						var r = _v2.c;
+						var b = _v2.d;
+						var l = _v2.e;
+						if (isMultiline) {
+							return _Utils_update(
+								els,
+								{
+									cover: A2($elm$core$List$cons, attr, els.cover),
+									parent: A2($elm$core$List$cons, attr, els.parent)
+								});
+						} else {
+							var newTop = t - A2($elm$core$Basics$min, t, b);
+							var newLineHeight = $mdgriffith$elm_ui$Element$htmlAttribute(
+								A2(
+									$elm$html$Html$Attributes$style,
+									'line-height',
+									'calc(1.0em + ' + ($elm$core$String$fromFloat(
+										2 * A2($elm$core$Basics$min, t, b)) + 'px)')));
+							var newHeight = $mdgriffith$elm_ui$Element$htmlAttribute(
+								A2(
+									$elm$html$Html$Attributes$style,
+									'height',
+									'calc(1.0em + ' + ($elm$core$String$fromFloat(
+										2 * A2($elm$core$Basics$min, t, b)) + 'px)')));
+							var newBottom = b - A2($elm$core$Basics$min, t, b);
+							var reducedVerticalPadding = A2(
+								$mdgriffith$elm_ui$Internal$Model$StyleClass,
+								$mdgriffith$elm_ui$Internal$Flag$padding,
+								A5(
+									$mdgriffith$elm_ui$Internal$Model$PaddingStyle,
+									A4($mdgriffith$elm_ui$Internal$Model$paddingNameFloat, newTop, r, newBottom, l),
+									newTop,
+									r,
+									newBottom,
+									l));
+							return _Utils_update(
+								els,
+								{
+									cover: A2($elm$core$List$cons, attr, els.cover),
+									input: A2(
+										$elm$core$List$cons,
+										newHeight,
+										A2($elm$core$List$cons, newLineHeight, els.input)),
+									parent: A2($elm$core$List$cons, reducedVerticalPadding, els.parent)
+								});
+						}
+					case 'BorderWidth':
+						var _v3 = attr.b;
+						return _Utils_update(
+							els,
+							{
+								cover: A2($elm$core$List$cons, attr, els.cover),
+								parent: A2($elm$core$List$cons, attr, els.parent)
+							});
+					case 'Transform':
+						return _Utils_update(
+							els,
+							{
+								cover: A2($elm$core$List$cons, attr, els.cover),
+								parent: A2($elm$core$List$cons, attr, els.parent)
+							});
+					case 'FontSize':
+						return _Utils_update(
+							els,
+							{
+								fullParent: A2($elm$core$List$cons, attr, els.fullParent)
+							});
+					case 'FontFamily':
+						var _v4 = attr.b;
+						return _Utils_update(
+							els,
+							{
+								fullParent: A2($elm$core$List$cons, attr, els.fullParent)
+							});
+					default:
+						var flag = attr.a;
+						var cls = attr.b;
+						return _Utils_update(
+							els,
+							{
+								parent: A2($elm$core$List$cons, attr, els.parent)
+							});
+				}
+			case 'NoAttribute':
+				return els;
+			case 'Attr':
+				var a = attr.a;
+				return _Utils_update(
+					els,
+					{
+						input: A2($elm$core$List$cons, attr, els.input)
+					});
+			case 'Describe':
+				return _Utils_update(
+					els,
+					{
+						input: A2($elm$core$List$cons, attr, els.input)
+					});
+			case 'Class':
+				return _Utils_update(
+					els,
+					{
+						parent: A2($elm$core$List$cons, attr, els.parent)
+					});
+			default:
+				return _Utils_update(
+					els,
+					{
+						input: A2($elm$core$List$cons, attr, els.input)
+					});
+		}
+	});
+var $mdgriffith$elm_ui$Element$Input$redistribute = F3(
+	function (isMultiline, stacked, attrs) {
+		return function (redist) {
+			return {
+				cover: $elm$core$List$reverse(redist.cover),
+				fullParent: $elm$core$List$reverse(redist.fullParent),
+				input: $elm$core$List$reverse(redist.input),
+				parent: $elm$core$List$reverse(redist.parent),
+				wrapper: $elm$core$List$reverse(redist.wrapper)
+			};
+		}(
+			A3(
+				$elm$core$List$foldl,
+				A2($mdgriffith$elm_ui$Element$Input$redistributeOver, isMultiline, stacked),
+				{cover: _List_Nil, fullParent: _List_Nil, input: _List_Nil, parent: _List_Nil, wrapper: _List_Nil},
+				attrs));
+	});
+var $mdgriffith$elm_ui$Element$Input$renderBox = function (_v0) {
+	var top = _v0.top;
+	var right = _v0.right;
+	var bottom = _v0.bottom;
+	var left = _v0.left;
+	return $elm$core$String$fromInt(top) + ('px ' + ($elm$core$String$fromInt(right) + ('px ' + ($elm$core$String$fromInt(bottom) + ('px ' + ($elm$core$String$fromInt(left) + 'px'))))));
+};
+var $mdgriffith$elm_ui$Internal$Model$Transparency = F2(
+	function (a, b) {
+		return {$: 'Transparency', a: a, b: b};
+	});
+var $mdgriffith$elm_ui$Internal$Flag$transparency = $mdgriffith$elm_ui$Internal$Flag$flag(0);
+var $mdgriffith$elm_ui$Element$alpha = function (o) {
+	var transparency = function (x) {
+		return 1 - x;
+	}(
+		A2(
+			$elm$core$Basics$min,
+			1.0,
+			A2($elm$core$Basics$max, 0.0, o)));
+	return A2(
+		$mdgriffith$elm_ui$Internal$Model$StyleClass,
+		$mdgriffith$elm_ui$Internal$Flag$transparency,
+		A2(
+			$mdgriffith$elm_ui$Internal$Model$Transparency,
+			'transparency-' + $mdgriffith$elm_ui$Internal$Model$floatClass(transparency),
+			transparency));
+};
+var $mdgriffith$elm_ui$Element$Input$charcoal = A3($mdgriffith$elm_ui$Element$rgb, 136 / 255, 138 / 255, 133 / 255);
+var $mdgriffith$elm_ui$Element$rgba = $mdgriffith$elm_ui$Internal$Model$Rgba;
+var $mdgriffith$elm_ui$Element$Input$renderPlaceholder = F3(
+	function (_v0, forPlaceholder, on) {
+		var placeholderAttrs = _v0.a;
+		var placeholderEl = _v0.b;
+		return A2(
+			$mdgriffith$elm_ui$Element$el,
+			_Utils_ap(
+				forPlaceholder,
+				_Utils_ap(
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Font$color($mdgriffith$elm_ui$Element$Input$charcoal),
+							$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.noTextSelection + (' ' + $mdgriffith$elm_ui$Internal$Style$classes.passPointerEvents)),
+							$mdgriffith$elm_ui$Element$clip,
+							$mdgriffith$elm_ui$Element$Border$color(
+							A4($mdgriffith$elm_ui$Element$rgba, 0, 0, 0, 0)),
+							$mdgriffith$elm_ui$Element$Background$color(
+							A4($mdgriffith$elm_ui$Element$rgba, 0, 0, 0, 0)),
+							$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$alpha(
+							on ? 1 : 0)
+						]),
+					placeholderAttrs)),
+			placeholderEl);
+	});
+var $mdgriffith$elm_ui$Element$scrollbarY = A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$overflow, $mdgriffith$elm_ui$Internal$Style$classes.scrollbarsY);
+var $elm$html$Html$Attributes$spellcheck = $elm$html$Html$Attributes$boolProperty('spellcheck');
+var $mdgriffith$elm_ui$Element$Input$spellcheck = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Attr, $elm$html$Html$Attributes$spellcheck);
+var $elm$html$Html$Attributes$value = $elm$html$Html$Attributes$stringProperty('value');
+var $mdgriffith$elm_ui$Element$Input$value = A2($elm$core$Basics$composeL, $mdgriffith$elm_ui$Internal$Model$Attr, $elm$html$Html$Attributes$value);
+var $mdgriffith$elm_ui$Element$Input$textHelper = F3(
+	function (textInput, attrs, textOptions) {
+		var withDefaults = _Utils_ap($mdgriffith$elm_ui$Element$Input$defaultTextBoxStyle, attrs);
+		var redistributed = A3(
+			$mdgriffith$elm_ui$Element$Input$redistribute,
+			_Utils_eq(textInput.type_, $mdgriffith$elm_ui$Element$Input$TextArea),
+			$mdgriffith$elm_ui$Element$Input$isStacked(textOptions.label),
+			withDefaults);
+		var onlySpacing = function (attr) {
+			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'SpacingStyle')) {
+				var _v9 = attr.b;
+				return true;
+			} else {
+				return false;
+			}
+		};
+		var heightConstrained = function () {
+			var _v7 = textInput.type_;
+			if (_v7.$ === 'TextInputNode') {
+				var inputType = _v7.a;
+				return false;
+			} else {
+				return A2(
+					$elm$core$Maybe$withDefault,
+					false,
+					A2(
+						$elm$core$Maybe$map,
+						$mdgriffith$elm_ui$Element$Input$isConstrained,
+						$elm$core$List$head(
+							$elm$core$List$reverse(
+								A2($elm$core$List$filterMap, $mdgriffith$elm_ui$Element$Input$getHeight, withDefaults)))));
+			}
+		}();
+		var getPadding = function (attr) {
+			if ((attr.$ === 'StyleClass') && (attr.b.$ === 'PaddingStyle')) {
+				var cls = attr.a;
+				var _v6 = attr.b;
+				var pad = _v6.a;
+				var t = _v6.b;
+				var r = _v6.c;
+				var b = _v6.d;
+				var l = _v6.e;
+				return $elm$core$Maybe$Just(
+					{
+						bottom: A2(
+							$elm$core$Basics$max,
+							0,
+							$elm$core$Basics$floor(b - 3)),
+						left: A2(
+							$elm$core$Basics$max,
+							0,
+							$elm$core$Basics$floor(l - 3)),
+						right: A2(
+							$elm$core$Basics$max,
+							0,
+							$elm$core$Basics$floor(r - 3)),
+						top: A2(
+							$elm$core$Basics$max,
+							0,
+							$elm$core$Basics$floor(t - 3))
+					});
+			} else {
+				return $elm$core$Maybe$Nothing;
+			}
+		};
+		var parentPadding = A2(
+			$elm$core$Maybe$withDefault,
+			{bottom: 0, left: 0, right: 0, top: 0},
+			$elm$core$List$head(
+				$elm$core$List$reverse(
+					A2($elm$core$List$filterMap, getPadding, withDefaults))));
+		var inputElement = A4(
+			$mdgriffith$elm_ui$Internal$Model$element,
+			$mdgriffith$elm_ui$Internal$Model$asEl,
+			function () {
+				var _v3 = textInput.type_;
+				if (_v3.$ === 'TextInputNode') {
+					var inputType = _v3.a;
+					return $mdgriffith$elm_ui$Internal$Model$NodeName('input');
+				} else {
+					return $mdgriffith$elm_ui$Internal$Model$NodeName('textarea');
+				}
+			}(),
+			_Utils_ap(
+				function () {
+					var _v4 = textInput.type_;
+					if (_v4.$ === 'TextInputNode') {
+						var inputType = _v4.a;
+						return _List_fromArray(
+							[
+								$mdgriffith$elm_ui$Internal$Model$Attr(
+								$elm$html$Html$Attributes$type_(inputType)),
+								$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputText)
+							]);
+					} else {
+						return _List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$clip,
+								$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultiline),
+								$mdgriffith$elm_ui$Element$Input$calcMoveToCompensateForPadding(withDefaults),
+								$mdgriffith$elm_ui$Element$paddingEach(parentPadding),
+								$mdgriffith$elm_ui$Internal$Model$Attr(
+								A2(
+									$elm$html$Html$Attributes$style,
+									'margin',
+									$mdgriffith$elm_ui$Element$Input$renderBox(
+										$mdgriffith$elm_ui$Element$Input$negateBox(parentPadding)))),
+								$mdgriffith$elm_ui$Internal$Model$Attr(
+								A2($elm$html$Html$Attributes$style, 'box-sizing', 'content-box'))
+							]);
+					}
+				}(),
+				_Utils_ap(
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$Input$value(textOptions.text),
+							$mdgriffith$elm_ui$Internal$Model$Attr(
+							$elm$html$Html$Events$onInput(textOptions.onChange)),
+							$mdgriffith$elm_ui$Element$Input$hiddenLabelAttribute(textOptions.label),
+							$mdgriffith$elm_ui$Element$Input$spellcheck(textInput.spellchecked),
+							A2(
+							$elm$core$Maybe$withDefault,
+							$mdgriffith$elm_ui$Internal$Model$NoAttribute,
+							A2($elm$core$Maybe$map, $mdgriffith$elm_ui$Element$Input$autofill, textInput.autofill))
+						]),
+					redistributed.input)),
+			$mdgriffith$elm_ui$Internal$Model$Unkeyed(_List_Nil));
+		var wrappedInput = function () {
+			var _v0 = textInput.type_;
+			if (_v0.$ === 'TextArea') {
+				return A4(
+					$mdgriffith$elm_ui$Internal$Model$element,
+					$mdgriffith$elm_ui$Internal$Model$asEl,
+					$mdgriffith$elm_ui$Internal$Model$div,
+					_Utils_ap(
+						(heightConstrained ? $elm$core$List$cons($mdgriffith$elm_ui$Element$scrollbarY) : $elm$core$Basics$identity)(
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+									A2($elm$core$List$any, $mdgriffith$elm_ui$Element$Input$hasFocusStyle, withDefaults) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.focusedWithin),
+									$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineWrapper)
+								])),
+						redistributed.parent),
+					$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+						_List_fromArray(
+							[
+								A4(
+								$mdgriffith$elm_ui$Internal$Model$element,
+								$mdgriffith$elm_ui$Internal$Model$asParagraph,
+								$mdgriffith$elm_ui$Internal$Model$div,
+								A2(
+									$elm$core$List$cons,
+									$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+									A2(
+										$elm$core$List$cons,
+										$mdgriffith$elm_ui$Element$height($mdgriffith$elm_ui$Element$fill),
+										A2(
+											$elm$core$List$cons,
+											$mdgriffith$elm_ui$Element$inFront(inputElement),
+											A2(
+												$elm$core$List$cons,
+												$mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineParent),
+												redistributed.wrapper)))),
+								$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+									function () {
+										if (textOptions.text === '') {
+											var _v1 = textOptions.placeholder;
+											if (_v1.$ === 'Nothing') {
+												return _List_fromArray(
+													[
+														$mdgriffith$elm_ui$Element$text('\u00A0')
+													]);
+											} else {
+												var place = _v1.a;
+												return _List_fromArray(
+													[
+														A3($mdgriffith$elm_ui$Element$Input$renderPlaceholder, place, _List_Nil, textOptions.text === '')
+													]);
+											}
+										} else {
+											return _List_fromArray(
+												[
+													$mdgriffith$elm_ui$Internal$Model$unstyled(
+													A2(
+														$elm$html$Html$span,
+														_List_fromArray(
+															[
+																$elm$html$Html$Attributes$class($mdgriffith$elm_ui$Internal$Style$classes.inputMultilineFiller)
+															]),
+														_List_fromArray(
+															[
+																$elm$html$Html$text(textOptions.text + '\u00A0')
+															])))
+												]);
+										}
+									}()))
+							])));
+			} else {
+				var inputType = _v0.a;
+				return A4(
+					$mdgriffith$elm_ui$Internal$Model$element,
+					$mdgriffith$elm_ui$Internal$Model$asEl,
+					$mdgriffith$elm_ui$Internal$Model$div,
+					A2(
+						$elm$core$List$cons,
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						A2(
+							$elm$core$List$cons,
+							A2($elm$core$List$any, $mdgriffith$elm_ui$Element$Input$hasFocusStyle, withDefaults) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Internal$Model$htmlClass($mdgriffith$elm_ui$Internal$Style$classes.focusedWithin),
+							$elm$core$List$concat(
+								_List_fromArray(
+									[
+										redistributed.parent,
+										function () {
+										var _v2 = textOptions.placeholder;
+										if (_v2.$ === 'Nothing') {
+											return _List_Nil;
+										} else {
+											var place = _v2.a;
+											return _List_fromArray(
+												[
+													$mdgriffith$elm_ui$Element$behindContent(
+													A3($mdgriffith$elm_ui$Element$Input$renderPlaceholder, place, redistributed.cover, textOptions.text === ''))
+												]);
+										}
+									}()
+									])))),
+					$mdgriffith$elm_ui$Internal$Model$Unkeyed(
+						_List_fromArray(
+							[inputElement])));
+			}
+		}();
+		return A3(
+			$mdgriffith$elm_ui$Element$Input$applyLabel,
+			A2(
+				$elm$core$List$cons,
+				A2($mdgriffith$elm_ui$Internal$Model$Class, $mdgriffith$elm_ui$Internal$Flag$cursor, $mdgriffith$elm_ui$Internal$Style$classes.cursorText),
+				A2(
+					$elm$core$List$cons,
+					$mdgriffith$elm_ui$Element$Input$isHiddenLabel(textOptions.label) ? $mdgriffith$elm_ui$Internal$Model$NoAttribute : $mdgriffith$elm_ui$Element$spacing(5),
+					A2($elm$core$List$cons, $mdgriffith$elm_ui$Element$Region$announce, redistributed.fullParent))),
+			textOptions.label,
+			wrappedInput);
+	});
+var $mdgriffith$elm_ui$Element$Input$text = $mdgriffith$elm_ui$Element$Input$textHelper(
+	{
+		autofill: $elm$core$Maybe$Nothing,
+		spellchecked: false,
+		type_: $mdgriffith$elm_ui$Element$Input$TextInputNode('text')
+	});
+var $author$project$Main$OpenTimerSheet = {$: 'OpenTimerSheet'};
+var $author$project$Main$moveTimerLabel = function (seconds) {
+	return (seconds <= 0) ? 'Off' : ($elm$core$String$fromInt(seconds) + ' seconds');
+};
+var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
+	return {$: 'UpdateOnlineMoveTimer', a: a};
+};
+var $elm$html$Html$option = _VirtualDom_node('option');
+var $elm$html$Html$select = _VirtualDom_node('select');
+var $elm$html$Html$Attributes$selected = $elm$html$Html$Attributes$boolProperty('selected');
+var $author$project$Main$viewTimerSelect = function (current) {
+	return $mdgriffith$elm_ui$Element$html(
+		A2(
+			$elm$html$Html$select,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$id('onlineMoveTimer'),
+					A2($elm$html$Html$Attributes$style, 'background', 'rgba(0,0,0,0.5)'),
+					A2($elm$html$Html$Attributes$style, 'color', '#e0ffe0'),
+					A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(255,255,255,0.1)'),
+					A2($elm$html$Html$Attributes$style, 'border-radius', '10px'),
+					A2($elm$html$Html$Attributes$style, 'padding', '12px 14px'),
+					A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
+					A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
+					A2($elm$html$Html$Attributes$style, 'width', '100%'),
+					$elm$html$Html$Events$onInput($author$project$Main$UpdateOnlineMoveTimer)
+				]),
+			A2(
+				$elm$core$List$map,
+				function (s) {
+					return A2(
+						$elm$html$Html$option,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$value(
+								$elm$core$String$fromInt(s)),
+								$elm$html$Html$Attributes$selected(
+								_Utils_eq(s, current))
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text(
+								(!s) ? 'Off' : ($elm$core$String$fromInt(s) + ' seconds'))
+							]));
+				},
+				$author$project$Main$timerOptions)));
+};
+var $author$project$Main$viewTimerControl = function (model) {
+	return (model.viewportWidth <= 640) ? A2(
+		$mdgriffith$elm_ui$Element$Input$button,
+		_Utils_ap(
+			$author$project$Main$formFieldAttrs,
+			_List_fromArray(
+				[
+					$mdgriffith$elm_ui$Element$Border$rounded(16),
+					A2($mdgriffith$elm_ui$Element$paddingXY, 14, 12),
+					$mdgriffith$elm_ui$Element$Font$size(14)
+				])),
+		{
+			label: A2(
+				$mdgriffith$elm_ui$Element$row,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$centerY
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$column,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$spacing(2)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$Font$size(11),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 185, 212, 191)),
+										$mdgriffith$elm_ui$Element$Font$semiBold
+									]),
+								$mdgriffith$elm_ui$Element$text('Selected timer')),
+								A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[$mdgriffith$elm_ui$Element$Font$bold]),
+								$mdgriffith$elm_ui$Element$text(
+									$author$project$Main$moveTimerLabel(model.onlineMoveTimer)))
+							])),
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$alignRight,
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
+								$mdgriffith$elm_ui$Element$Font$bold,
+								$mdgriffith$elm_ui$Element$Font$size(12)
+							]),
+						$mdgriffith$elm_ui$Element$text('Change'))
+					])),
+			onPress: $elm$core$Maybe$Just($author$project$Main$OpenTimerSheet)
+		}) : $author$project$Main$viewTimerSelect(model.onlineMoveTimer);
+};
+var $author$project$Main$viewLocalLobbyContent = function (model) {
+	return A2(
+		$mdgriffith$elm_ui$Element$column,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$spacing(14)
+			]),
+		_List_fromArray(
+			[
+				function () {
+				var _v0 = model.localGame;
+				if (_v0.$ === 'Just') {
+					var lg = _v0.a;
+					return (model.viewportWidth <= 640) ? A2(
+						$mdgriffith$elm_ui$Element$column,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$Background$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+								$mdgriffith$elm_ui$Element$Border$rounded(18),
+								$mdgriffith$elm_ui$Element$Border$width(1),
+								$mdgriffith$elm_ui$Element$Border$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+								$mdgriffith$elm_ui$Element$padding(14),
+								$mdgriffith$elm_ui$Element$spacing(12)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$column,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$spacing(4)
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$bold,
+												$mdgriffith$elm_ui$Element$Font$size(15),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A3($mdgriffith$elm_ui$Element$rgb255, 244, 255, 246))
+											]),
+										$mdgriffith$elm_ui$Element$text('Paused local game')),
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$size(13),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A3($mdgriffith$elm_ui$Element$rgb255, 199, 220, 204))
+											]),
+										$mdgriffith$elm_ui$Element$text(lg.blueName + (' vs ' + lg.redName)))
+									])),
+								A2(
+								$mdgriffith$elm_ui$Element$Input$button,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$htmlAttribute(
+										A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)')),
+										$mdgriffith$elm_ui$Element$Border$rounded(16),
+										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
+										$mdgriffith$elm_ui$Element$Font$bold,
+										$mdgriffith$elm_ui$Element$Font$size(14),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10))
+									]),
+								{
+									label: A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[$mdgriffith$elm_ui$Element$centerX]),
+										$mdgriffith$elm_ui$Element$text('Resume saved game')),
+									onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+								}),
+								A2(
+								$mdgriffith$elm_ui$Element$Input$button,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$Background$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 56, 70, 57)),
+										$mdgriffith$elm_ui$Element$Border$rounded(16),
+										A2($mdgriffith$elm_ui$Element$paddingXY, 0, 12),
+										$mdgriffith$elm_ui$Element$Font$size(14),
+										$mdgriffith$elm_ui$Element$Font$color(
+										A3($mdgriffith$elm_ui$Element$rgb255, 240, 245, 241))
+									]),
+								{
+									label: A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[$mdgriffith$elm_ui$Element$centerX]),
+										$mdgriffith$elm_ui$Element$text('Discard')),
+									onPress: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame)
+								})
+							])) : A2(
+						$mdgriffith$elm_ui$Element$row,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$Background$color(
+								A4($mdgriffith$elm_ui$Element$rgba255, 0, 0, 0, 28)),
+								$mdgriffith$elm_ui$Element$Border$rounded(10),
+								$mdgriffith$elm_ui$Element$padding(14),
+								$mdgriffith$elm_ui$Element$spacing(10)
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$mdgriffith$elm_ui$Element$column,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+										$mdgriffith$elm_ui$Element$spacing(4)
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$bold,
+												$mdgriffith$elm_ui$Element$Font$size(14)
+											]),
+										$mdgriffith$elm_ui$Element$text('Paused local game')),
+										A2(
+										$mdgriffith$elm_ui$Element$el,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Font$size(13),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100))
+											]),
+										$mdgriffith$elm_ui$Element$text(lg.blueName + (' vs ' + lg.redName)))
+									])),
+								A2(
+								$mdgriffith$elm_ui$Element$column,
+								_List_fromArray(
+									[
+										$mdgriffith$elm_ui$Element$spacing(8),
+										$mdgriffith$elm_ui$Element$alignRight
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$mdgriffith$elm_ui$Element$Input$button,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$htmlAttribute(
+												A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)')),
+												$mdgriffith$elm_ui$Element$Border$rounded(20),
+												A2($mdgriffith$elm_ui$Element$paddingXY, 16, 9),
+												$mdgriffith$elm_ui$Element$Font$bold,
+												$mdgriffith$elm_ui$Element$Font$size(13),
+												$mdgriffith$elm_ui$Element$Font$color(
+												A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10))
+											]),
+										{
+											label: $mdgriffith$elm_ui$Element$text('Resume saved game'),
+											onPress: $elm$core$Maybe$Just($author$project$Main$ToggleLobby)
+										}),
+										A2(
+										$mdgriffith$elm_ui$Element$Input$button,
+										_List_fromArray(
+											[
+												$mdgriffith$elm_ui$Element$Background$color(
+												A4($mdgriffith$elm_ui$Element$rgba255, 50, 70, 50, 180)),
+												$mdgriffith$elm_ui$Element$Border$rounded(20),
+												A2($mdgriffith$elm_ui$Element$paddingXY, 16, 9),
+												$mdgriffith$elm_ui$Element$Font$size(13)
+											]),
+										{
+											label: $mdgriffith$elm_ui$Element$text('Discard'),
+											onPress: $elm$core$Maybe$Just($author$project$Main$LeaveLocalGame)
+										})
+									]))
+							]));
+				} else {
+					return $mdgriffith$elm_ui$Element$none;
+				}
+			}(),
+				A2(
+				$mdgriffith$elm_ui$Element$Input$text,
+				$author$project$Main$formFieldAttrs,
+				{
+					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Blue'),
+					onChange: $author$project$Main$UpdateLocalBlueName,
+					placeholder: $elm$core$Maybe$Just(
+						A2(
+							$mdgriffith$elm_ui$Element$Input$placeholder,
+							$author$project$Main$formPlaceholderAttrs,
+							$mdgriffith$elm_ui$Element$text('Blue'))),
+					text: model.localBlueName
+				}),
+				A2(
+				$mdgriffith$elm_ui$Element$Input$text,
+				$author$project$Main$formFieldAttrs,
+				{
+					label: $mdgriffith$elm_ui$Element$Input$labelHidden('Red'),
+					onChange: $author$project$Main$UpdateLocalRedName,
+					placeholder: $elm$core$Maybe$Just(
+						A2(
+							$mdgriffith$elm_ui$Element$Input$placeholder,
+							$author$project$Main$formPlaceholderAttrs,
+							$mdgriffith$elm_ui$Element$text('Red'))),
+					text: model.localRedName
+				}),
+				A2(
+				$mdgriffith$elm_ui$Element$column,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$spacing(6)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$bold
+							]),
+						$mdgriffith$elm_ui$Element$text('Move timer')),
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+							]),
+						$author$project$Main$viewTimerControl(model))
+					])),
+				A2(
+				$mdgriffith$elm_ui$Element$Input$button,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$padding(15),
+						$mdgriffith$elm_ui$Element$Border$rounded(10),
+						$mdgriffith$elm_ui$Element$Font$bold,
+						$mdgriffith$elm_ui$Element$Font$size(15),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 10, 20, 10)),
+						$mdgriffith$elm_ui$Element$htmlAttribute(
+						A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(135deg, #27c050 0%, #1da0ea 100%)'))
+					]),
+				{
+					label: A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[$mdgriffith$elm_ui$Element$centerX]),
+						$mdgriffith$elm_ui$Element$text('Start local match')),
+					onPress: $elm$core$Maybe$Just($author$project$Main$StartLocalMatch)
+				})
+			]));
+};
+var $author$project$Main$CreateBoard = {$: 'CreateBoard'};
+var $author$project$Main$SubmitWatchBoard = {$: 'SubmitWatchBoard'};
+var $author$project$Main$UpdateBoardCodeInput = function (a) {
+	return {$: 'UpdateBoardCodeInput', a: a};
+};
+var $author$project$Main$UpdatePlayerName = function (a) {
+	return {$: 'UpdatePlayerName', a: a};
+};
+var $author$project$Main$formSubpanelAttrs = _List_fromArray(
+	[
+		$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+		$mdgriffith$elm_ui$Element$Background$color(
+		A4($mdgriffith$elm_ui$Element$rgba255, 17, 53, 27, 214)),
+		$mdgriffith$elm_ui$Element$Border$rounded(18),
+		$mdgriffith$elm_ui$Element$Border$width(1),
+		$mdgriffith$elm_ui$Element$Border$color(
+		A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+		$mdgriffith$elm_ui$Element$padding(14)
+	]);
+var $elm$html$Html$Attributes$for = $elm$html$Html$Attributes$stringProperty('htmlFor');
+var $elm$html$Html$input = _VirtualDom_node('input');
+var $elm$html$Html$label = _VirtualDom_node('label');
+var $elm$html$Html$Attributes$readonly = $elm$html$Html$Attributes$boolProperty('readOnly');
+var $author$project$Main$viewInviteCard = F2(
+	function (boardCode, inviteUrl) {
+		return $mdgriffith$elm_ui$Element$html(
+			A2(
+				$elm$html$Html$section,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('invite'),
+						$elm$html$Html$Attributes$id('inviteCard')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$img,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$src('/api/qr?room=' + boardCode),
+								$elm$html$Html$Attributes$alt('QR code for board ' + boardCode)
+							]),
+						_List_Nil),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('invite-copy-panel')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$label,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$for('inviteUrl')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Share this board')
+									])),
+								A2(
+								$elm$html$Html$input,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$id('inviteUrl'),
+										$elm$html$Html$Attributes$type_('text'),
+										$elm$html$Html$Attributes$readonly(true),
+										$elm$html$Html$Attributes$value(inviteUrl)
+									]),
+								_List_Nil),
+								A2(
+								$elm$html$Html$div,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('invite-actions')
+									]),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$id('copyInviteCard'),
+												$elm$html$Html$Attributes$type_('button'),
+												$elm$html$Html$Attributes$class('compact'),
+												$elm$html$Html$Events$onClick(
+												$author$project$Main$CopyBoardLink(boardCode))
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Copy link')
+											])),
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$id('openCreatedBoard'),
+												$elm$html$Html$Attributes$type_('button'),
+												$elm$html$Html$Attributes$class('compact primary'),
+												$elm$html$Html$Events$onClick($author$project$Main$ToggleLobby)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Open game now')
+											]))
+									]))
+							]))
+					])));
+	});
+var $author$project$Main$viewOnlineLobbyContent = function (model) {
+	return A2(
+		$mdgriffith$elm_ui$Element$column,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$spacing(14)
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$mdgriffith$elm_ui$Element$column,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$spacing(6)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$bold
+							]),
+						$mdgriffith$elm_ui$Element$text('Your name')),
+						A2(
+						$mdgriffith$elm_ui$Element$Input$text,
+						_Utils_ap(
+							$author$project$Main$formFieldAttrs,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$id('playerNameInput'))
+								])),
+						{
+							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Your name'),
+							onChange: $author$project$Main$UpdatePlayerName,
+							placeholder: $elm$core$Maybe$Just(
+								A2(
+									$mdgriffith$elm_ui$Element$Input$placeholder,
+									$author$project$Main$formPlaceholderAttrs,
+									$mdgriffith$elm_ui$Element$text('Your name'))),
+							text: model.playerName
+						})
+					])),
+				function () {
+				var _v0 = model.inviteUrl;
+				if (_v0.$ === 'Just') {
+					var inviteUrl = _v0.a;
+					return A2($author$project$Main$viewInviteCard, model.boardCode, inviteUrl);
+				} else {
+					return $mdgriffith$elm_ui$Element$none;
+				}
+			}(),
+				A2(
+				$mdgriffith$elm_ui$Element$column,
+				_Utils_ap(
+					$author$project$Main$formSubpanelAttrs,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$spacing(10)
+						])),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$bold
+							]),
+						$mdgriffith$elm_ui$Element$text('Open board as watcher')),
+						A2(
+						$mdgriffith$elm_ui$Element$Input$text,
+						_Utils_ap(
+							$author$project$Main$formFieldAttrs,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$id('boardCodeInput'))
+								])),
+						{
+							label: $mdgriffith$elm_ui$Element$Input$labelHidden('Board code'),
+							onChange: $author$project$Main$UpdateBoardCodeInput,
+							placeholder: $elm$core$Maybe$Just(
+								A2(
+									$mdgriffith$elm_ui$Element$Input$placeholder,
+									$author$project$Main$formPlaceholderAttrs,
+									$mdgriffith$elm_ui$Element$text('Board code'))),
+							text: model.draftBoardCode
+						}),
+						A2(
+						$mdgriffith$elm_ui$Element$Input$button,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$padding(15),
+								$mdgriffith$elm_ui$Element$Border$rounded(10),
+								$mdgriffith$elm_ui$Element$Font$bold,
+								$mdgriffith$elm_ui$Element$Font$size(15),
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 8, 18, 8)),
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								A2($elm$html$Html$Attributes$style, 'background', '#17d2e6'))
+							]),
+						{
+							label: A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[$mdgriffith$elm_ui$Element$centerX]),
+								$mdgriffith$elm_ui$Element$text('Watch board')),
+							onPress: $elm$core$Maybe$Just($author$project$Main$SubmitWatchBoard)
+						}),
+						A2(
+						$mdgriffith$elm_ui$Element$Input$button,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+								$mdgriffith$elm_ui$Element$padding(15),
+								$mdgriffith$elm_ui$Element$Border$rounded(10),
+								$mdgriffith$elm_ui$Element$Font$bold,
+								$mdgriffith$elm_ui$Element$Font$size(15),
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 8, 18, 8)),
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								A2($elm$html$Html$Attributes$style, 'background', '#11c2d8')),
+								$mdgriffith$elm_ui$Element$htmlAttribute(
+								$elm$html$Html$Attributes$id('elmCreateBoard'))
+							]),
+						{
+							label: A2(
+								$mdgriffith$elm_ui$Element$el,
+								_List_fromArray(
+									[$mdgriffith$elm_ui$Element$centerX]),
+								$mdgriffith$elm_ui$Element$text('Create board as Blue')),
+							onPress: $elm$core$Maybe$Just($author$project$Main$CreateBoard)
+						})
+					])),
+				A2(
+				$mdgriffith$elm_ui$Element$column,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$spacing(6)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$bold
+							]),
+						$mdgriffith$elm_ui$Element$text('Move timer')),
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+							]),
+						$author$project$Main$viewTimerControl(model))
+					])),
+				A2(
+				$mdgriffith$elm_ui$Element$el,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$Font$size(12),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 55))
+					]),
+				$mdgriffith$elm_ui$Element$text('Connection: ' + model.connectionStatus)),
+				function () {
+				var _v1 = model.error;
+				if (_v1.$ === 'Just') {
+					var e = _v1.a;
+					return A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 255, 100, 80)),
+								$mdgriffith$elm_ui$Element$Font$size(13)
+							]),
+						$mdgriffith$elm_ui$Element$text(e));
+				} else {
+					return $mdgriffith$elm_ui$Element$none;
+				}
+			}()
+			]));
+};
+var $author$project$Main$viewLobbyCard = function (model) {
+	return A2(
+		$mdgriffith$elm_ui$Element$column,
+		_List_fromArray(
+			[
+				$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+				$mdgriffith$elm_ui$Element$Background$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+				$mdgriffith$elm_ui$Element$Border$width(1),
+				$mdgriffith$elm_ui$Element$Border$color(
+				A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+				$mdgriffith$elm_ui$Element$Border$rounded(24),
+				$mdgriffith$elm_ui$Element$padding(20),
+				$mdgriffith$elm_ui$Element$spacing(16)
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$mdgriffith$elm_ui$Element$el,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$Font$bold,
+						$mdgriffith$elm_ui$Element$Font$size(20)
+					]),
+				$mdgriffith$elm_ui$Element$text(
+					model.localLobbyTab ? 'Local same-screen PvP' : 'Online game')),
+				A2(
+				$mdgriffith$elm_ui$Element$paragraph,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$Font$size(13),
+						$mdgriffith$elm_ui$Element$Font$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 100)),
+						$mdgriffith$elm_ui$Element$spacing(4)
+					]),
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$text(
+						model.localLobbyTab ? 'Players face each other and play on this device. The pitch stays fixed for local play.' : 'Open a board as watcher, then choose an open seat when you are ready to play.')
+					])),
+				A2(
+				$mdgriffith$elm_ui$Element$row,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 14, 44, 22)),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A3($mdgriffith$elm_ui$Element$rgb255, 72, 106, 82)),
+						$mdgriffith$elm_ui$Element$Border$rounded(28),
+						$mdgriffith$elm_ui$Element$padding(4),
+						$mdgriffith$elm_ui$Element$spacing(0)
+					]),
+				_List_fromArray(
+					[
+						A3(
+						$author$project$Main$gradientTabButton,
+						'Online',
+						!model.localLobbyTab,
+						$author$project$Main$SetLobbyTab(false)),
+						A3(
+						$author$project$Main$gradientTabButton,
+						'Local',
+						model.localLobbyTab,
+						$author$project$Main$SetLobbyTab(true))
+					])),
+				model.localLobbyTab ? $author$project$Main$viewLocalLobbyContent(model) : $author$project$Main$viewOnlineLobbyContent(model)
+			]));
+};
+var $author$project$Main$LocalNewRound = {$: 'LocalNewRound'};
+var $author$project$Main$ToggleLocalPause = {$: 'ToggleLocalPause'};
+var $author$project$Main$activeTimerRemainingSeconds = F2(
+	function (nowMs, board) {
+		return (nowMs <= 0) ? $elm$core$Maybe$Nothing : A2(
+			$elm$core$Maybe$map,
+			function (deadlineAt) {
+				return A2($elm$core$Basics$max, 0, (((deadlineAt - nowMs) + 999) / 1000) | 0);
+			},
+			A2(
+				$elm$core$Maybe$andThen,
+				function ($) {
+					return $.deadlineAt;
+				},
+				A2(
+					$elm$core$Maybe$andThen,
+					function ($) {
+						return $.round;
+					},
+					board.currentSession)));
+	});
+var $author$project$Main$positiveMaybe = function (value) {
+	return (value > 0) ? $elm$core$Maybe$Just(value) : $elm$core$Maybe$Nothing;
+};
+var $author$project$Main$timerSentence = function (timerSecs) {
+	if (timerSecs.$ === 'Just') {
+		var secs = timerSecs.a;
+		return ' - ' + ($elm$core$String$fromInt(secs) + 's timer.');
+	} else {
+		return '.';
+	}
+};
+var $author$project$Main$localStatusText = F4(
+	function (model, board, turn, winnerName) {
+		if (winnerName.$ === 'Just') {
+			var name = winnerName.a;
+			return name + ' wins. Round complete.';
+		} else {
+			return model.localPaused ? ('Paused. ' + (A2($author$project$Main$turnOwnerName, board, turn) + ' moves next.')) : (A2($author$project$Main$turnOwnerName, board, turn) + ('\'s turn' + $author$project$Main$timerSentence(
+				A2(
+					$elm$core$Maybe$andThen,
+					$author$project$Main$positiveMaybe,
+					A2(
+						$elm$core$Maybe$andThen,
+						function ($) {
+							return $.moveTimeLimitSeconds;
+						},
+						board.currentSession)))));
+		}
+	});
+var $author$project$Main$localTurnIndicatorText = F4(
+	function (model, _v0, turn, winnerName) {
+		if (winnerName.$ === 'Just') {
+			var name = winnerName.a;
+			return name + ' wins the round';
+		} else {
+			return model.localPaused ? 'Game paused' : ($author$project$Main$turnColorLabel(turn) + ' to move');
+		}
+	});
 var $author$project$Main$viewLocalGameHtml = F2(
 	function (model, lg) {
 		var timerSecs = $author$project$Main$positiveMaybe(lg.moveTimerSeconds);
@@ -21462,7 +21749,7 @@ var $author$project$Main$viewApp = function (model) {
 					(model.mainTab === 'boards') ? $author$project$Main$viewBoardListSection(model) : $author$project$Main$viewLobbyCard(model)
 				])));
 	var isMobile = model.viewportWidth <= 640;
-	var hasGame = (!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing));
+	var hasGame = (!_Utils_eq(model.historyReplayGame, $elm$core$Maybe$Nothing)) || ((!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing)));
 	var gameView = A2(
 		$mdgriffith$elm_ui$Element$el,
 		_List_fromArray(
@@ -21473,17 +21760,23 @@ var $author$project$Main$viewApp = function (model) {
 			]),
 		$mdgriffith$elm_ui$Element$html(
 			function () {
-				var _v0 = $author$project$Main$activeBoard(model);
+				var _v0 = model.historyReplayGame;
 				if (_v0.$ === 'Just') {
-					var board = _v0.a;
-					return A2($author$project$Main$viewOnlineGameHtml, model, board);
+					var game = _v0.a;
+					return A2($author$project$Main$viewHistoryReplayHtml, model, game);
 				} else {
-					var _v1 = $author$project$Main$activeLocalGame(model);
+					var _v1 = $author$project$Main$activeBoard(model);
 					if (_v1.$ === 'Just') {
-						var lg = _v1.a;
-						return A2($author$project$Main$viewLocalGameHtml, model, lg);
+						var board = _v1.a;
+						return A2($author$project$Main$viewOnlineGameHtml, model, board);
 					} else {
-						return $elm$html$Html$text('');
+						var _v2 = $author$project$Main$activeLocalGame(model);
+						if (_v2.$ === 'Just') {
+							var lg = _v2.a;
+							return A2($author$project$Main$viewLocalGameHtml, model, lg);
+						} else {
+							return $elm$html$Html$text('');
+						}
 					}
 				}
 			}()));
@@ -21521,11 +21814,11 @@ var $author$project$Main$ShowRulesPanel = {$: 'ShowRulesPanel'};
 var $author$project$Main$menuIcon = function (key) {
 	switch (key) {
 		case 'clock_history':
-			return '\uD83D\uDD53';
+			return '🕓';
 		case 'menu_book':
-			return '\uD83D\uDCD6';
+			return '📖';
 		default:
-			return '\u2022';
+			return '•';
 	}
 };
 var $author$project$Main$popupMenuItem = F3(
@@ -21569,7 +21862,7 @@ var $author$project$Main$popupMenuItem = F3(
 						]),
 					_List_fromArray(
 						[
-							$elm$html$Html$text('\u203A')
+							$elm$html$Html$text('›')
 						]))
 				]));
 	});
@@ -21648,7 +21941,7 @@ var $author$project$Main$dialogHeader = F3(
 						]),
 					_List_fromArray(
 						[
-							$elm$html$Html$text('\u2190 Menu')
+							$elm$html$Html$text('← Menu')
 						])) : A2(
 					$elm$html$Html$button,
 					_List_fromArray(
@@ -21659,7 +21952,7 @@ var $author$project$Main$dialogHeader = F3(
 						]),
 					_List_fromArray(
 						[
-							$elm$html$Html$text('\u00D7')
+							$elm$html$Html$text('×')
 						]))
 				]));
 	});
@@ -21689,6 +21982,9 @@ var $author$project$Main$viewDialogOverlay = F2(
 						children)
 					])));
 	});
+var $author$project$Main$OpenHistoryReplay = function (a) {
+	return {$: 'OpenHistoryReplay', a: a};
+};
 var $author$project$Main$relativeDateLabel = F2(
 	function (nowMs, playedAtMs) {
 		var diffMs = nowMs - playedAtMs;
@@ -21726,8 +22022,8 @@ var $author$project$Main$relativeDateLabel = F2(
 			}
 		}
 	});
-var $author$project$Main$viewHistoryEntry = F2(
-	function (nowMs, entry) {
+var $author$project$Main$viewHistoryEntry = F3(
+	function (nowMs, index, entry) {
 		var winnerLabel = function () {
 			var _v0 = entry.winner;
 			_v0$2:
@@ -21752,7 +22048,9 @@ var $author$project$Main$viewHistoryEntry = F2(
 			$elm$html$Html$div,
 			_List_fromArray(
 				[
-					$elm$html$Html$Attributes$class('history-entry')
+					$elm$html$Html$Attributes$class('history-entry'),
+					$elm$html$Html$Events$onClick(
+					$author$project$Main$OpenHistoryReplay(index))
 				]),
 			_List_fromArray(
 				[
@@ -21783,7 +22081,7 @@ var $author$project$Main$viewHistoryEntry = F2(
 							_List_fromArray(
 								[
 									$elm$html$Html$text(
-									scoreLabel + ('\u2002\u00B7\u2002' + (winnerLabel + ('\u2002\u00B7\u2002' + ($elm$core$String$fromInt(entry.moveCount) + ' moves')))))
+									scoreLabel + ('\u2002·\u2002' + (winnerLabel + ('\u2002·\u2002' + ($elm$core$String$fromInt(entry.moveCount) + ' moves')))))
 								]))
 						])),
 					A2(
@@ -21814,6 +22112,16 @@ var $author$project$Main$viewHistoryEntry = F2(
 								[
 									$elm$html$Html$text(
 									A2($author$project$Main$relativeDateLabel, nowMs, entry.playedAt))
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-play-icon')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text('▶')
 								]))
 						]))
 				]));
@@ -21850,7 +22158,7 @@ var $author$project$Main$viewHistoryOverlay = F2(
 										]),
 									_List_fromArray(
 										[
-											$elm$html$Html$text('\uD83D\uDCC2')
+											$elm$html$Html$text('📂')
 										])),
 									A2(
 									$elm$html$Html$div,
@@ -21869,7 +22177,7 @@ var $author$project$Main$viewHistoryOverlay = F2(
 									$elm$html$Html$Attributes$class('history-list')
 								]),
 							A2(
-								$elm$core$List$map,
+								$elm$core$List$indexedMap,
 								$author$project$Main$viewHistoryEntry(model.currentTimeMs),
 								A2($elm$core$List$take, 12, model.gameHistory)))
 						]))
@@ -22011,7 +22319,7 @@ var $author$project$Main$viewRulesOverlay = function (isMobile) {
 							$elm$core$List$map,
 							$author$project$Main$ruleItem,
 							_List_fromArray(
-								['Draw one line segment per turn from the ball\'s current position to any adjacent grid point.', 'You may bounce off points that were already visited — but never cross or overlap an existing line.', 'Bouncing off the walls is also legal and often strategic.', 'If you have no legal moves, you lose the round and your opponent scores.', 'Score by moving the ball into the opponent\'s goal gate.', 'If the move timer expires, the turn passes to the other player.']))),
+								['Draw one line segment per turn from the ball\'s current position to any adjacent grid point.', 'You may bounce off points that were already visited — but never cross or overlap an existing line.', 'Bouncing off the walls is also legal and often strategic.', 'The point in the middle of the gate line is a special bouncing point. It can be strategically used to change the direction of the ball or close the gate.', 'If you have no legal moves, you lose the round and your opponent scores.', 'Score by moving the ball into the opponent\'s goal gate.', 'If the move timer expires, the turn passes to the other player.']))),
 						A2(
 						$elm$html$Html$p,
 						_List_fromArray(
@@ -22266,7 +22574,7 @@ var $author$project$Main$viewToast = function (message) {
 		$mdgriffith$elm_ui$Element$text(message));
 };
 var $author$project$Main$view = function (model) {
-	var hasGame = (!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing));
+	var hasGame = (!_Utils_eq(model.historyReplayGame, $elm$core$Maybe$Nothing)) || ((!_Utils_eq(model.localGame, $elm$core$Maybe$Nothing)) || (!_Utils_eq(model.board, $elm$core$Maybe$Nothing)));
 	return A2(
 		$elm$html$Html$main_,
 		_List_fromArray(

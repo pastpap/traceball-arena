@@ -265,6 +265,11 @@ async function mountElmRuntime(root, { boardCode } = {}) {
       persistOnlineMoveTimer(cmd.seconds);
       return;
     }
+    if (t === "disconnectSocket") {
+      closeSocket();
+      pushStatus("idle");
+      return;
+    }
     if (t === "fetchGameHistory") {
       const raw = getStorage()?.getItem?.("traceballGameHistory");
       let history = [];

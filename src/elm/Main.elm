@@ -56,6 +56,8 @@ type alias Model =
     , showTimerSheet : Bool
     , menuPanel : Maybe String
     , gameHistory : List HistoryEntry
+    , rawHistoryEntries : List Decode.Value
+    , historyReplayGame : Maybe LocalGame
     , currentTimeMs : Int
     , lastOnlineTurn : Maybe String
     , turnHopSerial : Int
@@ -193,6 +195,8 @@ type Msg
     | ShowHistoryPanel
     | ShowRulesPanel
     | ReceiveGameHistory Decode.Value
+    | OpenHistoryReplay Int
+    | CloseHistoryReplay
 
 
 
@@ -271,6 +275,8 @@ init flags =
             , showTimerSheet = False
             , menuPanel = Nothing
             , gameHistory = []
+            , rawHistoryEntries = []
+            , historyReplayGame = Nothing
             , currentTimeMs = 0
             , lastOnlineTurn = Nothing
             , turnHopSerial = 0
@@ -569,7 +575,48 @@ update msg model =
             ( { model | menuPanel = Just "rules" }, Cmd.none )
 
         ReceiveGameHistory value ->
-            ( { model | gameHistory = decodeHistoryEntries value }, Cmd.none )
+            let
+                rawList =
+                    value
+                        |> Decode.decodeValue (Decode.list Decode.value)
+                        |> Result.withDefault []
+            in
+            ( { model
+                | gameHistory = decodeHistoryEntries value
+                , rawHistoryEntries = rawList
+              }
+            , Cmd.none
+            )
+
+        OpenHistoryReplay index ->
+            case List.head (List.drop index model.rawHistoryEntries) of
+                Just rawEntry ->
+                    case Decode.decodeValue (Decode.field "game" historyLocalGameDecoder) rawEntry of
+                        Ok game ->
+                            ( { model
+                                | historyReplayGame = Just game
+                                , menuPanel = Nothing
+                                , replayIndex = Just 0
+                                , showLobby = False
+                              }
+                            , Cmd.none
+                            )
+
+                        Err _ ->
+                            ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        CloseHistoryReplay ->
+            ( { model
+                | historyReplayGame = Nothing
+                , replayIndex = Nothing
+                , menuPanel = Just "history"
+                , showLobby = model.board == Nothing && model.localGame == Nothing
+              }
+            , Cmd.none
+            )
 
         UpdateBoardCodeInput raw ->
             ( { model | draftBoardCode = sanitizeBoardCode raw, error = Nothing }, Cmd.none )
@@ -837,8 +884,25 @@ update msg model =
                 game =
                     startLocalGame model.currentTimeMs model.localBlueName model.localRedName model.onlineMoveTimer
             in
-            ( { model | localGame = Just game, localPaused = False, error = Nothing, replayIndex = Nothing, dismissedWinnerKey = Nothing, showLobby = False, showTimerSheet = False }
-            , persistLocalCmd (Just game) False
+            ( { model
+                | localGame = Just game
+                , localPaused = False
+                , error = Nothing
+                , replayIndex = Nothing
+                , dismissedWinnerKey = Nothing
+                , showLobby = False
+                , showTimerSheet = False
+                , historyReplayGame = Nothing
+                , board = Nothing
+                , boardCode = ""
+                , joinedSeat = Nothing
+                , connectionStatus = "idle"
+              }
+            , Cmd.batch
+                [ persistLocalCmd (Just game) False
+                , outgoingClientCommand (Encode.object [ ( "type", Encode.string "disconnectSocket" ) ])
+                , outgoingClientCommand (Encode.object [ ( "type", Encode.string "updateUrl" ), ( "url", Encode.string "/" ) ])
+                ]
             )
 
         ToggleLocalPause ->
@@ -1020,7 +1084,7 @@ view : Model -> Html Msg
 view model =
     let
         hasGame =
-            model.localGame /= Nothing || model.board /= Nothing
+            model.historyReplayGame /= Nothing || model.localGame /= Nothing || model.board /= Nothing
     in
     Html.main_
         [ Html.Attributes.class "shell"
@@ -1072,7 +1136,7 @@ viewApp : Model -> Element Msg
 viewApp model =
     let
         hasGame =
-            model.localGame /= Nothing || model.board /= Nothing
+            model.historyReplayGame /= Nothing || model.localGame /= Nothing || model.board /= Nothing
 
         isMobile =
             model.viewportWidth <= 640
@@ -1098,17 +1162,22 @@ viewApp model =
         gameView =
             el [ width fill, centerX, paddingXY 10 10 ] <|
                 Element.html <|
-                    case activeBoard model of
-                        Just board ->
-                            viewOnlineGameHtml model board
+                    case model.historyReplayGame of
+                        Just game ->
+                            viewHistoryReplayHtml model game
 
                         Nothing ->
-                            case activeLocalGame model of
-                                Just lg ->
-                                    viewLocalGameHtml model lg
+                            case activeBoard model of
+                                Just board ->
+                                    viewOnlineGameHtml model board
 
                                 Nothing ->
-                                    Html.text ""
+                                    case activeLocalGame model of
+                                        Just lg ->
+                                            viewLocalGameHtml model lg
+
+                                        Nothing ->
+                                            Html.text ""
     in
     if isMobile then
         viewMobileApp model hasGame lobbyLayout gameView
@@ -3708,13 +3777,13 @@ viewHistoryOverlay model isMobile =
 
               else
                 Html.div [ Html.Attributes.class "history-list" ]
-                    (List.map (viewHistoryEntry model.currentTimeMs) (List.take 12 model.gameHistory))
+                    (List.indexedMap (viewHistoryEntry model.currentTimeMs) (List.take 12 model.gameHistory))
             ]
         ]
 
 
-viewHistoryEntry : Int -> HistoryEntry -> Html Msg
-viewHistoryEntry nowMs entry =
+viewHistoryEntry : Int -> Int -> HistoryEntry -> Html Msg
+viewHistoryEntry nowMs index entry =
     let
         scoreLabel =
             String.fromInt entry.scoreP1 ++ "\u{202F}–\u{202F}" ++ String.fromInt entry.scoreP2
@@ -3730,7 +3799,10 @@ viewHistoryEntry nowMs entry =
                 _ ->
                     "No winner"
     in
-    Html.div [ Html.Attributes.class "history-entry" ]
+    Html.div
+        [ Html.Attributes.class "history-entry"
+        , Html.Events.onClick (OpenHistoryReplay index)
+        ]
         [ Html.div [ Html.Attributes.class "history-entry-main" ]
             [ Html.div [ Html.Attributes.class "history-entry-players" ]
                 [ Html.text (entry.p1Name ++ " vs " ++ entry.p2Name) ]
@@ -3740,6 +3812,7 @@ viewHistoryEntry nowMs entry =
         , Html.div [ Html.Attributes.class "history-entry-side" ]
             [ Html.span [ Html.Attributes.class "history-badge" ] [ Html.text entry.mode ]
             , Html.span [ Html.Attributes.class "history-date" ] [ Html.text (relativeDateLabel nowMs entry.playedAt) ]
+            , Html.span [ Html.Attributes.class "history-play-icon" ] [ Html.text "▶" ]
             ]
         ]
 
@@ -3754,6 +3827,7 @@ viewRulesOverlay isMobile =
                     [ "Draw one line segment per turn from the ball's current position to any adjacent grid point."
                     , "You may bounce off points that were already visited — but never cross or overlap an existing line."
                     , "Bouncing off the walls is also legal and often strategic."
+                    , "The point in the middle of the gate line is a special bouncing point. It can be strategically used to change the direction of the ball or close the gate."
                     , "If you have no legal moves, you lose the round and your opponent scores."
                     , "Score by moving the ball into the opponent's goal gate."
                     , "If the move timer expires, the turn passes to the other player."
@@ -3886,6 +3960,109 @@ decodeHistoryEntries value =
     value
         |> Decode.decodeValue (Decode.list historyEntryDecoder)
         |> Result.withDefault []
+
+
+
+-- Decodes the `.game` snapshot stored inside each history entry into a LocalGame.
+
+
+historyLocalGameDecoder : Decode.Decoder LocalGame
+historyLocalGameDecoder =
+    Decode.map8
+        (\blueName redName turn ball visited segments moves scoreBlue ->
+            { blueName = blueName
+            , redName = redName
+            , turn = turn
+            , ball = ball
+            , visited = visited
+            , segments = segments
+            , moves = moves
+            , scoreBlue = scoreBlue
+            , scoreRed = 0
+            , winner = Nothing
+            , endReason = Nothing
+            , moveTimerSeconds = 0
+            , turnStartedAtMs = Nothing
+            , consecutiveTimeouts = 0
+            }
+        )
+        (Decode.oneOf [ Decode.at [ "players", "p1", "name" ] Decode.string, Decode.succeed "Blue" ])
+        (Decode.oneOf [ Decode.at [ "players", "p2", "name" ] Decode.string, Decode.succeed "Red" ])
+        (Decode.oneOf [ Decode.field "turn" Decode.string, Decode.succeed "p1" ])
+        (Decode.map2 (\x y -> { x = x, y = y })
+            (Decode.at [ "ball", "x" ] Decode.int)
+            (Decode.at [ "ball", "y" ] Decode.int)
+        )
+        (Decode.oneOf [ Decode.field "visited" (Decode.list Decode.string), Decode.succeed [ "4,6" ] ])
+        (Decode.oneOf [ Decode.field "segments" (Decode.list Decode.string), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.field "moves" (Decode.list localMoveDecoderHelper), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.at [ "score", "p1" ] Decode.int, Decode.succeed 0 ])
+        |> Decode.andThen
+            (\base ->
+                Decode.map5
+                    (\scoreRed winner endReason timerMs timeouts ->
+                        { base
+                            | scoreRed = scoreRed
+                            , winner = winner
+                            , endReason = endReason
+                            , moveTimerSeconds = timerMs // 1000
+                            , consecutiveTimeouts = timeouts
+                        }
+                    )
+                    (Decode.oneOf [ Decode.at [ "score", "p2" ] Decode.int, Decode.succeed 0 ])
+                    (Decode.oneOf [ Decode.field "winner" (Decode.nullable Decode.string), Decode.succeed Nothing ])
+                    (Decode.oneOf [ Decode.field "endReason" (Decode.nullable Decode.string), Decode.succeed Nothing ])
+                    (Decode.oneOf [ Decode.field "moveTimeLimitMs" Decode.int, Decode.succeed 0 ])
+                    (Decode.oneOf [ Decode.field "consecutiveTimeouts" Decode.int, Decode.succeed 0 ])
+            )
+
+
+viewHistoryReplayHtml : Model -> LocalGame -> Html Msg
+viewHistoryReplayHtml model lg =
+    let
+        board =
+            localGameToBoard lg
+
+        winnerName =
+            if replayShowsWinner model.replayIndex (List.length lg.moves) then
+                lg.winner |> Maybe.map (winnerDisplayName board)
+
+            else
+                Nothing
+
+        statusText =
+            case winnerName of
+                Just n ->
+                    n ++ " won · " ++ Maybe.withDefault "game over" lg.endReason
+
+                Nothing ->
+                    lg.blueName ++ " vs " ++ lg.redName
+    in
+    viewBoardScreenHtml
+        { board = board
+        , ownSeat = Nothing
+        , boardFlipped = False
+        , turnHopSerial = 0
+        , replayIndex = model.replayIndex
+        , isCompactLayout = model.viewportWidth <= 640
+        , showWinnerOverlay = False
+        , timerSecs = Nothing
+        , timerRemainingSecs = Nothing
+        , statusText = statusText
+        , turnIndicatorText = lg.blueName ++ " vs " ++ lg.redName
+        , turnIndicatorIsRed = False
+        , matchSubtitle = "History Replay"
+        , moveCount = List.length lg.moves
+        , isPaused = False
+        , showJoinBlue = False
+        , showJoinRed = False
+        , showSeatActions = False
+        , shareAction = Nothing
+        , leaveAction = Just CloseHistoryReplay
+        , pauseAction = Nothing
+        , newRoundAction = Nothing
+        , pauseOverlay = Nothing
+        }
 
 
 formFieldAttrs : List (Attribute Msg)
@@ -4045,11 +4222,16 @@ activeBoard model =
 
 activeLocalGame : Model -> Maybe LocalGame
 activeLocalGame model =
-    if model.board /= Nothing then
-        Nothing
+    case model.historyReplayGame of
+        Just game ->
+            Just game
 
-    else
-        model.localGame
+        Nothing ->
+            if model.board /= Nothing then
+                Nothing
+
+            else
+                model.localGame
 
 
 isValidBoardCode : String -> Bool
