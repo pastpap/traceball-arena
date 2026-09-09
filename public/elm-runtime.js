@@ -5612,7 +5612,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -5651,6 +5651,9 @@ var $author$project$Main$ReceiveBoardCreated = function (a) {
 };
 var $author$project$Main$ReceiveBoardList = function (a) {
 	return {$: 'ReceiveBoardList', a: a};
+};
+var $author$project$Main$ReceiveGameHistory = function (a) {
+	return {$: 'ReceiveGameHistory', a: a};
 };
 var $author$project$Main$ReceiveSocket = function (a) {
 	return {$: 'ReceiveSocket', a: a};
@@ -6064,6 +6067,7 @@ var $author$project$Main$incomingBoardCreated = _Platform_incomingPort('incoming
 var $author$project$Main$incomingBoardList = _Platform_incomingPort('incomingBoardList', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingClientNotice = _Platform_incomingPort('incomingClientNotice', $elm$json$Json$Decode$string);
 var $author$project$Main$incomingConnectionStatus = _Platform_incomingPort('incomingConnectionStatus', $elm$json$Json$Decode$string);
+var $author$project$Main$incomingGameHistory = _Platform_incomingPort('incomingGameHistory', $elm$json$Json$Decode$value);
 var $author$project$Main$incomingSocketMessage = _Platform_incomingPort('incomingSocketMessage', $elm$json$Json$Decode$value);
 var $elm$browser$Browser$Events$Window = {$: 'Window'};
 var $elm$browser$Browser$Events$MySub = F3(
@@ -6289,6 +6293,7 @@ var $author$project$Main$subscriptions = function (_v0) {
 				$author$project$Main$incomingBoardList($author$project$Main$ReceiveBoardList),
 				$author$project$Main$incomingBoardCreated($author$project$Main$ReceiveBoardCreated),
 				$author$project$Main$incomingClientNotice($author$project$Main$ClientNotice),
+				$author$project$Main$incomingGameHistory($author$project$Main$ReceiveGameHistory),
 				$elm$browser$Browser$Events$onResize($author$project$Main$ViewportResized),
 				A2($elm$time$Time$every, 250, $author$project$Main$Tick)
 			]));
@@ -6876,6 +6881,91 @@ var $author$project$Main$currentMoveCount = function (model) {
 					$elm$core$List$length),
 				$author$project$Main$activeLocalGame(model)));
 	}
+};
+var $author$project$Main$HistoryEntry = F8(
+	function (mode, p1Name, p2Name, scoreP1, scoreP2, winner, moveCount, playedAt) {
+		return {mode: mode, moveCount: moveCount, p1Name: p1Name, p2Name: p2Name, playedAt: playedAt, scoreP1: scoreP1, scoreP2: scoreP2, winner: winner};
+	});
+var $author$project$Main$historyEntryDecoder = A9(
+	$elm$json$Json$Decode$map8,
+	$author$project$Main$HistoryEntry,
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$field, 'mode', $elm$json$Json$Decode$string),
+				$elm$json$Json$Decode$succeed('local')
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['players', 'p1', 'name']),
+				$elm$json$Json$Decode$string),
+				$elm$json$Json$Decode$succeed('P1')
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['players', 'p2', 'name']),
+				$elm$json$Json$Decode$string),
+				$elm$json$Json$Decode$succeed('P2')
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['score', 'p1']),
+				$elm$json$Json$Decode$int),
+				$elm$json$Json$Decode$succeed(0)
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['score', 'p2']),
+				$elm$json$Json$Decode$int),
+				$elm$json$Json$Decode$succeed(0)
+			])),
+	$elm$json$Json$Decode$maybe(
+		A2($elm$json$Json$Decode$field, 'winner', $elm$json$Json$Decode$string)),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$field, 'moveCount', $elm$json$Json$Decode$int),
+				$elm$json$Json$Decode$succeed(0)
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2($elm$json$Json$Decode$field, 'playedAt', $elm$json$Json$Decode$int),
+				$elm$json$Json$Decode$succeed(0)
+			])));
+var $elm$core$Result$withDefault = F2(
+	function (def, result) {
+		if (result.$ === 'Ok') {
+			var a = result.a;
+			return a;
+		} else {
+			return def;
+		}
+	});
+var $author$project$Main$decodeHistoryEntries = function (value) {
+	return A2(
+		$elm$core$Result$withDefault,
+		_List_Nil,
+		A2(
+			$elm$json$Json$Decode$decodeValue,
+			$elm$json$Json$Decode$list($author$project$Main$historyEntryDecoder),
+			value));
 };
 var $author$project$Main$expireLocalTurnIfNeeded = F2(
 	function (nowMs, lg) {
@@ -8168,6 +8258,53 @@ var $author$project$Main$update = F2(
 					$elm$core$Platform$Cmd$none);
 			case 'IgnoreSheetClick':
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
+			case 'OpenAppMenu':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							menuPanel: $elm$core$Maybe$Just('menu'),
+							showTimerSheet: false
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'CloseAppMenu':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{menuPanel: $elm$core$Maybe$Nothing}),
+					$elm$core$Platform$Cmd$none);
+			case 'ShowHistoryPanel':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							menuPanel: $elm$core$Maybe$Just('history')
+						}),
+					$author$project$Main$outgoingClientCommand(
+						$elm$json$Json$Encode$object(
+							_List_fromArray(
+								[
+									_Utils_Tuple2(
+									'type',
+									$elm$json$Json$Encode$string('fetchGameHistory'))
+								]))));
+			case 'ShowRulesPanel':
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							menuPanel: $elm$core$Maybe$Just('rules')
+						}),
+					$elm$core$Platform$Cmd$none);
+			case 'ReceiveGameHistory':
+				var value = msg.a;
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{
+							gameHistory: $author$project$Main$decodeHistoryEntries(value)
+						}),
+					$elm$core$Platform$Cmd$none);
 			case 'UpdateBoardCodeInput':
 				var raw = msg.a;
 				return _Utils_Tuple2(
@@ -15348,6 +15485,7 @@ var $author$project$Main$viewBoardListSection = function (model) {
 				A2($elm$core$List$map, $author$project$Main$viewBoardCard, model.boardList))
 			]));
 };
+var $author$project$Main$OpenAppMenu = {$: 'OpenAppMenu'};
 var $author$project$Main$ToggleLobby = {$: 'ToggleLobby'};
 var $elm$html$Html$Attributes$alt = $elm$html$Html$Attributes$stringProperty('alt');
 var $elm$html$Html$button = _VirtualDom_node('button');
@@ -15618,7 +15756,8 @@ var $author$project$Main$viewGameHeader = function (model) {
 									[
 										$elm$html$Html$Attributes$type_('button'),
 										$elm$html$Html$Attributes$class('app-menu-button'),
-										A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu')
+										A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'),
+										$elm$html$Html$Events$onClick($author$project$Main$OpenAppMenu)
 									]),
 								_List_fromArray(
 									[
@@ -15838,7 +15977,8 @@ var $author$project$Main$viewHeaderHtml = F2(
 								[
 									$elm$html$Html$Attributes$type_('button'),
 									$elm$html$Html$Attributes$class('app-menu-button'),
-									A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu')
+									A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'),
+									$elm$html$Html$Events$onClick($author$project$Main$OpenAppMenu)
 								]),
 							_List_fromArray(
 								[
@@ -20956,7 +21096,7 @@ var $author$project$Main$viewMobileGameHeader = A2(
 							A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'))
 						]),
 					$mdgriffith$elm_ui$Element$text('☰')),
-				onPress: $elm$core$Maybe$Nothing
+				onPress: $elm$core$Maybe$Just($author$project$Main$OpenAppMenu)
 			})
 		]));
 var $author$project$Main$viewMobileLobbyHeader = A2(
@@ -21041,7 +21181,7 @@ var $author$project$Main$viewMobileLobbyHeader = A2(
 								A2($elm$html$Html$Attributes$attribute, 'aria-label', 'Open app menu'))
 							]),
 						$mdgriffith$elm_ui$Element$text('☰')),
-					onPress: $elm$core$Maybe$Nothing
+					onPress: $elm$core$Maybe$Just($author$project$Main$OpenAppMenu)
 				}))
 		]));
 var $author$project$Main$viewMobileOpenGameStrip = A2(
@@ -21374,8 +21514,536 @@ var $author$project$Main$viewApp = function (model) {
 					[gameView])) : lobbyLayout
 			]));
 };
-var $author$project$Main$CloseTimerSheet = {$: 'CloseTimerSheet'};
+var $author$project$Main$CloseAppMenu = {$: 'CloseAppMenu'};
 var $author$project$Main$IgnoreSheetClick = {$: 'IgnoreSheetClick'};
+var $author$project$Main$ShowHistoryPanel = {$: 'ShowHistoryPanel'};
+var $author$project$Main$ShowRulesPanel = {$: 'ShowRulesPanel'};
+var $author$project$Main$menuIcon = function (key) {
+	switch (key) {
+		case 'clock_history':
+			return '\uD83D\uDD53';
+		case 'menu_book':
+			return '\uD83D\uDCD6';
+		default:
+			return '\u2022';
+	}
+};
+var $author$project$Main$popupMenuItem = F3(
+	function (iconLabel, label, onClickMsg) {
+		return A2(
+			$elm$html$Html$button,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$type_('button'),
+					$elm$html$Html$Attributes$class('popup-menu-item'),
+					$elm$html$Html$Events$onClick(onClickMsg)
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$span,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('popup-menu-icon')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(
+							$author$project$Main$menuIcon(iconLabel))
+						])),
+					A2(
+					$elm$html$Html$span,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('popup-menu-label')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(label)
+						])),
+					A2(
+					$elm$html$Html$span,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('popup-menu-chevron')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('\u203A')
+						]))
+				]));
+	});
+var $author$project$Main$viewDesktopMenuDropdown = $mdgriffith$elm_ui$Element$html(
+	A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				A2($elm$html$Html$Attributes$style, 'position', 'fixed'),
+				A2($elm$html$Html$Attributes$style, 'inset', '0'),
+				A2($elm$html$Html$Attributes$style, 'z-index', '50'),
+				$elm$html$Html$Events$onClick($author$project$Main$CloseAppMenu)
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('popup-menu'),
+						A2(
+						$elm$html$Html$Events$stopPropagationOn,
+						'click',
+						$elm$json$Json$Decode$succeed(
+							_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
+					]),
+				_List_fromArray(
+					[
+						A3($author$project$Main$popupMenuItem, 'clock_history', 'Game History', $author$project$Main$ShowHistoryPanel),
+						A3($author$project$Main$popupMenuItem, 'menu_book', 'Game Rules', $author$project$Main$ShowRulesPanel)
+					]))
+			])));
+var $author$project$Main$dialogHeader = F3(
+	function (isMobile, eyebrow, title) {
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('dialog-header')
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$p,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('dialog-eyebrow')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(eyebrow)
+								])),
+							A2(
+							$elm$html$Html$h2,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('dialog-title')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(title)
+								]))
+						])),
+					isMobile ? A2(
+					$elm$html$Html$button,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$type_('button'),
+							$elm$html$Html$Attributes$class('dialog-back'),
+							$elm$html$Html$Events$onClick($author$project$Main$OpenAppMenu)
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('\u2190 Menu')
+						])) : A2(
+					$elm$html$Html$button,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$type_('button'),
+							$elm$html$Html$Attributes$class('dialog-close'),
+							$elm$html$Html$Events$onClick($author$project$Main$CloseAppMenu)
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('\u00D7')
+						]))
+				]));
+	});
+var $author$project$Main$viewDialogOverlay = F2(
+	function (dismissMsg, children) {
+		return $mdgriffith$elm_ui$Element$html(
+			A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('dialog-overlay'),
+						$elm$html$Html$Events$onClick(dismissMsg)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('dialog-card'),
+								A2(
+								$elm$html$Html$Events$stopPropagationOn,
+								'click',
+								$elm$json$Json$Decode$succeed(
+									_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
+							]),
+						children)
+					])));
+	});
+var $author$project$Main$relativeDateLabel = F2(
+	function (nowMs, playedAtMs) {
+		var diffMs = nowMs - playedAtMs;
+		var diffHours = (diffMs / ((1000 * 60) * 60)) | 0;
+		var diffDays = (diffHours / 24) | 0;
+		if (diffMs <= 0) {
+			return 'Just now';
+		} else {
+			if (diffHours < 1) {
+				return '< 1 h ago';
+			} else {
+				if (diffHours < 24) {
+					return $elm$core$String$fromInt(diffHours) + ' h ago';
+				} else {
+					if (diffDays === 1) {
+						return 'Yesterday';
+					} else {
+						if (diffDays < 7) {
+							return $elm$core$String$fromInt(diffDays) + ' days ago';
+						} else {
+							var weeks = (diffDays / 7) | 0;
+							if (weeks < 5) {
+								return _Utils_ap(
+									$elm$core$String$fromInt(weeks),
+									(weeks === 1) ? ' week ago' : ' weeks ago');
+							} else {
+								var months = (diffDays / 30) | 0;
+								return _Utils_ap(
+									$elm$core$String$fromInt(months),
+									(months === 1) ? ' month ago' : ' months ago');
+							}
+						}
+					}
+				}
+			}
+		}
+	});
+var $author$project$Main$viewHistoryEntry = F2(
+	function (nowMs, entry) {
+		var winnerLabel = function () {
+			var _v0 = entry.winner;
+			_v0$2:
+			while (true) {
+				if (_v0.$ === 'Just') {
+					switch (_v0.a) {
+						case 'p1':
+							return entry.p1Name + ' won';
+						case 'p2':
+							return entry.p2Name + ' won';
+						default:
+							break _v0$2;
+					}
+				} else {
+					break _v0$2;
+				}
+			}
+			return 'No winner';
+		}();
+		var scoreLabel = $elm$core$String$fromInt(entry.scoreP1) + ('\u202F–\u202F' + $elm$core$String$fromInt(entry.scoreP2));
+		return A2(
+			$elm$html$Html$div,
+			_List_fromArray(
+				[
+					$elm$html$Html$Attributes$class('history-entry')
+				]),
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('history-entry-main')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-entry-players')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(entry.p1Name + (' vs ' + entry.p2Name))
+								])),
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-entry-score')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									scoreLabel + ('\u2002\u00B7\u2002' + (winnerLabel + ('\u2002\u00B7\u2002' + ($elm$core$String$fromInt(entry.moveCount) + ' moves')))))
+								]))
+						])),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('history-entry-side')
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-badge')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(entry.mode)
+								])),
+							A2(
+							$elm$html$Html$span,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-date')
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									A2($author$project$Main$relativeDateLabel, nowMs, entry.playedAt))
+								]))
+						]))
+				]));
+	});
+var $author$project$Main$viewHistoryOverlay = F2(
+	function (model, isMobile) {
+		return A2(
+			$author$project$Main$viewDialogOverlay,
+			$author$project$Main$CloseAppMenu,
+			_List_fromArray(
+				[
+					A3($author$project$Main$dialogHeader, isMobile, 'Traceball Arena', 'Game History'),
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('dialog-body')
+						]),
+					_List_fromArray(
+						[
+							$elm$core$List$isEmpty(model.gameHistory) ? A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('dialog-empty')
+								]),
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$div,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class('dialog-empty-icon')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('\uD83D\uDCC2')
+										])),
+									A2(
+									$elm$html$Html$div,
+									_List_fromArray(
+										[
+											$elm$html$Html$Attributes$class('dialog-empty-text')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('No games yet. Finished games will appear here.')
+										]))
+								])) : A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('history-list')
+								]),
+							A2(
+								$elm$core$List$map,
+								$author$project$Main$viewHistoryEntry(model.currentTimeMs),
+								A2($elm$core$List$take, 12, model.gameHistory)))
+						]))
+				]));
+	});
+var $author$project$Main$viewMobileMenuSheet = $mdgriffith$elm_ui$Element$html(
+	A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				$elm$html$Html$Attributes$class('sheet-overlay'),
+				$elm$html$Html$Events$onClick($author$project$Main$CloseAppMenu)
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('sheet-card'),
+						A2(
+						$elm$html$Html$Events$stopPropagationOn,
+						'click',
+						$elm$json$Json$Decode$succeed(
+							_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('sheet-handle')
+							]),
+						_List_Nil),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('sheet-header')
+							]),
+						_List_fromArray(
+							[
+								A2(
+								$elm$html$Html$p,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('sheet-eyebrow')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Traceball Arena')
+									])),
+								A2(
+								$elm$html$Html$p,
+								_List_fromArray(
+									[
+										$elm$html$Html$Attributes$class('sheet-title')
+									]),
+								_List_fromArray(
+									[
+										$elm$html$Html$text('Menu')
+									]))
+							])),
+						A2(
+						$elm$html$Html$div,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('sheet-items')
+							]),
+						_List_fromArray(
+							[
+								A3($author$project$Main$popupMenuItem, 'clock_history', 'Game History', $author$project$Main$ShowHistoryPanel),
+								A3($author$project$Main$popupMenuItem, 'menu_book', 'Game Rules', $author$project$Main$ShowRulesPanel)
+							])),
+						A2(
+						$elm$html$Html$button,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$type_('button'),
+								$elm$html$Html$Attributes$class('sheet-close-btn'),
+								$elm$html$Html$Events$onClick($author$project$Main$CloseAppMenu)
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('Close')
+							]))
+					]))
+			])));
+var $elm$html$Html$li = _VirtualDom_node('li');
+var $author$project$Main$ruleItem = function (text) {
+	return A2(
+		$elm$html$Html$li,
+		_List_fromArray(
+			[
+				$elm$html$Html$Attributes$class('rules-list-item')
+			]),
+		_List_fromArray(
+			[
+				A2(
+				$elm$html$Html$span,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('rules-bullet')
+					]),
+				_List_Nil),
+				A2(
+				$elm$html$Html$span,
+				_List_Nil,
+				_List_fromArray(
+					[
+						$elm$html$Html$text(text)
+					]))
+			]));
+};
+var $elm$html$Html$ul = _VirtualDom_node('ul');
+var $author$project$Main$viewRulesOverlay = function (isMobile) {
+	return A2(
+		$author$project$Main$viewDialogOverlay,
+		$author$project$Main$CloseAppMenu,
+		_List_fromArray(
+			[
+				A3($author$project$Main$dialogHeader, isMobile, 'How to play', 'Game Rules'),
+				A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						$elm$html$Html$Attributes$class('dialog-body')
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$ul,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('rules-list')
+							]),
+						A2(
+							$elm$core$List$map,
+							$author$project$Main$ruleItem,
+							_List_fromArray(
+								['Draw one line segment per turn from the ball\'s current position to any adjacent grid point.', 'You may bounce off points that were already visited — but never cross or overlap an existing line.', 'Bouncing off the walls is also legal and often strategic.', 'If you have no legal moves, you lose the round and your opponent scores.', 'Score by moving the ball into the opponent\'s goal gate.', 'If the move timer expires, the turn passes to the other player.']))),
+						A2(
+						$elm$html$Html$p,
+						_List_fromArray(
+							[
+								$elm$html$Html$Attributes$class('rules-note')
+							]),
+						_List_fromArray(
+							[
+								$elm$html$Html$text('A variant of Paper Soccer (Paper Football). First player to reach the agreed score wins the match.')
+							]))
+					]))
+			]));
+};
+var $author$project$Main$viewMenuOverlay = function (model) {
+	var isMobile = model.viewportWidth <= 640;
+	var _v0 = model.menuPanel;
+	if (_v0.$ === 'Nothing') {
+		return $mdgriffith$elm_ui$Element$none;
+	} else {
+		switch (_v0.a) {
+			case 'menu':
+				return isMobile ? $author$project$Main$viewMobileMenuSheet : $author$project$Main$viewDesktopMenuDropdown;
+			case 'history':
+				return A2($author$project$Main$viewHistoryOverlay, model, isMobile);
+			case 'rules':
+				return $author$project$Main$viewRulesOverlay(isMobile);
+			default:
+				return $mdgriffith$elm_ui$Element$none;
+		}
+	}
+};
+var $author$project$Main$CloseTimerSheet = {$: 'CloseTimerSheet'};
 var $author$project$Main$SelectOnlineMoveTimer = function (a) {
 	return {$: 'SelectOnlineMoveTimer', a: a};
 };
@@ -21634,6 +22302,8 @@ var $author$project$Main$view = function (model) {
 					_List_fromArray(
 						[
 							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$inFront(
+							$author$project$Main$viewMenuOverlay(model)),
 							$mdgriffith$elm_ui$Element$inFront(
 							(model.showTimerSheet && (model.viewportWidth <= 640)) ? $author$project$Main$viewTimerBottomSheet(model.onlineMoveTimer) : $mdgriffith$elm_ui$Element$none),
 							$mdgriffith$elm_ui$Element$inFront(

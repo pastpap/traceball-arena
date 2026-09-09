@@ -265,6 +265,17 @@ async function mountElmRuntime(root, { boardCode } = {}) {
       persistOnlineMoveTimer(cmd.seconds);
       return;
     }
+    if (t === "fetchGameHistory") {
+      const raw = getStorage()?.getItem?.("traceballGameHistory");
+      let history = [];
+      try {
+        history = JSON.parse(raw) || [];
+      } catch {}
+      app?.ports?.incomingGameHistory?.send?.(
+        Array.isArray(history) ? history : [],
+      );
+      return;
+    }
     if (t === "updateUrl") {
       if (cmd.url && window.history?.replaceState)
         window.history.replaceState({}, "", String(cmd.url));

@@ -54,6 +54,8 @@ type alias Model =
     , viewportWidth : Int
     , dismissedWinnerKey : Maybe String
     , showTimerSheet : Bool
+    , menuPanel : Maybe String
+    , gameHistory : List HistoryEntry
     , currentTimeMs : Int
     , lastOnlineTurn : Maybe String
     , turnHopSerial : Int
@@ -125,6 +127,18 @@ type alias CreatedBoardInfo =
     }
 
 
+type alias HistoryEntry =
+    { mode : String
+    , p1Name : String
+    , p2Name : String
+    , scoreP1 : Int
+    , scoreP2 : Int
+    , winner : Maybe String
+    , moveCount : Int
+    , playedAt : Int
+    }
+
+
 
 -- ── Msg ────────────────────────────────────────────────────────────────────────
 
@@ -174,6 +188,11 @@ type Msg
     | ViewportResized Int Int
     | DismissWinnerBanner
     | Tick Time.Posix
+    | OpenAppMenu
+    | CloseAppMenu
+    | ShowHistoryPanel
+    | ShowRulesPanel
+    | ReceiveGameHistory Decode.Value
 
 
 
@@ -196,6 +215,9 @@ port incomingClientNotice : (String -> msg) -> Sub msg
 
 
 port outgoingClientCommand : Encode.Value -> Cmd msg
+
+
+port incomingGameHistory : (Decode.Value -> msg) -> Sub msg
 
 
 
@@ -247,6 +269,8 @@ init flags =
             , viewportWidth = 1024
             , dismissedWinnerKey = Nothing
             , showTimerSheet = False
+            , menuPanel = Nothing
+            , gameHistory = []
             , currentTimeMs = 0
             , lastOnlineTurn = Nothing
             , turnHopSerial = 0
@@ -283,6 +307,7 @@ subscriptions _ =
         , incomingBoardList ReceiveBoardList
         , incomingBoardCreated ReceiveBoardCreated
         , incomingClientNotice ClientNotice
+        , incomingGameHistory ReceiveGameHistory
         , Browser.Events.onResize ViewportResized
         , Time.every 250 Tick
         ]
@@ -528,6 +553,23 @@ update msg model =
 
         IgnoreSheetClick ->
             ( model, Cmd.none )
+
+        OpenAppMenu ->
+            ( { model | menuPanel = Just "menu", showTimerSheet = False }, Cmd.none )
+
+        CloseAppMenu ->
+            ( { model | menuPanel = Nothing }, Cmd.none )
+
+        ShowHistoryPanel ->
+            ( { model | menuPanel = Just "history" }
+            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchGameHistory" ) ])
+            )
+
+        ShowRulesPanel ->
+            ( { model | menuPanel = Just "rules" }, Cmd.none )
+
+        ReceiveGameHistory value ->
+            ( { model | gameHistory = decodeHistoryEntries value }, Cmd.none )
 
         UpdateBoardCodeInput raw ->
             ( { model | draftBoardCode = sanitizeBoardCode raw, error = Nothing }, Cmd.none )
@@ -1004,6 +1046,7 @@ view model =
             ]
             (el
                 [ width fill
+                , inFront (viewMenuOverlay model)
                 , inFront
                     (if model.showTimerSheet && model.viewportWidth <= 640 then
                         viewTimerBottomSheet model.onlineMoveTimer
@@ -1207,6 +1250,7 @@ viewGameHeader model =
                         [ Html.Attributes.type_ "button"
                         , Html.Attributes.class "app-menu-button"
                         , Html.Attributes.attribute "aria-label" "Open app menu"
+                        , Html.Events.onClick OpenAppMenu
                         ]
                         [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
                 ]
@@ -1250,7 +1294,7 @@ viewMobileGameHeader =
             , Font.size 20
             , Font.color (rgb255 244 255 246)
             ]
-            { onPress = Nothing
+            { onPress = Just OpenAppMenu
             , label = el [ centerX, centerY, Font.color (rgb255 244 255 246), Element.htmlAttribute (Html.Attributes.attribute "aria-label" "Open app menu") ] (text "☰")
             }
         ]
@@ -1283,7 +1327,7 @@ viewMobileLobbyHeader =
                 , Font.size 20
                 , Font.color (rgb255 244 255 246)
                 ]
-                { onPress = Nothing
+                { onPress = Just OpenAppMenu
                 , label = el [ centerX, centerY, Font.color (rgb255 244 255 246), Element.htmlAttribute (Html.Attributes.attribute "aria-label" "Open app menu") ] (text "☰")
                 }
         ]
@@ -1547,6 +1591,7 @@ viewHeaderHtml model hasGame =
                 [ Html.Attributes.type_ "button"
                 , Html.Attributes.class "app-menu-button"
                 , Html.Attributes.attribute "aria-label" "Open app menu"
+                , Html.Events.onClick OpenAppMenu
                 ]
                 [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
             ]
@@ -3541,6 +3586,306 @@ viewTimerSheetOption current optionSeconds =
                 )
             ]
         ]
+
+
+
+-- ── App menu ───────────────────────────────────────────────────────────────────
+
+
+viewMenuOverlay : Model -> Element Msg
+viewMenuOverlay model =
+    let
+        isMobile =
+            model.viewportWidth <= 640
+    in
+    case model.menuPanel of
+        Nothing ->
+            none
+
+        Just "menu" ->
+            if isMobile then
+                viewMobileMenuSheet
+
+            else
+                viewDesktopMenuDropdown
+
+        Just "history" ->
+            viewHistoryOverlay model isMobile
+
+        Just "rules" ->
+            viewRulesOverlay isMobile
+
+        Just _ ->
+            none
+
+
+viewDesktopMenuDropdown : Element Msg
+viewDesktopMenuDropdown =
+    Element.html <|
+        Html.div
+            [ Html.Attributes.style "position" "fixed"
+            , Html.Attributes.style "inset" "0"
+            , Html.Attributes.style "z-index" "50"
+            , Html.Events.onClick CloseAppMenu
+            ]
+            [ Html.div
+                [ Html.Attributes.class "popup-menu"
+                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
+                ]
+                [ popupMenuItem "clock_history" "Game History" ShowHistoryPanel
+                , popupMenuItem "menu_book" "Game Rules" ShowRulesPanel
+                ]
+            ]
+
+
+popupMenuItem : String -> String -> Msg -> Html Msg
+popupMenuItem iconLabel label onClickMsg =
+    Html.button
+        [ Html.Attributes.type_ "button"
+        , Html.Attributes.class "popup-menu-item"
+        , Html.Events.onClick onClickMsg
+        ]
+        [ Html.span [ Html.Attributes.class "popup-menu-icon" ] [ Html.text (menuIcon iconLabel) ]
+        , Html.span [ Html.Attributes.class "popup-menu-label" ] [ Html.text label ]
+        , Html.span [ Html.Attributes.class "popup-menu-chevron" ] [ Html.text "›" ]
+        ]
+
+
+menuIcon : String -> String
+menuIcon key =
+    case key of
+        "clock_history" ->
+            "🕓"
+
+        "menu_book" ->
+            "📖"
+
+        _ ->
+            "•"
+
+
+viewMobileMenuSheet : Element Msg
+viewMobileMenuSheet =
+    Element.html <|
+        Html.div
+            [ Html.Attributes.class "sheet-overlay"
+            , Html.Events.onClick CloseAppMenu
+            ]
+            [ Html.div
+                [ Html.Attributes.class "sheet-card"
+                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
+                ]
+                [ Html.div [ Html.Attributes.class "sheet-handle" ] []
+                , Html.div [ Html.Attributes.class "sheet-header" ]
+                    [ Html.p [ Html.Attributes.class "sheet-eyebrow" ] [ Html.text "Traceball Arena" ]
+                    , Html.p [ Html.Attributes.class "sheet-title" ] [ Html.text "Menu" ]
+                    ]
+                , Html.div [ Html.Attributes.class "sheet-items" ]
+                    [ popupMenuItem "clock_history" "Game History" ShowHistoryPanel
+                    , popupMenuItem "menu_book" "Game Rules" ShowRulesPanel
+                    ]
+                , Html.button
+                    [ Html.Attributes.type_ "button"
+                    , Html.Attributes.class "sheet-close-btn"
+                    , Html.Events.onClick CloseAppMenu
+                    ]
+                    [ Html.text "Close" ]
+                ]
+            ]
+
+
+viewHistoryOverlay : Model -> Bool -> Element Msg
+viewHistoryOverlay model isMobile =
+    viewDialogOverlay CloseAppMenu
+        [ dialogHeader isMobile "Traceball Arena" "Game History"
+        , Html.div [ Html.Attributes.class "dialog-body" ]
+            [ if List.isEmpty model.gameHistory then
+                Html.div [ Html.Attributes.class "dialog-empty" ]
+                    [ Html.div [ Html.Attributes.class "dialog-empty-icon" ] [ Html.text "📂" ]
+                    , Html.div [ Html.Attributes.class "dialog-empty-text" ]
+                        [ Html.text "No games yet. Finished games will appear here." ]
+                    ]
+
+              else
+                Html.div [ Html.Attributes.class "history-list" ]
+                    (List.map (viewHistoryEntry model.currentTimeMs) (List.take 12 model.gameHistory))
+            ]
+        ]
+
+
+viewHistoryEntry : Int -> HistoryEntry -> Html Msg
+viewHistoryEntry nowMs entry =
+    let
+        scoreLabel =
+            String.fromInt entry.scoreP1 ++ "\u{202F}–\u{202F}" ++ String.fromInt entry.scoreP2
+
+        winnerLabel =
+            case entry.winner of
+                Just "p1" ->
+                    entry.p1Name ++ " won"
+
+                Just "p2" ->
+                    entry.p2Name ++ " won"
+
+                _ ->
+                    "No winner"
+    in
+    Html.div [ Html.Attributes.class "history-entry" ]
+        [ Html.div [ Html.Attributes.class "history-entry-main" ]
+            [ Html.div [ Html.Attributes.class "history-entry-players" ]
+                [ Html.text (entry.p1Name ++ " vs " ++ entry.p2Name) ]
+            , Html.div [ Html.Attributes.class "history-entry-score" ]
+                [ Html.text (scoreLabel ++ "\u{2002}·\u{2002}" ++ winnerLabel ++ "\u{2002}·\u{2002}" ++ String.fromInt entry.moveCount ++ " moves") ]
+            ]
+        , Html.div [ Html.Attributes.class "history-entry-side" ]
+            [ Html.span [ Html.Attributes.class "history-badge" ] [ Html.text entry.mode ]
+            , Html.span [ Html.Attributes.class "history-date" ] [ Html.text (relativeDateLabel nowMs entry.playedAt) ]
+            ]
+        ]
+
+
+viewRulesOverlay : Bool -> Element Msg
+viewRulesOverlay isMobile =
+    viewDialogOverlay CloseAppMenu
+        [ dialogHeader isMobile "How to play" "Game Rules"
+        , Html.div [ Html.Attributes.class "dialog-body" ]
+            [ Html.ul [ Html.Attributes.class "rules-list" ]
+                (List.map ruleItem
+                    [ "Draw one line segment per turn from the ball's current position to any adjacent grid point."
+                    , "You may bounce off points that were already visited — but never cross or overlap an existing line."
+                    , "Bouncing off the walls is also legal and often strategic."
+                    , "If you have no legal moves, you lose the round and your opponent scores."
+                    , "Score by moving the ball into the opponent's goal gate."
+                    , "If the move timer expires, the turn passes to the other player."
+                    ]
+                )
+            , Html.p [ Html.Attributes.class "rules-note" ]
+                [ Html.text "A variant of Paper Soccer (Paper Football). First player to reach the agreed score wins the match." ]
+            ]
+        ]
+
+
+ruleItem : String -> Html Msg
+ruleItem text =
+    Html.li [ Html.Attributes.class "rules-list-item" ]
+        [ Html.span [ Html.Attributes.class "rules-bullet" ] []
+        , Html.span [] [ Html.text text ]
+        ]
+
+
+viewDialogOverlay : Msg -> List (Html Msg) -> Element Msg
+viewDialogOverlay dismissMsg children =
+    Element.html <|
+        Html.div
+            [ Html.Attributes.class "dialog-overlay"
+            , Html.Events.onClick dismissMsg
+            ]
+            [ Html.div
+                [ Html.Attributes.class "dialog-card"
+                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
+                ]
+                children
+            ]
+
+
+dialogHeader : Bool -> String -> String -> Html Msg
+dialogHeader isMobile eyebrow title =
+    Html.div [ Html.Attributes.class "dialog-header" ]
+        [ Html.div []
+            [ Html.p [ Html.Attributes.class "dialog-eyebrow" ] [ Html.text eyebrow ]
+            , Html.h2 [ Html.Attributes.class "dialog-title" ] [ Html.text title ]
+            ]
+        , if isMobile then
+            Html.button
+                [ Html.Attributes.type_ "button"
+                , Html.Attributes.class "dialog-back"
+                , Html.Events.onClick OpenAppMenu
+                ]
+                [ Html.text "← Menu" ]
+
+          else
+            Html.button
+                [ Html.Attributes.type_ "button"
+                , Html.Attributes.class "dialog-close"
+                , Html.Events.onClick CloseAppMenu
+                ]
+                [ Html.text "×" ]
+        ]
+
+
+relativeDateLabel : Int -> Int -> String
+relativeDateLabel nowMs playedAtMs =
+    let
+        diffMs =
+            nowMs - playedAtMs
+
+        diffHours =
+            diffMs // (1000 * 60 * 60)
+
+        diffDays =
+            diffHours // 24
+    in
+    if diffMs <= 0 then
+        "Just now"
+
+    else if diffHours < 1 then
+        "< 1 h ago"
+
+    else if diffHours < 24 then
+        String.fromInt diffHours ++ " h ago"
+
+    else if diffDays == 1 then
+        "Yesterday"
+
+    else if diffDays < 7 then
+        String.fromInt diffDays ++ " days ago"
+
+    else
+        let
+            weeks =
+                diffDays // 7
+        in
+        if weeks < 5 then
+            String.fromInt weeks
+                ++ (if weeks == 1 then
+                        " week ago"
+
+                    else
+                        " weeks ago"
+                   )
+
+        else
+            let
+                months =
+                    diffDays // 30
+            in
+            String.fromInt months
+                ++ (if months == 1 then
+                        " month ago"
+
+                    else
+                        " months ago"
+                   )
+
+
+historyEntryDecoder : Decode.Decoder HistoryEntry
+historyEntryDecoder =
+    Decode.map8 HistoryEntry
+        (Decode.oneOf [ Decode.field "mode" Decode.string, Decode.succeed "local" ])
+        (Decode.oneOf [ Decode.at [ "players", "p1", "name" ] Decode.string, Decode.succeed "P1" ])
+        (Decode.oneOf [ Decode.at [ "players", "p2", "name" ] Decode.string, Decode.succeed "P2" ])
+        (Decode.oneOf [ Decode.at [ "score", "p1" ] Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.at [ "score", "p2" ] Decode.int, Decode.succeed 0 ])
+        (Decode.maybe (Decode.field "winner" Decode.string))
+        (Decode.oneOf [ Decode.field "moveCount" Decode.int, Decode.succeed 0 ])
+        (Decode.oneOf [ Decode.field "playedAt" Decode.int, Decode.succeed 0 ])
+
+
+decodeHistoryEntries : Decode.Value -> List HistoryEntry
+decodeHistoryEntries value =
+    value
+        |> Decode.decodeValue (Decode.list historyEntryDecoder)
+        |> Result.withDefault []
 
 
 formFieldAttrs : List (Attribute Msg)
