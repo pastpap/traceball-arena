@@ -219,6 +219,44 @@ describe("realtime WebSocket main playing flows", () => {
     }
   });
 
+  it("keeps a disconnected reserved seat visible in room summaries during reconnect grace", async () => {
+    const port = randomPort();
+    const server = await startServer(port);
+    const clients = [];
+    try {
+      const { roomId } = await createRoom(server.baseUrl, 5);
+      const p1 = await connect(server.wsUrl, "p1");
+      clients.push(p1);
+
+      send(p1, {
+        type: "claimSeat",
+        roomId,
+        seatId: "p1",
+        name: "P1",
+        clientId: "blue-client",
+      });
+      await waitFor(
+        p1,
+        (msg) => msg.type === "joined" && msg.playerId === "p1",
+        "p1 joined",
+      );
+
+      await closeClient(p1);
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      const summary = await roomSummary(server.baseUrl, roomId);
+      expect(summary.state).toBe("OneSeatOccupied");
+      expect(summary.occupancy.activeCount).toBe(0);
+      expect(summary.occupancy.occupiedCount).toBe(1);
+      expect(summary.occupancy.vacantCount).toBe(1);
+      expect(summary.occupancy.p1).toBe("disconnected");
+      expect(summary.occupancy.p2).toBe("vacant");
+    } finally {
+      await Promise.all(clients.map(closeClient));
+      await stopServer(server.child);
+    }
+  });
+
   it("keeps the remaining player seated when the opponent leaves while another same-client socket is active", async () => {
     const port = randomPort();
     const server = await startServer(port);

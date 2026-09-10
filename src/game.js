@@ -153,6 +153,13 @@ export function claimSeat(game, seatId, name, clientId, now = Date.now()) {
     }
   }
 
+  if (game.players[seatId]?.status === "disconnected") {
+    return {
+      ok: false,
+      error: "That seat is reserved for the disconnected player.",
+    };
+  }
+
   if (isSeatActive(game.players[seatId]))
     return { ok: false, error: "That seat is already occupied." };
 
@@ -702,10 +709,11 @@ export function resumeGame(game, now = Date.now(), byPlayerId = null) {
   if (!bothSeatsActive(game))
     return { ok: false, error: "Both seats must be filled before resuming." };
   const pause = game.pause || null;
-  if (byPlayerId && pause?.byPlayerId && byPlayerId !== pause.byPlayerId) {
+  const resumePlayerId = pause?.resumeTurn || pause?.byPlayerId || null;
+  if (byPlayerId && resumePlayerId && byPlayerId !== resumePlayerId) {
     return {
       ok: false,
-      error: "Only the player who paused or timed out can resume this game.",
+      error: "Only the player whose turn it is can resume this game.",
     };
   }
   const resetsIdleTimeoutClock =
@@ -745,9 +753,18 @@ export function isSeatActive(player) {
   return player?.status === "active";
 }
 
+export function isSeatOccupied(player) {
+  return player?.status === "active" || player?.status === "disconnected";
+}
+
 export function activeSeatCount(game) {
   normalizeSeats(game);
   return ["p1", "p2"].filter((id) => isSeatActive(game.players[id])).length;
+}
+
+export function occupiedSeatCount(game) {
+  normalizeSeats(game);
+  return ["p1", "p2"].filter((id) => isSeatOccupied(game.players[id])).length;
 }
 
 export function bothSeatsActive(game) {
@@ -756,7 +773,7 @@ export function bothSeatsActive(game) {
 
 export function vacantSeatIds(game) {
   normalizeSeats(game);
-  return ["p1", "p2"].filter((id) => !isSeatActive(game.players[id]));
+  return ["p1", "p2"].filter((id) => game.players[id]?.status === "vacant");
 }
 
 export function startSession(game, now = Date.now()) {

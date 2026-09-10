@@ -6797,12 +6797,13 @@ var $author$project$Protocol$boardNotFoundCode = F2(
 			return fallback;
 		}
 	});
-var $author$project$Main$BoardSummary = F6(
-	function (roomId, state, activeCount, vacantCount, moveCount, isOwner) {
-		return {activeCount: activeCount, isOwner: isOwner, moveCount: moveCount, roomId: roomId, state: state, vacantCount: vacantCount};
+var $author$project$Main$BoardSummary = F7(
+	function (roomId, state, occupiedCount, activeCount, vacantCount, moveCount, isOwner) {
+		return {activeCount: activeCount, isOwner: isOwner, moveCount: moveCount, occupiedCount: occupiedCount, roomId: roomId, state: state, vacantCount: vacantCount};
 	});
-var $author$project$Main$boardSummaryDecoder = A7(
-	$elm$json$Json$Decode$map6,
+var $elm$json$Json$Decode$map7 = _Json_map7;
+var $author$project$Main$boardSummaryDecoder = A8(
+	$elm$json$Json$Decode$map7,
 	$author$project$Main$BoardSummary,
 	A2($elm$json$Json$Decode$field, 'roomId', $elm$json$Json$Decode$string),
 	$elm$json$Json$Decode$oneOf(
@@ -6810,6 +6811,21 @@ var $author$project$Main$boardSummaryDecoder = A7(
 			[
 				A2($elm$json$Json$Decode$field, 'state', $elm$json$Json$Decode$string),
 				$elm$json$Json$Decode$succeed('unknown')
+			])),
+	$elm$json$Json$Decode$oneOf(
+		_List_fromArray(
+			[
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['occupancy', 'occupiedCount']),
+				$elm$json$Json$Decode$int),
+				A2(
+				$elm$json$Json$Decode$at,
+				_List_fromArray(
+					['occupancy', 'activeCount']),
+				$elm$json$Json$Decode$int),
+				$elm$json$Json$Decode$succeed(0)
 			])),
 	$elm$json$Json$Decode$oneOf(
 		_List_fromArray(
@@ -15216,6 +15232,7 @@ var $mdgriffith$elm_ui$Element$Border$color = function (clr) {
 			'border-color',
 			clr));
 };
+var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $mdgriffith$elm_ui$Element$padding = function (x) {
 	var f = x;
 	return A2(
@@ -15517,7 +15534,9 @@ var $author$project$Main$viewBoardCard = function (board) {
 				$mdgriffith$elm_ui$Element$Background$color(
 				A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.06)),
 				$mdgriffith$elm_ui$Element$Border$rounded(8),
-				$mdgriffith$elm_ui$Element$padding(10)
+				$mdgriffith$elm_ui$Element$padding(10),
+				$mdgriffith$elm_ui$Element$htmlAttribute(
+				A2($elm$html$Html$Attributes$attribute, 'data-elm-board-card', board.roomId))
 			]),
 		_List_fromArray(
 			[
@@ -15533,7 +15552,9 @@ var $author$project$Main$viewBoardCard = function (board) {
 								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.04))
 							])),
 						$mdgriffith$elm_ui$Element$Border$rounded(8),
-						A2($mdgriffith$elm_ui$Element$paddingXY, 2, 2)
+						A2($mdgriffith$elm_ui$Element$paddingXY, 2, 2),
+						$mdgriffith$elm_ui$Element$htmlAttribute(
+						$elm$html$Html$Attributes$class('elm-primary-link'))
 					]),
 				{
 					label: A2(
@@ -15573,7 +15594,7 @@ var $author$project$Main$viewBoardCard = function (board) {
 												$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$shrink)
 											]),
 										$mdgriffith$elm_ui$Element$text(
-											$elm$core$String$fromInt(board.activeCount) + '/2 seated'))
+											$elm$core$String$fromInt(board.occupiedCount) + '/2 seated'))
 									])),
 								A2(
 								$mdgriffith$elm_ui$Element$paragraph,
@@ -15706,7 +15727,9 @@ var $author$project$Main$viewBoardListSection = function (model) {
 									A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
 									$mdgriffith$elm_ui$Element$Font$size(24),
 									$mdgriffith$elm_ui$Element$Font$bold,
-									$mdgriffith$elm_ui$Element$padding(0)
+									$mdgriffith$elm_ui$Element$padding(0),
+									$mdgriffith$elm_ui$Element$htmlAttribute(
+									$elm$html$Html$Attributes$id('refreshBoards'))
 								]),
 							{
 								label: A2(
@@ -16271,7 +16294,6 @@ var $elm$html$Html$Attributes$classList = function (classes) {
 				A2($elm$core$List$filter, $elm$core$Tuple$second, classes))));
 };
 var $elm$html$Html$h2 = _VirtualDom_node('h2');
-var $elm$html$Html$Attributes$id = $elm$html$Html$Attributes$stringProperty('id');
 var $elm$html$Html$strong = _VirtualDom_node('strong');
 var $author$project$Main$ClickLegalMove = function (a) {
 	return {$: 'ClickLegalMove', a: a};
@@ -16672,7 +16694,12 @@ var $author$project$Board$View$viewLegalPreview = F2(
 					$elm$svg$Svg$Attributes$r('11'),
 					$elm$svg$Svg$Attributes$fill('rgba(255,255,255,0.05)'),
 					$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.18)'),
-					$elm$svg$Svg$Attributes$strokeWidth('1')
+					$elm$svg$Svg$Attributes$strokeWidth('1'),
+					A2($elm$html$Html$Attributes$attribute, 'data-elm-legal-context', 'preview'),
+					A2(
+					$elm$html$Html$Attributes$attribute,
+					'data-elm-legal-move',
+					$author$project$Board$View$pk(pt))
 				]),
 			_List_Nil);
 	});
@@ -16695,7 +16722,12 @@ var $author$project$Board$View$viewLegalTarget = F3(
 				[
 					$elm$svg$Svg$Events$onClick(
 					onMove(pt)),
-					$elm$svg$Svg$Attributes$style('cursor:pointer')
+					$elm$svg$Svg$Attributes$style('cursor:pointer'),
+					A2($elm$html$Html$Attributes$attribute, 'data-elm-legal-context', 'own-turn'),
+					A2(
+					$elm$html$Html$Attributes$attribute,
+					'data-elm-legal-move',
+					$author$project$Board$View$pk(pt))
 				]),
 			_List_fromArray(
 				[
@@ -17806,6 +17838,88 @@ var $author$project$Main$viewGhostButtonHtml = F4(
 					$elm$html$Html$text(label)
 				]));
 	});
+var $author$project$Main$viewPausePanelHtml = function (overlay) {
+	return A2(
+		$elm$html$Html$div,
+		_List_fromArray(
+			[
+				$elm$html$Html$Attributes$class('pause-card pause-panel'),
+				A2($elm$html$Html$Attributes$attribute, 'data-elm-pause-panel', 'true'),
+				A2($elm$html$Html$Attributes$attribute, 'aria-live', 'polite')
+			]),
+		_Utils_ap(
+			_List_fromArray(
+				[
+					A2(
+					$elm$html$Html$div,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('pause-kicker')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text('Paused')
+						])),
+					A2(
+					$elm$html$Html$h2,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text(overlay.title)
+						])),
+					A2(
+					$elm$html$Html$p,
+					_List_Nil,
+					_List_fromArray(
+						[
+							$elm$html$Html$text(overlay.message)
+						])),
+					A2(
+					$elm$html$Html$p,
+					_List_fromArray(
+						[
+							$elm$html$Html$Attributes$class('pause-turn')
+						]),
+					_List_fromArray(
+						[
+							$elm$html$Html$text(overlay.turnText)
+						]))
+				]),
+			function () {
+				var _v0 = overlay.resumeAction;
+				if (_v0.$ === 'Just') {
+					var resumeAction = _v0.a;
+					return _List_fromArray(
+						[
+							A2(
+							$elm$html$Html$div,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$class('pause-actions pause-panel-actions')
+								]),
+							_List_fromArray(
+								[
+									A2(
+									$elm$html$Html$button,
+									_Utils_ap(
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$type_('button'),
+												A2($elm$html$Html$Attributes$attribute, 'data-elm-command', 'resume')
+											]),
+										$author$project$Main$onClickAttributes(
+											$elm$core$Maybe$Just(resumeAction))),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('Resume game')
+										]))
+								]))
+						]);
+				} else {
+					return _List_Nil;
+				}
+			}()));
+};
 var $author$project$Main$ReplayStepBack = {$: 'ReplayStepBack'};
 var $author$project$Main$ReplayStepForward = {$: 'ReplayStepForward'};
 var $author$project$Main$ReplayToLive = {$: 'ReplayToLive'};
@@ -18458,42 +18572,55 @@ var $author$project$Main$viewDesktopBoardScreenHtml = function (config) {
 								]),
 							_Utils_ap(
 								function () {
-									if (winnerName.$ === 'Just') {
-										var name = winnerName.a;
+									var _v0 = config.pauseOverlay;
+									if (_v0.$ === 'Just') {
+										var overlay = _v0.a;
 										return _List_fromArray(
 											[
-												A4($author$project$Main$viewRoundSummaryHtml, name, blueScore, redScore, config.newRoundAction)
+												$author$project$Main$viewPausePanelHtml(overlay)
 											]);
 									} else {
 										return _List_Nil;
 									}
 								}(),
-								_List_fromArray(
-									[
-										(config.showSeatActions && (config.showJoinBlue || config.showJoinRed)) ? A2(
-										$elm$html$Html$div,
-										_List_fromArray(
-											[
-												$elm$html$Html$Attributes$class('seat-actions')
-											]),
-										_List_fromArray(
-											[
-												A4(
-												$author$project$Main$viewGhostButtonHtml,
-												'ghost',
-												config.showJoinBlue,
-												$elm$core$Maybe$Just(
-													$author$project$Main$ClaimSeat('blue')),
-												'Join Blue'),
-												A4(
-												$author$project$Main$viewGhostButtonHtml,
-												'ghost',
-												config.showJoinRed,
-												$elm$core$Maybe$Just(
-													$author$project$Main$ClaimSeat('red')),
-												'Join Red')
-											])) : $elm$html$Html$text('')
-									]))))
+								_Utils_ap(
+									function () {
+										if (winnerName.$ === 'Just') {
+											var name = winnerName.a;
+											return _List_fromArray(
+												[
+													A4($author$project$Main$viewRoundSummaryHtml, name, blueScore, redScore, config.newRoundAction)
+												]);
+										} else {
+											return _List_Nil;
+										}
+									}(),
+									_List_fromArray(
+										[
+											(config.showSeatActions && (config.showJoinBlue || config.showJoinRed)) ? A2(
+											$elm$html$Html$div,
+											_List_fromArray(
+												[
+													$elm$html$Html$Attributes$class('seat-actions')
+												]),
+											_List_fromArray(
+												[
+													A4(
+													$author$project$Main$viewGhostButtonHtml,
+													'ghost',
+													config.showJoinBlue,
+													$elm$core$Maybe$Just(
+														$author$project$Main$ClaimSeat('blue')),
+													'Join Blue'),
+													A4(
+													$author$project$Main$viewGhostButtonHtml,
+													'ghost',
+													config.showJoinRed,
+													$elm$core$Maybe$Just(
+														$author$project$Main$ClaimSeat('red')),
+													'Join Red')
+												])) : $elm$html$Html$text('')
+										])))))
 					]))
 			]));
 };
@@ -19352,7 +19479,23 @@ var $author$project$Main$viewMobileTopCard = F6(
 									return A4($author$project$Main$viewMobileActionButton, true, msg, '✕', 'Leave');
 								},
 								config.leaveAction)
-							])))
+							]))),
+					function () {
+					var _v0 = config.pauseOverlay;
+					if (_v0.$ === 'Just') {
+						var overlay = _v0.a;
+						return A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
+								]),
+							$mdgriffith$elm_ui$Element$html(
+								$author$project$Main$viewPausePanelHtml(overlay)));
+					} else {
+						return $mdgriffith$elm_ui$Element$none;
+					}
+				}()
 				]));
 	});
 var $author$project$Main$viewMobileBoardScreen = function (config) {

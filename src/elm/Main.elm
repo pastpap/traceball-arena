@@ -116,6 +116,7 @@ type alias LocalGame =
 type alias BoardSummary =
     { roomId : String
     , state : String
+    , occupiedCount : Int
     , activeCount : Int
     , vacantCount : Int
     , moveCount : Int
@@ -1926,6 +1927,13 @@ viewDesktopBoardScreenHtml config =
                     , viewSquareIconButtonHtml "elm-match-icon success" config.newRoundAction "↺" "Start new round"
                     ]
                  ]
+                    ++ (case config.pauseOverlay of
+                            Just overlay ->
+                                [ viewPausePanelHtml overlay ]
+
+                            Nothing ->
+                                []
+                       )
                     ++ (case winnerName of
                             Just name ->
                                 [ viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
@@ -2248,6 +2256,12 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                     , config.shareAction |> Maybe.map (\msg -> viewShareMobileButton msg)
                     , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
                     ]
+            , case config.pauseOverlay of
+                Just overlay ->
+                    el [ width fill ] (Element.html (viewPausePanelHtml overlay))
+
+                Nothing ->
+                    none
             ]
 
 
@@ -2614,6 +2628,37 @@ viewPauseOverlayHtml overlay =
                 ]
             ]
         ]
+
+
+viewPausePanelHtml : PauseOverlayConfig -> Html Msg
+viewPausePanelHtml overlay =
+    Html.div
+        [ Html.Attributes.class "pause-card pause-panel"
+        , Html.Attributes.attribute "data-elm-pause-panel" "true"
+        , Html.Attributes.attribute "aria-live" "polite"
+        ]
+        ([ Html.div [ Html.Attributes.class "pause-kicker" ] [ Html.text "Paused" ]
+         , Html.h2 [] [ Html.text overlay.title ]
+         , Html.p [] [ Html.text overlay.message ]
+         , Html.p [ Html.Attributes.class "pause-turn" ] [ Html.text overlay.turnText ]
+         ]
+            ++ (case overlay.resumeAction of
+                    Just resumeAction ->
+                        [ Html.div [ Html.Attributes.class "pause-actions pause-panel-actions" ]
+                            [ Html.button
+                                ([ Html.Attributes.type_ "button"
+                                 , Html.Attributes.attribute "data-elm-command" "resume"
+                                 ]
+                                    ++ onClickAttributes (Just resumeAction)
+                                )
+                                [ Html.text "Resume game" ]
+                            ]
+                        ]
+
+                    Nothing ->
+                        []
+               )
+        )
 
 
 viewWinnerOverlayHtml : Bool -> String -> Maybe Msg -> Html Msg
@@ -3344,6 +3389,7 @@ viewBoardListSection model =
                     , Font.size 24
                     , Font.bold
                     , padding 0
+                    , Element.htmlAttribute (Html.Attributes.id "refreshBoards")
                     ]
                     { onPress = Just RequestBoardList
                     , label = el [ centerX, centerY ] (text "↻")
@@ -3367,12 +3413,14 @@ viewBoardCard board =
         , Bg.color (rgba255 255 255 255 0.06)
         , Border.rounded 8
         , padding 10
+        , Element.htmlAttribute (Html.Attributes.attribute "data-elm-board-card" board.roomId)
         ]
         [ link
             [ width fill
             , mouseOver [ Bg.color (rgba255 255 255 255 0.04) ]
             , Border.rounded 8
             , paddingXY 2 2
+            , Element.htmlAttribute (Html.Attributes.class "elm-primary-link")
             ]
             { url = "/?board=" ++ board.roomId
             , label =
@@ -3380,7 +3428,7 @@ viewBoardCard board =
                     [ row [ width fill, spacing 8 ]
                         [ el [ Font.bold, Font.size 14, width fill ] (text board.roomId)
                         , el [ Font.size 12, Font.color (rgba255 255 255 255 0.5), width shrink ]
-                            (text (String.fromInt board.activeCount ++ "/2 seated"))
+                            (text (String.fromInt board.occupiedCount ++ "/2 seated"))
                         ]
                     , paragraph [ width fill, Font.size 12, Font.color (rgba255 255 255 255 0.68) ]
                         [ text (boardSummaryStateLabel board.state) ]
@@ -4317,9 +4365,10 @@ persistLocalCmd localGame paused =
 
 boardSummaryDecoder : Decode.Decoder BoardSummary
 boardSummaryDecoder =
-    Decode.map6 BoardSummary
+    Decode.map7 BoardSummary
         (Decode.field "roomId" Decode.string)
         (Decode.oneOf [ Decode.field "state" Decode.string, Decode.succeed "unknown" ])
+        (Decode.oneOf [ Decode.at [ "occupancy", "occupiedCount" ] Decode.int, Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.at [ "occupancy", "vacantCount" ] Decode.int, Decode.succeed 0 ])
         (Decode.oneOf [ Decode.field "moveCount" Decode.int, Decode.succeed 0 ])

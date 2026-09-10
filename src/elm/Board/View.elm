@@ -2,6 +2,7 @@ module Board.View exposing (viewBoard)
 
 import Board.Types exposing (..)
 import Html exposing (Html)
+import Html.Attributes as HA
 import Svg as S
 import Svg.Attributes as SA
 import Svg.Events as SE
@@ -517,7 +518,11 @@ viewLegalTarget onMove turn pt =
             color ++ "26"
     in
     S.g
-        [ SE.onClick (onMove pt), SA.style "cursor:pointer" ]
+        [ SE.onClick (onMove pt)
+        , SA.style "cursor:pointer"
+        , HA.attribute "data-elm-legal-context" "own-turn"
+        , HA.attribute "data-elm-legal-move" (pk pt)
+        ]
         [ S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "27", SA.fill "transparent" ] []
         , S.circle
             [ SA.cx (sx pt.x)
@@ -550,6 +555,8 @@ viewLegalPreview _ pt =
         , SA.fill "rgba(255,255,255,0.05)"
         , SA.stroke "rgba(255,255,255,0.18)"
         , SA.strokeWidth "1"
+        , HA.attribute "data-elm-legal-context" "preview"
+        , HA.attribute "data-elm-legal-move" (pk pt)
         ]
         []
 

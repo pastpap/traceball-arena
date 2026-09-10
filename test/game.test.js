@@ -211,7 +211,7 @@ describe("traceball rules", () => {
     });
     expect(resumeGame(game, 19000, "p2")).toMatchObject({
       ok: false,
-      error: expect.stringMatching(/paused the game|timed out/i),
+      error: expect.stringMatching(/turn it is can resume/i),
     });
     expect(resumeGame(game, 19000, "p1").ok).toBe(true);
     expect(game.turnStartedAt).toBe(19000);
@@ -283,7 +283,7 @@ describe("traceball rules", () => {
 
     expect(resumeGame(game, 12000, "p1")).toMatchObject({
       ok: false,
-      error: expect.stringMatching(/paused the game|timed out/i),
+      error: expect.stringMatching(/turn it is can resume/i),
     });
     expect(game.status).toBe("paused");
 
@@ -334,10 +334,10 @@ describe("traceball rules", () => {
     expect(game.endReason).toContain("Own goal");
   });
 
-  it("reserves a disconnected seat during grace and allows same-client reclaim", () => {
+  it("lets the paused turn owner resume after the other seat reconnects from a disconnect pause", () => {
     const game = readyGame();
     game.players.p2.clientId = "red-phone";
-    game.turn = "p2";
+    game.turn = "p1";
 
     const disconnected = markPlayerDisconnected(game, "p2", 10_000);
 
@@ -362,12 +362,25 @@ describe("traceball rules", () => {
       clientId: "red-phone",
     });
     expect(game.status).toBe("paused");
-    expect(resumeGame(game, 21_000, "p1")).toMatchObject({
-      ok: false,
-      error: expect.stringMatching(/paused the game|timed out/i),
-    });
-    expect(resumeGame(game, 21_000, "p2").ok).toBe(true);
+    expect(resumeGame(game, 21_000, "p1").ok).toBe(true);
     expect(game.status).toBe("playing");
+  });
+
+  it("keeps a disconnected seat reserved from other clients during grace", () => {
+    const game = readyGame();
+    game.players.p2.clientId = "red-phone";
+
+    expect(markPlayerDisconnected(game, "p2", 10_000).ok).toBe(true);
+    expect(
+      claimSeat(game, "p2", "Intruder", "other-client", 20_000),
+    ).toMatchObject({
+      ok: false,
+      error: expect.stringMatching(/reserved for the disconnected player/i),
+    });
+    expect(game.players.p2).toMatchObject({
+      status: "disconnected",
+      clientId: "red-phone",
+    });
   });
 
   it("does not auto-resume a paused game when the same client rejoins", () => {

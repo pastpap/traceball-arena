@@ -21,6 +21,7 @@ import {
   makeMove,
   markPlayerDisconnected,
   normalizeMoveTimeLimitMs,
+  occupiedSeatCount,
   pauseGame,
   publicGame,
   rejoinPlayerByClient,
@@ -482,6 +483,7 @@ function statePayloadFromGame(game) {
 
 function publicRoomSummary(game, requestOrigin, requestClientId = null) {
   const activeCount = activeSeatCount(game);
+  const occupiedCount = occupiedSeatCount(game);
   const publicState = publicGame(game);
   const lastResult = publicState.history.length
     ? publicState.history[publicState.history.length - 1]
@@ -498,13 +500,14 @@ function publicRoomSummary(game, requestOrigin, requestClientId = null) {
           ? "SessionActive"
           : publicState.status === "paused"
             ? "SessionPaused"
-            : activeCount === 1
+            : occupiedCount === 1
               ? "OneSeatOccupied"
               : "WaitingForPlayers",
     players: publicState.players,
     occupancy: {
       activeCount,
-      vacantCount: 2 - activeCount,
+      occupiedCount,
+      vacantCount: 2 - occupiedCount,
       p1: publicState.players.p1?.status || "vacant",
       p2: publicState.players.p2?.status || "vacant",
     },

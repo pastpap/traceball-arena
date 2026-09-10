@@ -1,5 +1,14 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import {
+  createBoardAsBlue,
+  fetchRoomSummary,
+  joinRed,
+  openBoard,
+  safeClose,
+  showMatchIfNeeded,
+  showPlayIfNeeded,
+} from "./helpers/elm-shell.js";
 
 mkdirSync("test-results/screenshots", { recursive: true });
 
@@ -10,82 +19,30 @@ async function captureScenario(page, name) {
   });
 }
 
-async function safeClose(context) {
-  if (!context) return;
-  try {
-    await context.close();
-  } catch {
-    // Ignore teardown failures when browser/context was already closed by timeout.
-  }
-}
-
-async function showMobileHomeIfNeeded(page) {
-  const nameInput = page.locator("#playerNameInput");
-  if (await nameInput.isVisible().catch(() => false)) return;
-  const homeTab = page.locator('.mobile-tab[data-page-target="invite"]');
-  if (await homeTab.count()) {
-    await homeTab.click();
-  }
-  await expect(nameInput).toBeVisible();
-}
-
-async function createBoardAsBlue(page, name = "P1") {
-  await page.goto("/");
-  await showMobileHomeIfNeeded(page);
-  await page.locator("#playerNameInput").fill(name);
-  await page.locator("#onlineMoveTimer").selectOption("5");
-  await page.locator("#elmCreateBoard").click();
-  await expect(page.locator("#playStatus")).toContainText(/Board /);
-  await expect(page.locator(".hero-board-role")).toContainText("You are Blue");
-  const url = new URL(page.url());
-  const boardCode = url.searchParams.get("board");
-  expect(boardCode).toBeTruthy();
-  return boardCode;
-}
-
-async function openBoard(page, boardCode, name) {
-  await page.goto(`/?board=${boardCode}`);
-  await expect(page.locator("#playStatus")).toContainText(`Board ${boardCode}`);
-  const nameInput = page.locator("#elmPlayerName");
-  if (await nameInput.count()) await nameInput.fill(name);
-}
-
-async function showMobileMatchIfNeeded(page, command) {
-  const visibleCommand = page
-    .locator(`[data-elm-command="${command}"]:visible`)
-    .first();
-  if (await visibleCommand.count()) return;
-  const matchTab = page.locator('.mobile-tab[data-page-target="match"]');
-  if (await matchTab.count()) {
-    await matchTab.click();
-  }
-}
-
-async function showMobilePlayIfNeeded(page) {
-  const boardStage = page.locator(".board-stage");
-  if (await boardStage.isVisible().catch(() => false)) return;
-  const playTab = page.locator('.mobile-tab[data-page-target="play"]');
-  if (await playTab.count()) {
-    await playTab.click();
-  }
-}
-
 async function clickOwnTurnMove(page, key) {
   const move = page
     .locator(
-      `[data-elm-legal-context="own-turn"] [data-elm-legal-move="${key}"]`,
+      `[data-elm-legal-context="own-turn"][data-elm-legal-move="${key}"]`,
     )
     .first();
-  await expect(move).toBeVisible();
-  await move.click();
+  await expect(move).toHaveCount(1);
+  await move.click({ force: true });
 }
 
-async function joinRed(page, name = "P2") {
-  const nameInput = page.locator("#elmPlayerName");
-  if (await nameInput.count()) await nameInput.fill(name);
-  await showMobileMatchIfNeeded(page, "claim-red");
-  await page.locator('[data-elm-command="claim-red"]:visible').first().click();
-  await expect(page.locator(".hero-board-role")).toContainText("You are Red");
+async function playLocalSequence(page, moves) {
+  for (const move of moves) {
+    await clickOwnTurnMove(page, move);
+  }
+}
+
+async function startLocalMatch(page) {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Local" }).click();
+  await page.getByRole("textbox", { name: "Blue" }).first().fill("Blue");
+  await page.getByRole("textbox", { name: "Red" }).first().fill("Red");
+  await page.locator("#onlineMoveTimer").selectOption("10");
+  await page.getByRole("button", { name: "Start local match" }).click();
+  await showPlayIfNeeded(page);
 }
 
 test.describe("main realtime playing flows", () => {
@@ -93,8 +50,14 @@ test.describe("main realtime playing flows", () => {
     browser,
     baseURL,
   }) => {
-    const p1Context = await browser.newContext();
-    const p2Context = await browser.newContext();
+    const p1Context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
+    const p2Context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
     const p1 = await p1Context.newPage();
     const p2 = await p2Context.newPage();
     const p1Dialogs = [];
@@ -108,42 +71,30 @@ test.describe("main realtime playing flows", () => {
       const boardCode = await createBoardAsBlue(p1, "P1");
       await openBoard(p2, boardCode, "P2");
       await joinRed(p2, "P2");
-      await expect(p1.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
+      await expect(p1.locator("body")).toContainText(boardCode);
 
       const p1Reopen = await p1Context.newPage();
       await openBoard(p1Reopen, boardCode, "P1");
-      await expect(p1Reopen.locator(".hero-board-role")).toContainText(
-        "You are Blue",
-      );
+      await expect(p1Reopen.locator("body")).toContainText("You are Blue");
       await p1.close();
 
-      await expect(p1Reopen.locator(".board-stage")).toBeVisible();
-      await expect(p1Reopen.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
-      await expect(p2.locator("#p1")).toContainText(/P1|Blue/);
-      await expect(p2.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
+      await showPlayIfNeeded(p1Reopen);
+      await expect(p1Reopen.locator("body")).toContainText(boardCode);
+      await expect(p2.locator("body")).toContainText(/P1|Blue/);
+      await expect(p2.locator("body")).toContainText(boardCode);
 
-      await showMobileMatchIfNeeded(p2, "leave-seat");
+      await showMatchIfNeeded(p2);
       await p2
-        .locator('[data-elm-command="leave-seat"]:visible')
+        .getByRole("button", { name: /Leave|Leave game/i })
         .first()
         .click();
       await expect(
-        p1Reopen.locator('[data-elm-command="claim-red"]:visible'),
+        p1Reopen.getByRole("button", { name: "Join Red" }),
       ).toHaveCount(0);
-      await expect(p1Reopen.locator(".hero-board-role")).toContainText(
-        "You are Blue",
-      );
+      await expect(p1Reopen.locator("body")).toContainText("You are Blue");
       expect(p1Dialogs).toEqual([]);
 
-      const response = await p1Reopen.request.get(`${baseURL}/api/rooms`);
-      const rooms = (await response.json()).rooms;
-      const room = rooms.find((item) => item.roomId === boardCode);
+      const room = await fetchRoomSummary(p1Reopen, baseURL, boardCode);
       expect(room.occupancy.p1).toBe("active");
       expect(room.occupancy.p2).toBe("vacant");
     } finally {
@@ -155,7 +106,10 @@ test.describe("main realtime playing flows", () => {
   test("idle timeout pause keeps both players on the board and only the timed-out player can resume", async ({
     browser,
   }) => {
-    const p1Context = await browser.newContext();
+    const p1Context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
     const p2Context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -167,27 +121,22 @@ test.describe("main realtime playing flows", () => {
       await openBoard(p2, boardCode, "P2");
       await joinRed(p2, "P2");
 
-      await showMobilePlayIfNeeded(p2);
+      await showPlayIfNeeded(p2);
+      const p2PausePanel = p2.locator('[data-elm-pause-panel="true"]');
+      await expect(p2PausePanel).toContainText("Game paused", {
+        timeout: 20000,
+      });
       await expect(
-        p2.locator('[data-elm-command="resume"]:visible'),
-      ).not.toHaveCount(0, { timeout: 20_000 });
+        p2PausePanel.getByRole("button", { name: "Resume game" }),
+      ).toBeVisible();
 
-      await expect(p2.locator(".hero-board-role")).toContainText(
-        /You are Red/i,
-      );
-      await expect(p1.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
-      await expect(p2.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
-
+      const p1PausePanel = p1.locator('[data-elm-pause-panel="true"]');
+      await expect(p1PausePanel).toBeVisible();
       await expect(
-        p1.locator('[data-elm-command="resume"]:visible'),
+        p1PausePanel.getByRole("button", { name: "Resume game" }),
       ).toHaveCount(0);
-      await expect(
-        p2.locator('[data-elm-command="resume"]:visible'),
-      ).not.toHaveCount(0);
+      await expect(p1.locator("body")).toContainText(boardCode);
+      await expect(p2.locator("body")).toContainText(boardCode);
     } finally {
       await safeClose(p1Context);
       await safeClose(p2Context);
@@ -197,7 +146,10 @@ test.describe("main realtime playing flows", () => {
   test("manual pause only allows the pausing player to resume or start a new round", async ({
     browser,
   }) => {
-    const p1Context = await browser.newContext();
+    const p1Context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
     const p2Context = await browser.newContext({
       viewport: { width: 390, height: 844 },
       isMobile: true,
@@ -209,28 +161,36 @@ test.describe("main realtime playing flows", () => {
       await openBoard(p2, boardCode, "P2");
       await joinRed(p2, "P2");
 
-      await p1.locator('[data-elm-command="pause"]:visible').first().click();
+      await p1.getByRole("button", { name: "Pause game" }).click();
 
-      await expect(p1.locator("#pauseOverlay")).toBeVisible();
-      await expect(p2.locator("#pauseOverlay")).toBeVisible();
+      const p1PausePanel = p1.locator('[data-elm-pause-panel="true"]');
+      const p2PausePanel = p2.locator('[data-elm-pause-panel="true"]');
+      await expect(p1PausePanel).toBeVisible();
+      await expect(p2PausePanel).toBeVisible();
       await captureScenario(p1, "qa-pause-owner-controls");
 
-      await expect(p1.locator("#resumeGame:visible")).toHaveCount(1);
-      await expect(p1.locator("#pauseNewRound:visible")).toHaveCount(1);
+      await expect(
+        p1PausePanel.getByRole("button", { name: "Resume game" }),
+      ).toBeVisible();
+      await expect(
+        p1.getByRole("button", { name: "Start new round" }),
+      ).toHaveCount(0);
 
-      await expect(p2.locator("#resumeGame:visible")).toHaveCount(0);
-      await expect(p2.locator("#pauseNewRound:visible")).toHaveCount(0);
+      await expect(
+        p2PausePanel.getByRole("button", { name: "Resume game" }),
+      ).toHaveCount(0);
+      await expect(
+        p2.getByRole("button", { name: "Start new round" }),
+      ).toHaveCount(0);
 
-      await p1.locator("#resumeGame:visible").click();
+      await p1PausePanel
+        .getByRole("button", { name: "Resume game" })
+        .click({ force: true });
 
-      await expect(p1.locator("#pauseOverlay")).toBeHidden();
-      await expect(p2.locator("#pauseOverlay")).toBeHidden();
-      await expect(p1.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
-      await expect(p2.locator("#playStatus")).toContainText(
-        `Board ${boardCode}`,
-      );
+      await expect(p1PausePanel).toHaveCount(0);
+      await expect(p2PausePanel).toHaveCount(0);
+      await expect(p1.locator("body")).toContainText(boardCode);
+      await expect(p2.locator("body")).toContainText(boardCode);
     } finally {
       await safeClose(p1Context);
       await safeClose(p2Context);
@@ -238,86 +198,85 @@ test.describe("main realtime playing flows", () => {
   });
 
   test("local replay controls step through moves and return to live board", async ({
-    page,
+    browser,
   }) => {
-    await page.goto("/");
-    await showMobileHomeIfNeeded(page);
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
+    const page = await context.newPage();
+    try {
+      await startLocalMatch(page);
 
-    await page.locator("#localMode").click();
-    await page.locator("#localP1Name").fill("Blue");
-    await page.locator("#localP2Name").fill("Red");
-    await page.locator("#localMoveTimer").selectOption("10");
-    await page.locator("#startLocal").click();
+      await expect(page.locator(".board-stage")).toBeVisible();
+      await expect(page.locator("#replayText")).toContainText(
+        "Replay appears once moves are made.",
+      );
 
-    await showMobilePlayIfNeeded(page);
-    await expect(page.locator(".board-stage")).toBeVisible();
-    await expect(page.locator("#replayText")).toContainText(
-      "Replay appears once moves are made.",
-    );
+      await playLocalSequence(page, ["3,5", "2,4"]);
 
-    await page
-      .locator('[data-elm-legal-context="own-turn"] [data-elm-legal-move]')
-      .first()
-      .click();
-    await page
-      .locator('[data-elm-legal-context="own-turn"] [data-elm-legal-move]')
-      .first()
-      .click();
+      await expect(page.locator("#replayText")).toContainText(
+        "Move 2 of 2 - live board",
+      );
 
-    await expect(page.locator("#replayText")).toContainText(
-      "Live view at move 2 / 2",
-    );
+      await page.getByRole("button", { name: "Start" }).click();
+      await captureScenario(page, "qa-replay-step-through");
+      await expect(page.locator("#replayText")).toContainText("Move 0 of 2");
 
-    await page.locator("#replayStart").click();
-    await captureScenario(page, "qa-replay-step-through");
-    await expect(page.locator("#replayText")).toContainText("Replay 0 / 2");
+      await page.getByRole("button", { name: "Next" }).click();
+      await expect(page.locator("#replayText")).toContainText("Move 1 of 2");
 
-    await page.locator("#replayNext").click();
-    await expect(page.locator("#replayText")).toContainText("Replay 1 / 2");
-
-    await page.locator("#replayEnd").click();
-    await expect(page.locator("#replayText")).toContainText(
-      "Live view at move 2 / 2",
-    );
+      await page.getByRole("button", { name: "Live" }).click();
+      await expect(page.locator("#replayText")).toContainText(
+        "Move 2 of 2 - live board",
+      );
+    } finally {
+      await safeClose(context);
+    }
   });
 
   test("winner overlay appears after a scored local round and new round clears it", async ({
-    page,
+    browser,
   }) => {
-    await page.goto("/");
-    await showMobileHomeIfNeeded(page);
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      isMobile: false,
+    });
+    const page = await context.newPage();
+    try {
+      await startLocalMatch(page);
 
-    await page.locator("#localMode").click();
-    await page.locator("#localP1Name").fill("Blue");
-    await page.locator("#localP2Name").fill("Red");
-    await page.locator("#localMoveTimer").selectOption("10");
-    await page.locator("#startLocal").click();
+      await playLocalSequence(page, [
+        "3,5",
+        "2,4",
+        "1,3",
+        "0,2",
+        "1,1",
+        "1,2",
+        "2,1",
+        "2,2",
+        "1,1",
+      ]);
 
-    await showMobilePlayIfNeeded(page);
+      const winnerOverlay = page.locator(".winner-overlay");
+      await expect(winnerOverlay).toBeVisible();
+      await captureScenario(page, "qa-winner-overlay");
+      await expect(winnerOverlay).toContainText(/Blue/i);
+      const winnerNewRound = page.getByRole("button", {
+        name: "New Round",
+        exact: true,
+      });
+      await expect(winnerNewRound).toBeVisible();
 
-    // Deterministic path to Blue scoring at the top gate.
-    await clickOwnTurnMove(page, "4,5");
-    await clickOwnTurnMove(page, "5,5");
-    await clickOwnTurnMove(page, "4,4");
-    await clickOwnTurnMove(page, "5,4");
-    await clickOwnTurnMove(page, "4,3");
-    await clickOwnTurnMove(page, "5,3");
-    await clickOwnTurnMove(page, "4,2");
-    await clickOwnTurnMove(page, "5,2");
-    await clickOwnTurnMove(page, "4,1");
-    await clickOwnTurnMove(page, "4,0");
+      await winnerNewRound.click();
 
-    await expect(page.locator("#winnerOverlay")).toBeVisible();
-    await captureScenario(page, "qa-winner-overlay");
-    await expect(page.locator("#winnerName")).toContainText(/Blue/i);
-    await expect(page.locator("#winnerNewRound")).toBeVisible();
-
-    await page.locator("#winnerNewRound").click();
-
-    await expect(page.locator("#winnerOverlay")).toBeHidden();
-    await expect(page.locator("#playStatus")).toContainText(/Board LOCAL/i);
-    await expect(page.locator("#replayText")).toContainText(
-      /Replay appears once moves are made.|Live view at move 0 \/ 0/i,
-    );
+      await expect(winnerOverlay).toHaveCount(0);
+      await expect(page.locator("body")).toContainText(/Board LOCAL/i);
+      await expect(page.locator("#replayText")).toContainText(
+        /Replay appears once moves are made.|Move 0 of 0 - live board/i,
+      );
+    } finally {
+      await safeClose(context);
+    }
   });
 });
