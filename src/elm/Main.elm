@@ -46,6 +46,7 @@ type alias Model =
     , localBlueName : String
     , localRedName : String
     , boardList : List BoardSummary
+    , localMoveTimer : Int
     , onlineMoveTimer : Int
     , showLobby : Bool
     , localLobbyTab : Bool
@@ -53,7 +54,7 @@ type alias Model =
     , joinedSeat : Maybe String
     , viewportWidth : Int
     , dismissedWinnerKey : Maybe String
-    , showTimerSheet : Bool
+    , showTimerSheet : Maybe TimerTarget
     , menuPanel : Maybe String
     , gameHistory : List HistoryEntry
     , rawHistoryEntries : List Decode.Value
@@ -72,6 +73,11 @@ type alias Flags =
     , savedLocalPaused : Bool
     , onlineMoveTimer : Int
     }
+
+
+type TimerTarget
+    = OnlineTimer
+    | LocalTimer
 
 
 
@@ -179,9 +185,11 @@ type Msg
     | ReceiveBoardCreated Decode.Value
     | RequestBoardList
     | CreateBoard
+    | UpdateLocalMoveTimer String
     | UpdateOnlineMoveTimer String
+    | SelectLocalMoveTimer Int
     | SelectOnlineMoveTimer Int
-    | OpenTimerSheet
+    | OpenTimerSheet TimerTarget
     | CloseTimerSheet
     | IgnoreSheetClick
     | ToggleLobby
@@ -266,6 +274,7 @@ init flags =
             , localBlueName = "Blue"
             , localRedName = "Red"
             , boardList = []
+            , localMoveTimer = 15
             , onlineMoveTimer = 15
             , showLobby = True
             , localLobbyTab = False
@@ -273,7 +282,7 @@ init flags =
             , joinedSeat = Nothing
             , viewportWidth = 1024
             , dismissedWinnerKey = Nothing
-            , showTimerSheet = False
+            , showTimerSheet = Nothing
             , menuPanel = Nothing
             , gameHistory = []
             , rawHistoryEntries = []
@@ -347,6 +356,12 @@ applyFlags flags model =
                 sanitized =
                     sanitizeBoardCode parsed.boardCode
 
+                localMoveTimer =
+                    parsed.savedLocalGame
+                        |> Maybe.map .moveTimerSeconds
+                        |> Maybe.withDefault 15
+                        |> normalizeMoveTimerSeconds
+
                 invalid =
                     not (String.isEmpty (String.trim parsed.boardCode)) && not (isValidBoardCode sanitized)
 
@@ -361,6 +376,7 @@ applyFlags flags model =
                 , playerName = sanitizePlayerName parsed.playerName
                 , localGame = parsed.savedLocalGame
                 , localPaused = parsed.savedLocalPaused
+                , localMoveTimer = localMoveTimer
                 , onlineMoveTimer = parsed.onlineMoveTimer
                 , localBlueName = sanitizePlayerName parsed.playerName
                 , localRedName = "Red"
@@ -552,17 +568,17 @@ update msg model =
         DismissWinnerBanner ->
             ( { model | dismissedWinnerKey = currentWinnerKey model }, Cmd.none )
 
-        OpenTimerSheet ->
-            ( { model | showTimerSheet = True }, Cmd.none )
+        OpenTimerSheet target ->
+            ( { model | showTimerSheet = Just target }, Cmd.none )
 
         CloseTimerSheet ->
-            ( { model | showTimerSheet = False }, Cmd.none )
+            ( { model | showTimerSheet = Nothing }, Cmd.none )
 
         IgnoreSheetClick ->
             ( model, Cmd.none )
 
         OpenAppMenu ->
-            ( { model | menuPanel = Just "menu", showTimerSheet = False }, Cmd.none )
+            ( { model | menuPanel = Just "menu", showTimerSheet = Nothing }, Cmd.none )
 
         CloseAppMenu ->
             ( { model | menuPanel = Nothing }, Cmd.none )
@@ -883,7 +899,7 @@ update msg model =
         StartLocalMatch ->
             let
                 game =
-                    startLocalGame model.currentTimeMs model.localBlueName model.localRedName model.onlineMoveTimer
+                    startLocalGame model.currentTimeMs model.localBlueName model.localRedName model.localMoveTimer
             in
             ( { model
                 | localGame = Just game
@@ -892,7 +908,7 @@ update msg model =
                 , replayIndex = Nothing
                 , dismissedWinnerKey = Nothing
                 , showLobby = False
-                , showTimerSheet = False
+                , showTimerSheet = Nothing
                 , historyReplayGame = Nothing
                 , board = Nothing
                 , boardCode = ""
@@ -1027,7 +1043,7 @@ update msg model =
             ( model, outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchBoardList" ) ]) )
 
         CreateBoard ->
-            ( { model | inviteUrl = Nothing, showLobby = True, showTimerSheet = False, mainTab = "game", error = Nothing }
+            ( { model | inviteUrl = Nothing, showLobby = True, showTimerSheet = Nothing, mainTab = "game", error = Nothing }
             , outgoingClientCommand
                 (Encode.object
                     [ ( "type", Encode.string "createBoard" )
@@ -1035,6 +1051,16 @@ update msg model =
                     ]
                 )
             )
+
+        UpdateLocalMoveTimer raw ->
+            let
+                seconds =
+                    raw
+                        |> String.toInt
+                        |> Maybe.map normalizeMoveTimerSeconds
+                        |> Maybe.withDefault 15
+            in
+            ( { model | localMoveTimer = seconds }, Cmd.none )
 
         UpdateOnlineMoveTimer raw ->
             let
@@ -1058,7 +1084,7 @@ update msg model =
                 normalized =
                     normalizeMoveTimerSeconds seconds
             in
-            ( { model | onlineMoveTimer = normalized, showTimerSheet = False }
+            ( { model | onlineMoveTimer = normalized, showTimerSheet = Nothing }
             , outgoingClientCommand
                 (Encode.object
                     [ ( "type", Encode.string "persistOnlineMoveTimer" )
@@ -1067,8 +1093,15 @@ update msg model =
                 )
             )
 
+        SelectLocalMoveTimer seconds ->
+            let
+                normalized =
+                    normalizeMoveTimerSeconds seconds
+            in
+            ( { model | localMoveTimer = normalized, showTimerSheet = Nothing }, Cmd.none )
+
         ToggleLobby ->
-            ( { model | showLobby = not model.showLobby }, Cmd.none )
+            ( { model | showLobby = not model.showLobby, showTimerSheet = Nothing }, Cmd.none )
 
         SetMainTab tab ->
             ( { model | mainTab = tab }, Cmd.none )
@@ -1113,11 +1146,12 @@ view model =
                 [ width fill
                 , inFront (viewMenuOverlay model)
                 , inFront
-                    (if model.showTimerSheet && model.viewportWidth <= 640 then
-                        viewTimerBottomSheet model.onlineMoveTimer
+                    (case ( model.showTimerSheet, model.viewportWidth <= 640 ) of
+                        ( Just target, True ) ->
+                            viewTimerBottomSheet target (timerValueFor target model)
 
-                     else
-                        none
+                        _ ->
+                            none
                     )
                 , inFront
                     (case model.toast of
@@ -3199,7 +3233,7 @@ viewOnlineLobbyContent model =
         -- Move timer
         , column [ width fill, spacing 6 ]
             [ el [ Font.size 13, Font.bold ] (text "Move timer")
-            , el [ width fill ] (viewTimerControl model)
+            , el [ width fill ] (viewTimerControl OnlineTimer model.onlineMoveTimer model)
             ]
 
         -- Connection: idle
@@ -3349,7 +3383,7 @@ viewLocalLobbyContent model =
         -- Move timer
         , column [ width fill, spacing 6 ]
             [ el [ Font.size 13, Font.bold ] (text "Move timer")
-            , el [ width fill ] (viewTimerControl model)
+            , el [ width fill ] (viewTimerControl LocalTimer model.localMoveTimer model)
             ]
 
         -- Start local match (gradient button, full width)
@@ -3420,7 +3454,6 @@ viewBoardCard board =
             , mouseOver [ Bg.color (rgba255 255 255 255 0.04) ]
             , Border.rounded 8
             , paddingXY 2 2
-            , Element.htmlAttribute (Html.Attributes.class "elm-primary-link")
             ]
             { url = "/?board=" ++ board.roomId
             , label =
@@ -3493,8 +3526,8 @@ boardSummaryStateLabel state =
             state
 
 
-viewTimerControl : Model -> Element Msg
-viewTimerControl model =
+viewTimerControl : TimerTarget -> Int -> Model -> Element Msg
+viewTimerControl target current model =
     if model.viewportWidth <= 640 then
         Input.button
             (formFieldAttrs
@@ -3503,26 +3536,26 @@ viewTimerControl model =
                    , Font.size 14
                    ]
             )
-            { onPress = Just OpenTimerSheet
+            { onPress = Just (OpenTimerSheet target)
             , label =
                 row [ width fill, centerY ]
                     [ column [ spacing 2 ]
                         [ el [ Font.size 11, Font.color (rgb255 185 212 191), Font.semiBold ] (text "Selected timer")
-                        , el [ Font.bold ] (text (moveTimerLabel model.onlineMoveTimer))
+                        , el [ Font.bold ] (text (moveTimerLabel current))
                         ]
                     , el [ alignRight, Font.color (rgb255 141 255 174), Font.bold, Font.size 12 ] (text "Change")
                     ]
             }
 
     else
-        viewTimerSelect model.onlineMoveTimer
+        viewTimerSelect target current
 
 
-viewTimerSelect : Int -> Element Msg
-viewTimerSelect current =
+viewTimerSelect : TimerTarget -> Int -> Element Msg
+viewTimerSelect target current =
     Element.html
         (Html.select
-            [ Html.Attributes.id "onlineMoveTimer"
+            [ Html.Attributes.id (timerSelectId target)
             , Html.Attributes.style "background" "rgba(0,0,0,0.5)"
             , Html.Attributes.style "color" "#e0ffe0"
             , Html.Attributes.style "border" "1px solid rgba(255,255,255,0.1)"
@@ -3531,7 +3564,7 @@ viewTimerSelect current =
             , Html.Attributes.style "font-size" "14px"
             , Html.Attributes.style "cursor" "pointer"
             , Html.Attributes.style "width" "100%"
-            , Html.Events.onInput UpdateOnlineMoveTimer
+            , Html.Events.onInput (timerUpdateMsg target)
             ]
             (List.map
                 (\s ->
@@ -3553,8 +3586,8 @@ viewTimerSelect current =
         )
 
 
-viewTimerBottomSheet : Int -> Element Msg
-viewTimerBottomSheet current =
+viewTimerBottomSheet : TimerTarget -> Int -> Element Msg
+viewTimerBottomSheet target current =
     Element.html <|
         Html.div
             [ Html.Attributes.style "position" "fixed"
@@ -3627,7 +3660,7 @@ viewTimerBottomSheet current =
                     , Html.span [ Html.Attributes.style "color" "rgb(23, 210, 230)" ] [ Html.text (moveTimerLabel current) ]
                     ]
                  ]
-                    ++ List.map (viewTimerSheetOption current) timerOptions
+                    ++ List.map (viewTimerSheetOption target current) timerOptions
                     ++ [ Html.button
                             [ Html.Attributes.type_ "button"
                             , Html.Attributes.style "width" "100%"
@@ -3647,8 +3680,8 @@ viewTimerBottomSheet current =
             ]
 
 
-viewTimerSheetOption : Int -> Int -> Html Msg
-viewTimerSheetOption current optionSeconds =
+viewTimerSheetOption : TimerTarget -> Int -> Int -> Html Msg
+viewTimerSheetOption target current optionSeconds =
     let
         isSelected =
             current == optionSeconds
@@ -3682,7 +3715,7 @@ viewTimerSheetOption current optionSeconds =
         , Html.Attributes.style "color" "rgb(244, 255, 246)"
         , Html.Attributes.style "font-size" "15px"
         , Html.Attributes.style "font-weight" "800"
-        , Html.Events.onClick (SelectOnlineMoveTimer optionSeconds)
+        , Html.Events.onClick (timerSelectMsg target optionSeconds)
         ]
         [ Html.span [] [ Html.text (moveTimerLabel optionSeconds) ]
         , Html.span
@@ -4177,6 +4210,46 @@ normalizeMoveTimerSeconds seconds =
 
     else
         15
+
+
+timerValueFor : TimerTarget -> Model -> Int
+timerValueFor target model =
+    case target of
+        OnlineTimer ->
+            model.onlineMoveTimer
+
+        LocalTimer ->
+            model.localMoveTimer
+
+
+timerSelectId : TimerTarget -> String
+timerSelectId target =
+    case target of
+        OnlineTimer ->
+            "onlineMoveTimer"
+
+        LocalTimer ->
+            "localMoveTimer"
+
+
+timerUpdateMsg : TimerTarget -> String -> Msg
+timerUpdateMsg target =
+    case target of
+        OnlineTimer ->
+            UpdateOnlineMoveTimer
+
+        LocalTimer ->
+            UpdateLocalMoveTimer
+
+
+timerSelectMsg : TimerTarget -> Int -> Msg
+timerSelectMsg target =
+    case target of
+        OnlineTimer ->
+            SelectOnlineMoveTimer
+
+        LocalTimer ->
+            SelectLocalMoveTimer
 
 
 moveTimerLabel : Int -> String

@@ -2,10 +2,13 @@ import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import {
   createBoardAsBlue,
+  fetchRoomDetails,
   fetchRoomSummary,
   joinRed,
   openBoard,
   safeClose,
+  selectMoveTimer,
+  showHomeIfNeeded,
   showMatchIfNeeded,
   showPlayIfNeeded,
 } from "./helpers/elm-shell.js";
@@ -37,15 +40,44 @@ async function playLocalSequence(page, moves) {
 
 async function startLocalMatch(page) {
   await page.goto("/");
+  await showHomeIfNeeded(page);
   await page.getByRole("button", { name: "Local" }).click();
   await page.getByRole("textbox", { name: "Blue" }).first().fill("Blue");
   await page.getByRole("textbox", { name: "Red" }).first().fill("Red");
-  await page.locator("#onlineMoveTimer").selectOption("10");
+  await selectMoveTimer(page, "localMoveTimer", 10);
   await page.getByRole("button", { name: "Start local match" }).click();
   await showPlayIfNeeded(page);
 }
 
 test.describe("main realtime playing flows", () => {
+  test("local timer changes do not leak into online board creation when online timer is off", async ({
+    page,
+    baseURL,
+  }) => {
+    await page.goto("/");
+    await showHomeIfNeeded(page);
+    await page.getByRole("button", { name: "Local" }).click();
+    await page.getByRole("textbox", { name: "Blue" }).first().fill("Blue");
+    await page.getByRole("textbox", { name: "Red" }).first().fill("Red");
+    await selectMoveTimer(page, "localMoveTimer", 10);
+
+    await page.getByRole("button", { name: "Online" }).click();
+    await selectMoveTimer(page, "onlineMoveTimer", 0);
+    await page.getByRole("button", { name: "Create board as Blue" }).click();
+    await expect(page).toHaveURL(/\?board=/);
+
+    const openGameNow = page.getByRole("button", { name: "Open game now" });
+    if (await openGameNow.isVisible().catch(() => false)) {
+      await openGameNow.click({ force: true });
+    }
+
+    const boardCode = new URL(page.url()).searchParams.get("board");
+    expect(boardCode).toBeTruthy();
+
+    const room = await fetchRoomDetails(page, baseURL, boardCode);
+    expect(room.moveTimeLimitMs).toBe(0);
+  });
+
   test("same-client board reopen does not let an old socket disconnect P1 or blank the board", async ({
     browser,
     baseURL,

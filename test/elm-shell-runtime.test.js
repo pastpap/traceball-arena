@@ -485,6 +485,47 @@ describe("Elm runtime bridge — outgoing command handlers", () => {
       roomId: "NEWRM1",
     });
   });
+
+  it("preserves an explicit off timer when creating a board", async () => {
+    let createPayload = null;
+    class FakeWebSocket {
+      constructor() {
+        this.sent = [];
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    const { elm, getSendCommand } = makeElmWithPorts();
+    const { bridge } = loadBridge({
+      Elm: elm,
+      WebSocket: FakeWebSocket,
+      document: { querySelector: () => null },
+      fetch: async (_url, opts) => {
+        if (opts?.method === "POST") {
+          createPayload = JSON.parse(String(opts.body || "{}"));
+          return {
+            ok: true,
+            json: async () => ({
+              roomId: "NEWRM1",
+              url: "https://example.test/room/NEWRM1",
+            }),
+          };
+        }
+
+        return { ok: true, json: async () => ({ rooms: [] }) };
+      },
+    });
+
+    await bridge.mountElmRuntime({ innerHTML: "" }, { boardCode: "" });
+    getSendCommand()({ type: "createBoard", moveTimeLimitSeconds: 0 });
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(createPayload).toMatchObject({ moveTimeLimitSeconds: 0 });
+  });
 });
 
 describe("Elm runtime bridge — WebSocket lifecycle", () => {

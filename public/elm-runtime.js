@@ -5490,6 +5490,16 @@ var $author$project$Main$isValidBoardCode = function (code) {
 	var n = $elm$core$String$length(code);
 	return (n >= 6) && (n <= 32);
 };
+var $elm$core$Maybe$map = F2(
+	function (f, maybe) {
+		if (maybe.$ === 'Just') {
+			var value = maybe.a;
+			return $elm$core$Maybe$Just(
+				f(value));
+		} else {
+			return $elm$core$Maybe$Nothing;
+		}
+	});
 var $elm$core$Basics$not = _Basics_not;
 var $elm$core$String$filter = _String_filter;
 var $elm$core$String$trim = _String_trim;
@@ -5530,6 +5540,16 @@ var $author$project$Main$applyFlags = F2(
 			var parsed = _v0.a;
 			var sanitized = $author$project$Main$sanitizeBoardCode(parsed.boardCode);
 			var shouldOpenGameImmediately = $author$project$Main$isValidBoardCode(sanitized);
+			var localMoveTimer = $author$project$Main$normalizeMoveTimerSeconds(
+				A2(
+					$elm$core$Maybe$withDefault,
+					15,
+					A2(
+						$elm$core$Maybe$map,
+						function ($) {
+							return $.moveTimerSeconds;
+						},
+						parsed.savedLocalGame)));
 			var invalid = (!$elm$core$String$isEmpty(
 				$elm$core$String$trim(parsed.boardCode))) && (!$author$project$Main$isValidBoardCode(sanitized));
 			return _Utils_update(
@@ -5543,6 +5563,7 @@ var $author$project$Main$applyFlags = F2(
 					localBlueName: $author$project$Main$sanitizePlayerName(parsed.playerName),
 					localGame: parsed.savedLocalGame,
 					localLobbyTab: false,
+					localMoveTimer: localMoveTimer,
 					localPaused: parsed.savedLocalPaused,
 					localRedName: 'Red',
 					mainTab: 'game',
@@ -5612,7 +5633,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, historyReplayGame: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', rawHistoryEntries: _List_Nil, replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: false, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, historyReplayGame: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localMoveTimer: 15, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', rawHistoryEntries: _List_Nil, replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -6425,16 +6446,6 @@ var $author$project$Main$computeLocalLegalMoves = function (lg) {
 				},
 				A2($elm$core$List$filter, $author$project$Main$isLocalBoardPoint, candidates))));
 };
-var $elm$core$Maybe$map = F2(
-	function (f, maybe) {
-		if (maybe.$ === 'Just') {
-			var value = maybe.a;
-			return $elm$core$Maybe$Just(
-				f(value));
-		} else {
-			return $elm$core$Maybe$Nothing;
-		}
-	});
 var $author$project$Main$localTurnDeadlineAt = function (lg) {
 	return ((lg.moveTimerSeconds <= 0) || (!_Utils_eq(lg.winner, $elm$core$Maybe$Nothing))) ? $elm$core$Maybe$Nothing : A2(
 		$elm$core$Maybe$map,
@@ -8436,16 +8447,19 @@ var $author$project$Main$update = F2(
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'OpenTimerSheet':
+				var target = msg.a;
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{showTimerSheet: true}),
+						{
+							showTimerSheet: $elm$core$Maybe$Just(target)
+						}),
 					$elm$core$Platform$Cmd$none);
 			case 'CloseTimerSheet':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{showTimerSheet: false}),
+						{showTimerSheet: $elm$core$Maybe$Nothing}),
 					$elm$core$Platform$Cmd$none);
 			case 'IgnoreSheetClick':
 				return _Utils_Tuple2(model, $elm$core$Platform$Cmd$none);
@@ -8455,7 +8469,7 @@ var $author$project$Main$update = F2(
 						model,
 						{
 							menuPanel: $elm$core$Maybe$Just('menu'),
-							showTimerSheet: false
+							showTimerSheet: $elm$core$Maybe$Nothing
 						}),
 					$elm$core$Platform$Cmd$none);
 			case 'CloseAppMenu':
@@ -8927,7 +8941,7 @@ var $author$project$Main$update = F2(
 						{replayIndex: $elm$core$Maybe$Nothing}),
 					$elm$core$Platform$Cmd$none);
 			case 'StartLocalMatch':
-				var game = A4($author$project$Main$startLocalGame, model.currentTimeMs, model.localBlueName, model.localRedName, model.onlineMoveTimer);
+				var game = A4($author$project$Main$startLocalGame, model.currentTimeMs, model.localBlueName, model.localRedName, model.localMoveTimer);
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
@@ -8943,7 +8957,7 @@ var $author$project$Main$update = F2(
 							localPaused: false,
 							replayIndex: $elm$core$Maybe$Nothing,
 							showLobby: false,
-							showTimerSheet: false
+							showTimerSheet: $elm$core$Maybe$Nothing
 						}),
 					$elm$core$Platform$Cmd$batch(
 						_List_fromArray(
@@ -9172,7 +9186,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, mainTab: 'game', showLobby: true, showTimerSheet: false}),
+						{error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, mainTab: 'game', showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -9184,6 +9198,20 @@ var $author$project$Main$update = F2(
 									'moveTimeLimitSeconds',
 									$elm$json$Json$Encode$int(model.onlineMoveTimer))
 								]))));
+			case 'UpdateLocalMoveTimer':
+				var raw = msg.a;
+				var seconds = A2(
+					$elm$core$Maybe$withDefault,
+					15,
+					A2(
+						$elm$core$Maybe$map,
+						$author$project$Main$normalizeMoveTimerSeconds,
+						$elm$core$String$toInt(raw)));
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{localMoveTimer: seconds}),
+					$elm$core$Platform$Cmd$none);
 			case 'UpdateOnlineMoveTimer':
 				var raw = msg.a;
 				var seconds = A2(
@@ -9214,7 +9242,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{onlineMoveTimer: normalized, showTimerSheet: false}),
+						{onlineMoveTimer: normalized, showTimerSheet: $elm$core$Maybe$Nothing}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -9226,11 +9254,19 @@ var $author$project$Main$update = F2(
 									'seconds',
 									$elm$json$Json$Encode$int(normalized))
 								]))));
+			case 'SelectLocalMoveTimer':
+				var seconds = msg.a;
+				var normalized = $author$project$Main$normalizeMoveTimerSeconds(seconds);
+				return _Utils_Tuple2(
+					_Utils_update(
+						model,
+						{localMoveTimer: normalized, showTimerSheet: $elm$core$Maybe$Nothing}),
+					$elm$core$Platform$Cmd$none);
 			case 'ToggleLobby':
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{showLobby: !model.showLobby}),
+						{showLobby: !model.showLobby, showTimerSheet: $elm$core$Maybe$Nothing}),
 					$elm$core$Platform$Cmd$none);
 			case 'SetMainTab':
 				var tab = msg.a;
@@ -14960,6 +14996,14 @@ var $mdgriffith$elm_ui$Element$rgb255 = F3(
 		return A4($mdgriffith$elm_ui$Internal$Model$Rgba, red / 255, green / 255, blue / 255, 1);
 	});
 var $mdgriffith$elm_ui$Element$Font$sansSerif = $mdgriffith$elm_ui$Internal$Model$SansSerif;
+var $author$project$Main$timerValueFor = F2(
+	function (target, model) {
+		if (target.$ === 'OnlineTimer') {
+			return model.onlineMoveTimer;
+		} else {
+			return model.localMoveTimer;
+		}
+	});
 var $mdgriffith$elm_ui$Element$Font$typeface = $mdgriffith$elm_ui$Internal$Model$Typeface;
 var $mdgriffith$elm_ui$Internal$Model$AlignX = function (a) {
 	return {$: 'AlignX', a: a};
@@ -15552,9 +15596,7 @@ var $author$project$Main$viewBoardCard = function (board) {
 								A4($mdgriffith$elm_ui$Element$rgba255, 255, 255, 255, 0.04))
 							])),
 						$mdgriffith$elm_ui$Element$Border$rounded(8),
-						A2($mdgriffith$elm_ui$Element$paddingXY, 2, 2),
-						$mdgriffith$elm_ui$Element$htmlAttribute(
-						$elm$html$Html$Attributes$class('elm-primary-link'))
+						A2($mdgriffith$elm_ui$Element$paddingXY, 2, 2)
 					]),
 				{
 					label: A2(
@@ -19678,6 +19720,7 @@ var $author$project$Main$gradientTabButton = F3(
 			});
 	});
 var $author$project$Main$LeaveLocalGame = {$: 'LeaveLocalGame'};
+var $author$project$Main$LocalTimer = {$: 'LocalTimer'};
 var $author$project$Main$StartLocalMatch = {$: 'StartLocalMatch'};
 var $author$project$Main$UpdateLocalBlueName = function (a) {
 	return {$: 'UpdateLocalBlueName', a: a};
@@ -20547,114 +20590,138 @@ var $mdgriffith$elm_ui$Element$Input$text = $mdgriffith$elm_ui$Element$Input$tex
 		spellchecked: false,
 		type_: $mdgriffith$elm_ui$Element$Input$TextInputNode('text')
 	});
-var $author$project$Main$OpenTimerSheet = {$: 'OpenTimerSheet'};
+var $author$project$Main$OpenTimerSheet = function (a) {
+	return {$: 'OpenTimerSheet', a: a};
+};
 var $author$project$Main$moveTimerLabel = function (seconds) {
 	return (seconds <= 0) ? 'Off' : ($elm$core$String$fromInt(seconds) + ' seconds');
-};
-var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
-	return {$: 'UpdateOnlineMoveTimer', a: a};
 };
 var $elm$html$Html$option = _VirtualDom_node('option');
 var $elm$html$Html$select = _VirtualDom_node('select');
 var $elm$html$Html$Attributes$selected = $elm$html$Html$Attributes$boolProperty('selected');
-var $author$project$Main$viewTimerSelect = function (current) {
-	return $mdgriffith$elm_ui$Element$html(
-		A2(
-			$elm$html$Html$select,
-			_List_fromArray(
-				[
-					$elm$html$Html$Attributes$id('onlineMoveTimer'),
-					A2($elm$html$Html$Attributes$style, 'background', 'rgba(0,0,0,0.5)'),
-					A2($elm$html$Html$Attributes$style, 'color', '#e0ffe0'),
-					A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(255,255,255,0.1)'),
-					A2($elm$html$Html$Attributes$style, 'border-radius', '10px'),
-					A2($elm$html$Html$Attributes$style, 'padding', '12px 14px'),
-					A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
-					A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
-					A2($elm$html$Html$Attributes$style, 'width', '100%'),
-					$elm$html$Html$Events$onInput($author$project$Main$UpdateOnlineMoveTimer)
-				]),
+var $author$project$Main$timerSelectId = function (target) {
+	if (target.$ === 'OnlineTimer') {
+		return 'onlineMoveTimer';
+	} else {
+		return 'localMoveTimer';
+	}
+};
+var $author$project$Main$UpdateLocalMoveTimer = function (a) {
+	return {$: 'UpdateLocalMoveTimer', a: a};
+};
+var $author$project$Main$UpdateOnlineMoveTimer = function (a) {
+	return {$: 'UpdateOnlineMoveTimer', a: a};
+};
+var $author$project$Main$timerUpdateMsg = function (target) {
+	if (target.$ === 'OnlineTimer') {
+		return $author$project$Main$UpdateOnlineMoveTimer;
+	} else {
+		return $author$project$Main$UpdateLocalMoveTimer;
+	}
+};
+var $author$project$Main$viewTimerSelect = F2(
+	function (target, current) {
+		return $mdgriffith$elm_ui$Element$html(
 			A2(
-				$elm$core$List$map,
-				function (s) {
-					return A2(
-						$elm$html$Html$option,
-						_List_fromArray(
-							[
-								$elm$html$Html$Attributes$value(
-								$elm$core$String$fromInt(s)),
-								$elm$html$Html$Attributes$selected(
-								_Utils_eq(s, current))
-							]),
-						_List_fromArray(
-							[
-								$elm$html$Html$text(
-								(!s) ? 'Off' : ($elm$core$String$fromInt(s) + ' seconds'))
-							]));
-				},
-				$author$project$Main$timerOptions)));
-};
-var $author$project$Main$viewTimerControl = function (model) {
-	return (model.viewportWidth <= 640) ? A2(
-		$mdgriffith$elm_ui$Element$Input$button,
-		_Utils_ap(
-			$author$project$Main$formFieldAttrs,
-			_List_fromArray(
-				[
-					$mdgriffith$elm_ui$Element$Border$rounded(16),
-					A2($mdgriffith$elm_ui$Element$paddingXY, 14, 12),
-					$mdgriffith$elm_ui$Element$Font$size(14)
-				])),
-		{
-			label: A2(
-				$mdgriffith$elm_ui$Element$row,
+				$elm$html$Html$select,
 				_List_fromArray(
 					[
-						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
-						$mdgriffith$elm_ui$Element$centerY
+						$elm$html$Html$Attributes$id(
+						$author$project$Main$timerSelectId(target)),
+						A2($elm$html$Html$Attributes$style, 'background', 'rgba(0,0,0,0.5)'),
+						A2($elm$html$Html$Attributes$style, 'color', '#e0ffe0'),
+						A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(255,255,255,0.1)'),
+						A2($elm$html$Html$Attributes$style, 'border-radius', '10px'),
+						A2($elm$html$Html$Attributes$style, 'padding', '12px 14px'),
+						A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
+						A2($elm$html$Html$Attributes$style, 'cursor', 'pointer'),
+						A2($elm$html$Html$Attributes$style, 'width', '100%'),
+						$elm$html$Html$Events$onInput(
+						$author$project$Main$timerUpdateMsg(target))
 					]),
+				A2(
+					$elm$core$List$map,
+					function (s) {
+						return A2(
+							$elm$html$Html$option,
+							_List_fromArray(
+								[
+									$elm$html$Html$Attributes$value(
+									$elm$core$String$fromInt(s)),
+									$elm$html$Html$Attributes$selected(
+									_Utils_eq(s, current))
+								]),
+							_List_fromArray(
+								[
+									$elm$html$Html$text(
+									(!s) ? 'Off' : ($elm$core$String$fromInt(s) + ' seconds'))
+								]));
+					},
+					$author$project$Main$timerOptions)));
+	});
+var $author$project$Main$viewTimerControl = F3(
+	function (target, current, model) {
+		return (model.viewportWidth <= 640) ? A2(
+			$mdgriffith$elm_ui$Element$Input$button,
+			_Utils_ap(
+				$author$project$Main$formFieldAttrs,
 				_List_fromArray(
 					[
-						A2(
-						$mdgriffith$elm_ui$Element$column,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$spacing(2)
-							]),
-						_List_fromArray(
-							[
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[
-										$mdgriffith$elm_ui$Element$Font$size(11),
-										$mdgriffith$elm_ui$Element$Font$color(
-										A3($mdgriffith$elm_ui$Element$rgb255, 185, 212, 191)),
-										$mdgriffith$elm_ui$Element$Font$semiBold
-									]),
-								$mdgriffith$elm_ui$Element$text('Selected timer')),
-								A2(
-								$mdgriffith$elm_ui$Element$el,
-								_List_fromArray(
-									[$mdgriffith$elm_ui$Element$Font$bold]),
-								$mdgriffith$elm_ui$Element$text(
-									$author$project$Main$moveTimerLabel(model.onlineMoveTimer)))
-							])),
-						A2(
-						$mdgriffith$elm_ui$Element$el,
-						_List_fromArray(
-							[
-								$mdgriffith$elm_ui$Element$alignRight,
-								$mdgriffith$elm_ui$Element$Font$color(
-								A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
-								$mdgriffith$elm_ui$Element$Font$bold,
-								$mdgriffith$elm_ui$Element$Font$size(12)
-							]),
-						$mdgriffith$elm_ui$Element$text('Change'))
+						$mdgriffith$elm_ui$Element$Border$rounded(16),
+						A2($mdgriffith$elm_ui$Element$paddingXY, 14, 12),
+						$mdgriffith$elm_ui$Element$Font$size(14)
 					])),
-			onPress: $elm$core$Maybe$Just($author$project$Main$OpenTimerSheet)
-		}) : $author$project$Main$viewTimerSelect(model.onlineMoveTimer);
-};
+			{
+				label: A2(
+					$mdgriffith$elm_ui$Element$row,
+					_List_fromArray(
+						[
+							$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+							$mdgriffith$elm_ui$Element$centerY
+						]),
+					_List_fromArray(
+						[
+							A2(
+							$mdgriffith$elm_ui$Element$column,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$spacing(2)
+								]),
+							_List_fromArray(
+								[
+									A2(
+									$mdgriffith$elm_ui$Element$el,
+									_List_fromArray(
+										[
+											$mdgriffith$elm_ui$Element$Font$size(11),
+											$mdgriffith$elm_ui$Element$Font$color(
+											A3($mdgriffith$elm_ui$Element$rgb255, 185, 212, 191)),
+											$mdgriffith$elm_ui$Element$Font$semiBold
+										]),
+									$mdgriffith$elm_ui$Element$text('Selected timer')),
+									A2(
+									$mdgriffith$elm_ui$Element$el,
+									_List_fromArray(
+										[$mdgriffith$elm_ui$Element$Font$bold]),
+									$mdgriffith$elm_ui$Element$text(
+										$author$project$Main$moveTimerLabel(current)))
+								])),
+							A2(
+							$mdgriffith$elm_ui$Element$el,
+							_List_fromArray(
+								[
+									$mdgriffith$elm_ui$Element$alignRight,
+									$mdgriffith$elm_ui$Element$Font$color(
+									A3($mdgriffith$elm_ui$Element$rgb255, 141, 255, 174)),
+									$mdgriffith$elm_ui$Element$Font$bold,
+									$mdgriffith$elm_ui$Element$Font$size(12)
+								]),
+							$mdgriffith$elm_ui$Element$text('Change'))
+						])),
+				onPress: $elm$core$Maybe$Just(
+					$author$project$Main$OpenTimerSheet(target))
+			}) : A2($author$project$Main$viewTimerSelect, target, current);
+	});
 var $author$project$Main$viewLocalLobbyContent = function (model) {
 	return A2(
 		$mdgriffith$elm_ui$Element$column,
@@ -20892,7 +20959,7 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 							[
 								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 							]),
-						$author$project$Main$viewTimerControl(model))
+						A3($author$project$Main$viewTimerControl, $author$project$Main$LocalTimer, model.localMoveTimer, model))
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$Input$button,
@@ -20919,6 +20986,7 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 			]));
 };
 var $author$project$Main$CreateBoard = {$: 'CreateBoard'};
+var $author$project$Main$OnlineTimer = {$: 'OnlineTimer'};
 var $author$project$Main$SubmitWatchBoard = {$: 'SubmitWatchBoard'};
 var $author$project$Main$UpdateBoardCodeInput = function (a) {
 	return {$: 'UpdateBoardCodeInput', a: a};
@@ -21191,7 +21259,7 @@ var $author$project$Main$viewOnlineLobbyContent = function (model) {
 							[
 								$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill)
 							]),
-						$author$project$Main$viewTimerControl(model))
+						A3($author$project$Main$viewTimerControl, $author$project$Main$OnlineTimer, model.onlineMoveTimer, model))
 					])),
 				A2(
 				$mdgriffith$elm_ui$Element$el,
@@ -22495,11 +22563,21 @@ var $author$project$Main$viewMenuOverlay = function (model) {
 	}
 };
 var $author$project$Main$CloseTimerSheet = {$: 'CloseTimerSheet'};
+var $author$project$Main$SelectLocalMoveTimer = function (a) {
+	return {$: 'SelectLocalMoveTimer', a: a};
+};
 var $author$project$Main$SelectOnlineMoveTimer = function (a) {
 	return {$: 'SelectOnlineMoveTimer', a: a};
 };
-var $author$project$Main$viewTimerSheetOption = F2(
-	function (current, optionSeconds) {
+var $author$project$Main$timerSelectMsg = function (target) {
+	if (target.$ === 'OnlineTimer') {
+		return $author$project$Main$SelectOnlineMoveTimer;
+	} else {
+		return $author$project$Main$SelectLocalMoveTimer;
+	}
+};
+var $author$project$Main$viewTimerSheetOption = F3(
+	function (target, current, optionSeconds) {
 		var isSelected = _Utils_eq(current, optionSeconds);
 		var borderColor = isSelected ? 'rgba(23, 210, 230, 0.58)' : 'rgba(255,255,255,0.10)';
 		var backgroundColor = isSelected ? 'linear-gradient(135deg, rgba(39, 192, 80, 0.34), rgba(29, 160, 234, 0.34))' : 'rgba(5, 26, 10, 0.66)';
@@ -22522,7 +22600,7 @@ var $author$project$Main$viewTimerSheetOption = F2(
 					A2($elm$html$Html$Attributes$style, 'font-size', '15px'),
 					A2($elm$html$Html$Attributes$style, 'font-weight', '800'),
 					$elm$html$Html$Events$onClick(
-					$author$project$Main$SelectOnlineMoveTimer(optionSeconds))
+					A2($author$project$Main$timerSelectMsg, target, optionSeconds))
 				]),
 			_List_fromArray(
 				[
@@ -22550,160 +22628,161 @@ var $author$project$Main$viewTimerSheetOption = F2(
 						]))
 				]));
 	});
-var $author$project$Main$viewTimerBottomSheet = function (current) {
-	return $mdgriffith$elm_ui$Element$html(
-		A2(
-			$elm$html$Html$div,
-			_List_fromArray(
-				[
-					A2($elm$html$Html$Attributes$style, 'position', 'fixed'),
-					A2($elm$html$Html$Attributes$style, 'inset', '0'),
-					A2($elm$html$Html$Attributes$style, 'display', 'flex'),
-					A2($elm$html$Html$Attributes$style, 'align-items', 'flex-end'),
-					A2($elm$html$Html$Attributes$style, 'justify-content', 'center'),
-					A2($elm$html$Html$Attributes$style, 'padding', '0'),
-					A2($elm$html$Html$Attributes$style, 'background', 'rgba(2, 10, 4, 0.44)'),
-					A2($elm$html$Html$Attributes$style, 'backdrop-filter', 'blur(14px)'),
-					A2($elm$html$Html$Attributes$style, 'z-index', '70'),
-					$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
-				]),
-			_List_fromArray(
-				[
-					A2(
-					$elm$html$Html$div,
-					_List_fromArray(
-						[
-							A2($elm$html$Html$Attributes$style, 'width', 'min(100%, 420px)'),
-							A2($elm$html$Html$Attributes$style, 'max-height', 'min(82vh, 560px)'),
-							A2($elm$html$Html$Attributes$style, 'overflow-y', 'auto'),
-							A2($elm$html$Html$Attributes$style, 'border-top', '1px solid rgba(141, 255, 174, 0.22)'),
-							A2($elm$html$Html$Attributes$style, 'border-left', '1px solid rgb(72, 106, 82)'),
-							A2($elm$html$Html$Attributes$style, 'border-right', '1px solid rgb(72, 106, 82)'),
-							A2($elm$html$Html$Attributes$style, 'border-radius', '28px 28px 0 0'),
-							A2($elm$html$Html$Attributes$style, 'padding', '10px 16px calc(18px + env(safe-area-inset-bottom, 0px))'),
-							A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(180deg, rgba(23, 57, 31, 0.99), rgba(10, 35, 18, 0.99))'),
-							A2($elm$html$Html$Attributes$style, 'box-shadow', '0 -18px 54px rgba(0, 0, 0, 0.42)'),
-							A2(
-							$elm$html$Html$Events$stopPropagationOn,
-							'click',
-							$elm$json$Json$Decode$succeed(
-								_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
-						]),
-					_Utils_ap(
+var $author$project$Main$viewTimerBottomSheet = F2(
+	function (target, current) {
+		return $mdgriffith$elm_ui$Element$html(
+			A2(
+				$elm$html$Html$div,
+				_List_fromArray(
+					[
+						A2($elm$html$Html$Attributes$style, 'position', 'fixed'),
+						A2($elm$html$Html$Attributes$style, 'inset', '0'),
+						A2($elm$html$Html$Attributes$style, 'display', 'flex'),
+						A2($elm$html$Html$Attributes$style, 'align-items', 'flex-end'),
+						A2($elm$html$Html$Attributes$style, 'justify-content', 'center'),
+						A2($elm$html$Html$Attributes$style, 'padding', '0'),
+						A2($elm$html$Html$Attributes$style, 'background', 'rgba(2, 10, 4, 0.44)'),
+						A2($elm$html$Html$Attributes$style, 'backdrop-filter', 'blur(14px)'),
+						A2($elm$html$Html$Attributes$style, 'z-index', '70'),
+						$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$elm$html$Html$div,
 						_List_fromArray(
 							[
+								A2($elm$html$Html$Attributes$style, 'width', 'min(100%, 420px)'),
+								A2($elm$html$Html$Attributes$style, 'max-height', 'min(82vh, 560px)'),
+								A2($elm$html$Html$Attributes$style, 'overflow-y', 'auto'),
+								A2($elm$html$Html$Attributes$style, 'border-top', '1px solid rgba(141, 255, 174, 0.22)'),
+								A2($elm$html$Html$Attributes$style, 'border-left', '1px solid rgb(72, 106, 82)'),
+								A2($elm$html$Html$Attributes$style, 'border-right', '1px solid rgb(72, 106, 82)'),
+								A2($elm$html$Html$Attributes$style, 'border-radius', '28px 28px 0 0'),
+								A2($elm$html$Html$Attributes$style, 'padding', '10px 16px calc(18px + env(safe-area-inset-bottom, 0px))'),
+								A2($elm$html$Html$Attributes$style, 'background', 'linear-gradient(180deg, rgba(23, 57, 31, 0.99), rgba(10, 35, 18, 0.99))'),
+								A2($elm$html$Html$Attributes$style, 'box-shadow', '0 -18px 54px rgba(0, 0, 0, 0.42)'),
 								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'width', '44px'),
-										A2($elm$html$Html$Attributes$style, 'height', '5px'),
-										A2($elm$html$Html$Attributes$style, 'margin', '2px auto 14px'),
-										A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
-										A2($elm$html$Html$Attributes$style, 'background', 'rgba(244, 255, 246, 0.34)')
-									]),
-								_List_Nil),
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'font-size', '11px'),
-										A2($elm$html$Html$Attributes$style, 'font-weight', '800'),
-										A2($elm$html$Html$Attributes$style, 'letter-spacing', '0.14em'),
-										A2($elm$html$Html$Attributes$style, 'text-transform', 'uppercase'),
-										A2($elm$html$Html$Attributes$style, 'color', 'rgb(141, 255, 174)')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('Move timer')
-									])),
-								A2(
-								$elm$html$Html$h3,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'margin', '8px 0 4px'),
-										A2($elm$html$Html$Attributes$style, 'font-size', '21px'),
-										A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('Choose turn duration')
-									])),
-								A2(
-								$elm$html$Html$p,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'margin', '0 0 14px'),
-										A2($elm$html$Html$Attributes$style, 'font-size', '13px'),
-										A2($elm$html$Html$Attributes$style, 'line-height', '1.45'),
-										A2($elm$html$Html$Attributes$style, 'color', 'rgb(199, 220, 204)')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('The timer applies when you create or start the next game.')
-									])),
-								A2(
-								$elm$html$Html$div,
-								_List_fromArray(
-									[
-										A2($elm$html$Html$Attributes$style, 'display', 'inline-flex'),
-										A2($elm$html$Html$Attributes$style, 'align-items', 'center'),
-										A2($elm$html$Html$Attributes$style, 'gap', '8px'),
-										A2($elm$html$Html$Attributes$style, 'margin-bottom', '8px'),
-										A2($elm$html$Html$Attributes$style, 'padding', '7px 10px'),
-										A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
-										A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.22)'),
-										A2($elm$html$Html$Attributes$style, 'background', 'rgba(8, 24, 12, 0.42)'),
-										A2($elm$html$Html$Attributes$style, 'font-size', '12px'),
-										A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
-										A2($elm$html$Html$Attributes$style, 'color', 'rgb(218, 236, 222)')
-									]),
-								_List_fromArray(
-									[
-										$elm$html$Html$text('Current'),
-										A2(
-										$elm$html$Html$span,
-										_List_fromArray(
-											[
-												A2($elm$html$Html$Attributes$style, 'color', 'rgb(23, 210, 230)')
-											]),
-										_List_fromArray(
-											[
-												$elm$html$Html$text(
-												$author$project$Main$moveTimerLabel(current))
-											]))
-									]))
+								$elm$html$Html$Events$stopPropagationOn,
+								'click',
+								$elm$json$Json$Decode$succeed(
+									_Utils_Tuple2($author$project$Main$IgnoreSheetClick, true)))
 							]),
 						_Utils_ap(
-							A2(
-								$elm$core$List$map,
-								$author$project$Main$viewTimerSheetOption(current),
-								$author$project$Main$timerOptions),
 							_List_fromArray(
 								[
 									A2(
-									$elm$html$Html$button,
+									$elm$html$Html$div,
 									_List_fromArray(
 										[
-											$elm$html$Html$Attributes$type_('button'),
-											A2($elm$html$Html$Attributes$style, 'width', '100%'),
-											A2($elm$html$Html$Attributes$style, 'margin-top', '12px'),
-											A2($elm$html$Html$Attributes$style, 'padding', '14px 14px'),
-											A2($elm$html$Html$Attributes$style, 'border-radius', '18px'),
-											A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.14)'),
-											A2($elm$html$Html$Attributes$style, 'background', 'rgba(255,255,255,0.06)'),
-											A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)'),
-											A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
-											A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
-											$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
+											A2($elm$html$Html$Attributes$style, 'width', '44px'),
+											A2($elm$html$Html$Attributes$style, 'height', '5px'),
+											A2($elm$html$Html$Attributes$style, 'margin', '2px auto 14px'),
+											A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
+											A2($elm$html$Html$Attributes$style, 'background', 'rgba(244, 255, 246, 0.34)')
+										]),
+									_List_Nil),
+									A2(
+									$elm$html$Html$div,
+									_List_fromArray(
+										[
+											A2($elm$html$Html$Attributes$style, 'font-size', '11px'),
+											A2($elm$html$Html$Attributes$style, 'font-weight', '800'),
+											A2($elm$html$Html$Attributes$style, 'letter-spacing', '0.14em'),
+											A2($elm$html$Html$Attributes$style, 'text-transform', 'uppercase'),
+											A2($elm$html$Html$Attributes$style, 'color', 'rgb(141, 255, 174)')
 										]),
 									_List_fromArray(
 										[
-											$elm$html$Html$text('Cancel')
+											$elm$html$Html$text('Move timer')
+										])),
+									A2(
+									$elm$html$Html$h3,
+									_List_fromArray(
+										[
+											A2($elm$html$Html$Attributes$style, 'margin', '8px 0 4px'),
+											A2($elm$html$Html$Attributes$style, 'font-size', '21px'),
+											A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('Choose turn duration')
+										])),
+									A2(
+									$elm$html$Html$p,
+									_List_fromArray(
+										[
+											A2($elm$html$Html$Attributes$style, 'margin', '0 0 14px'),
+											A2($elm$html$Html$Attributes$style, 'font-size', '13px'),
+											A2($elm$html$Html$Attributes$style, 'line-height', '1.45'),
+											A2($elm$html$Html$Attributes$style, 'color', 'rgb(199, 220, 204)')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('The timer applies when you create or start the next game.')
+										])),
+									A2(
+									$elm$html$Html$div,
+									_List_fromArray(
+										[
+											A2($elm$html$Html$Attributes$style, 'display', 'inline-flex'),
+											A2($elm$html$Html$Attributes$style, 'align-items', 'center'),
+											A2($elm$html$Html$Attributes$style, 'gap', '8px'),
+											A2($elm$html$Html$Attributes$style, 'margin-bottom', '8px'),
+											A2($elm$html$Html$Attributes$style, 'padding', '7px 10px'),
+											A2($elm$html$Html$Attributes$style, 'border-radius', '999px'),
+											A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.22)'),
+											A2($elm$html$Html$Attributes$style, 'background', 'rgba(8, 24, 12, 0.42)'),
+											A2($elm$html$Html$Attributes$style, 'font-size', '12px'),
+											A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
+											A2($elm$html$Html$Attributes$style, 'color', 'rgb(218, 236, 222)')
+										]),
+									_List_fromArray(
+										[
+											$elm$html$Html$text('Current'),
+											A2(
+											$elm$html$Html$span,
+											_List_fromArray(
+												[
+													A2($elm$html$Html$Attributes$style, 'color', 'rgb(23, 210, 230)')
+												]),
+											_List_fromArray(
+												[
+													$elm$html$Html$text(
+													$author$project$Main$moveTimerLabel(current))
+												]))
 										]))
-								]))))
-				])));
-};
+								]),
+							_Utils_ap(
+								A2(
+									$elm$core$List$map,
+									A2($author$project$Main$viewTimerSheetOption, target, current),
+									$author$project$Main$timerOptions),
+								_List_fromArray(
+									[
+										A2(
+										$elm$html$Html$button,
+										_List_fromArray(
+											[
+												$elm$html$Html$Attributes$type_('button'),
+												A2($elm$html$Html$Attributes$style, 'width', '100%'),
+												A2($elm$html$Html$Attributes$style, 'margin-top', '12px'),
+												A2($elm$html$Html$Attributes$style, 'padding', '14px 14px'),
+												A2($elm$html$Html$Attributes$style, 'border-radius', '18px'),
+												A2($elm$html$Html$Attributes$style, 'border', '1px solid rgba(141, 255, 174, 0.14)'),
+												A2($elm$html$Html$Attributes$style, 'background', 'rgba(255,255,255,0.06)'),
+												A2($elm$html$Html$Attributes$style, 'color', 'rgb(244, 255, 246)'),
+												A2($elm$html$Html$Attributes$style, 'font-size', '14px'),
+												A2($elm$html$Html$Attributes$style, 'font-weight', '700'),
+												$elm$html$Html$Events$onClick($author$project$Main$CloseTimerSheet)
+											]),
+										_List_fromArray(
+											[
+												$elm$html$Html$text('Cancel')
+											]))
+									]))))
+					])));
+	});
 var $author$project$Main$viewToast = function (message) {
 	return A2(
 		$mdgriffith$elm_ui$Element$el,
@@ -22756,12 +22835,23 @@ var $author$project$Main$view = function (model) {
 							$mdgriffith$elm_ui$Element$inFront(
 							$author$project$Main$viewMenuOverlay(model)),
 							$mdgriffith$elm_ui$Element$inFront(
-							(model.showTimerSheet && (model.viewportWidth <= 640)) ? $author$project$Main$viewTimerBottomSheet(model.onlineMoveTimer) : $mdgriffith$elm_ui$Element$none),
+							function () {
+								var _v0 = _Utils_Tuple2(model.showTimerSheet, model.viewportWidth <= 640);
+								if ((_v0.a.$ === 'Just') && _v0.b) {
+									var target = _v0.a.a;
+									return A2(
+										$author$project$Main$viewTimerBottomSheet,
+										target,
+										A2($author$project$Main$timerValueFor, target, model));
+								} else {
+									return $mdgriffith$elm_ui$Element$none;
+								}
+							}()),
 							$mdgriffith$elm_ui$Element$inFront(
 							function () {
-								var _v0 = model.toast;
-								if (_v0.$ === 'Just') {
-									var message = _v0.a;
+								var _v1 = model.toast;
+								if (_v1.$ === 'Just') {
+									var message = _v1.a;
 									return $author$project$Main$viewToast(message);
 								} else {
 									return $mdgriffith$elm_ui$Element$none;

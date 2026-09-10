@@ -125,15 +125,37 @@ export async function openBoard(page, boardCode, name = "Player") {
   }
 }
 
+export async function selectMoveTimer(page, timerId, seconds) {
+  const timerSelect = page.locator(`#${timerId}`);
+  if (await isVisible(timerSelect)) {
+    await timerSelect.selectOption(String(seconds));
+    return;
+  }
+
+  const visibleCombobox = page.getByRole("combobox").first();
+  if (await isVisible(visibleCombobox)) {
+    await visibleCombobox.selectOption(String(seconds));
+    return;
+  }
+
+  const timerButton = page.getByRole("button", {
+    name: /Selected timer|Change/i,
+  });
+  await expect(timerButton).toBeVisible();
+  await timerButton.click({ force: true });
+
+  const optionName = seconds === 0 ? "Off" : `${seconds} seconds`;
+  await page
+    .getByRole("button", { name: new RegExp(`^${optionName}`) })
+    .click({ force: true });
+}
+
 export async function createBoardAsBlue(page, name = "P1") {
   await page.goto("/");
   await showHomeIfNeeded(page);
   await page.getByRole("textbox", { name: "Your name" }).fill(name);
 
-  const timerSelect = page.locator("#onlineMoveTimer");
-  if (await isVisible(timerSelect)) {
-    await timerSelect.selectOption("5");
-  }
+  await selectMoveTimer(page, "onlineMoveTimer", 5);
 
   await page.getByRole("button", { name: "Create board as Blue" }).click();
   await expect(page).toHaveURL(/\?board=/);
@@ -173,4 +195,10 @@ export async function fetchRoomSummary(page, baseURL, boardCode) {
   expect(response.ok()).toBe(true);
   const payload = await response.json();
   return payload.rooms.find((room) => room.roomId === boardCode);
+}
+
+export async function fetchRoomDetails(page, baseURL, boardCode) {
+  const response = await page.request.get(`${baseURL}/api/rooms/${boardCode}`);
+  expect(response.ok()).toBe(true);
+  return response.json();
 }

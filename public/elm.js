@@ -296,7 +296,8 @@ async function mountElmRuntime(root, { boardCode } = {}) {
       return;
     }
     if (t === "createBoard") {
-      const sec = Number(cmd.moveTimeLimitSeconds) || 15;
+      const rawSeconds = Number(cmd.moveTimeLimitSeconds);
+      const sec = Number.isFinite(rawSeconds) ? rawSeconds : 15;
       fetch("/api/rooms", {
         method: "POST",
         headers: { "content-type": "application/json" },
