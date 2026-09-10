@@ -158,6 +158,26 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
 
         interactive =
             isOwnTurnCheck ownSeat turn && winner == Nothing && replayIndex == Nothing
+
+        isLocalBoard =
+            board.code == "LOCAL"
+
+        legalMarkerColor =
+            if isLocalBoard && interactive then
+                ownSeat |> Maybe.map playerHex |> Maybe.withDefault (playerHex turn)
+
+            else if isLocalBoard then
+                playerHex turn
+
+            else
+                "#ffe66d"
+
+        ballDisplayY =
+            if flipVertical then
+                flt (920 - syv ball.y)
+
+            else
+                sy ball.y
     in
     S.svg
         [ SA.id "board"
@@ -165,7 +185,13 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
         , SA.style "width:100%;height:auto;display:block;margin:0 auto"
         , SA.preserveAspectRatio "xMidYMid meet"
         ]
-        [ S.g
+        [ S.defs []
+            [ S.linearGradient [ SA.id "elmLegacyPitch", SA.x1 "0%", SA.y1 "0%", SA.x2 "100%", SA.y2 "100%" ]
+                [ S.stop [ SA.offset "0%", HA.attribute "stop-color" "#0cb240" ] []
+                , S.stop [ SA.offset "100%", HA.attribute "stop-color" "#03651e" ] []
+                ]
+            ]
+        , S.g
             [ SA.transform
                 (if flipVertical then
                     "translate(0 920) scale(1 -1)"
@@ -175,13 +201,15 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
                 )
             ]
             [ -- Main pitch background
-              S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "#0cb240" ] []
+              S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "url(#elmLegacyPitch)" ] []
 
             -- Pitch stripe overlay
-            , S.g [ SA.opacity "0.06", SA.fill "white" ]
-                [ S.polygon [ SA.points "-80,1300 120,0 240,0 40,1300" ] []
-                , S.polygon [ SA.points "300,1300 500,0 620,0 420,1300" ] []
-                , S.polygon [ SA.points "680,1300 880,0 1000,0 800,1300" ] []
+            , S.g [ SA.opacity "0.22" ]
+                [ S.polygon [ SA.points "-920,12 -820,12 100,908 0,908", SA.fill "#75ff8a" ] []
+                , S.polygon [ SA.points "-620,12 -520,12 400,908 300,908", SA.fill "#004b12" ] []
+                , S.polygon [ SA.points "-320,12 -220,12 700,908 600,908", SA.fill "#75ff8a" ] []
+                , S.polygon [ SA.points "-20,12 80,12 1000,908 900,908", SA.fill "#004b12" ] []
+                , S.polygon [ SA.points "280,12 380,12 1300,908 1200,908", SA.fill "#75ff8a" ] []
                 ]
 
             -- Gate mesh (goal net texture)
@@ -254,34 +282,12 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
             -- Legal move targets
             , S.g [] <|
                 if interactive then
-                    List.map (viewLegalTarget onMove turn) legalMoves
-
-                else if not (List.isEmpty legalMoves) then
-                    List.map (viewLegalPreview turn) legalMoves
+                    List.map (viewLegalTarget onMove legalMarkerColor) legalMoves
 
                 else
                     []
-
-            -- Ball
-            , S.g []
-                [ S.circle
-                    [ SA.cx (sx ball.x)
-                    , SA.cy (sy ball.y)
-                    , SA.r "15"
-                    , SA.fill "#f8fff8"
-                    , SA.stroke "rgba(0,0,0,0.2)"
-                    , SA.strokeWidth "2"
-                    ]
-                    []
-                , S.circle
-                    [ SA.cx (sx ball.x)
-                    , SA.cy (sy ball.y)
-                    , SA.r "5"
-                    , SA.fill "#101820"
-                    ]
-                    []
-                ]
             ]
+        , viewBall ball ballDisplayY
         ]
 
 
@@ -450,19 +456,48 @@ viewGridDot visited ballKey pt =
             isVisited =
                 List.member key visited
 
+            isBoundary =
+                pt.x == 0 || pt.x == 8 || pt.y == 1 || pt.y == 11
+
             -- Gate-mouth bounce dot: the single center dot at x=4, y=1 or y=11
             isGateBounce =
                 pt.x == 4 && (pt.y == 1 || pt.y == 11)
         in
         if isGateBounce then
-            S.g []
-                [ S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "8", SA.fill "#050c05" ] [] ]
+            S.circle
+                [ SA.cx (sx pt.x)
+                , SA.cy (sy pt.y)
+                , SA.r "8"
+                , SA.fill "#050505"
+                , SA.stroke "rgba(255,255,255,0.82)"
+                , SA.strokeWidth "2.5"
+                ]
+                []
 
         else if isVisited then
-            S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "10", SA.fill "rgba(255,255,255,0.72)" ] []
+            S.circle
+                [ SA.cx (sx pt.x)
+                , SA.cy (sy pt.y)
+                , SA.r "10"
+                , SA.fill "#0b7cff"
+                , SA.stroke "rgba(255,255,255,0.45)"
+                , SA.strokeWidth "2"
+                ]
+                []
+
+        else if isBoundary then
+            S.circle
+                [ SA.cx (sx pt.x)
+                , SA.cy (sy pt.y)
+                , SA.r "7.5"
+                , SA.fill "#f5fff7"
+                , SA.stroke "rgba(255,255,255,0.34)"
+                , SA.strokeWidth "2"
+                ]
+                []
 
         else
-            S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "4.5", SA.fill "rgba(255,255,255,0.28)" ] []
+            S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "7", SA.fill "#f5fff7" ] []
 
 
 
@@ -476,28 +511,26 @@ viewMoveSegment move =
             playerHex move.playerId
     in
     S.g []
-        [ -- Shadow underneath
-          S.line
-            [ SA.x1 (sx move.from.x)
-            , SA.y1 (sy move.from.y)
-            , SA.x2 (sx move.to.x)
-            , SA.y2 (sy move.to.y)
-            , SA.stroke "rgba(0,0,0,0.25)"
-            , SA.strokeWidth "10"
-            , SA.strokeLinecap "round"
-            ]
-            []
-
-        -- Colored line
-        , S.line
+        [ S.line
             [ SA.x1 (sx move.from.x)
             , SA.y1 (sy move.from.y)
             , SA.x2 (sx move.to.x)
             , SA.y2 (sy move.to.y)
             , SA.stroke color
-            , SA.strokeWidth "6"
+            , SA.strokeWidth "7"
             , SA.strokeLinecap "round"
-            , SA.opacity "0.88"
+            , SA.strokeLinejoin "round"
+            ]
+            []
+        , S.line
+            [ SA.x1 (sx move.from.x)
+            , SA.y1 (sy move.from.y)
+            , SA.x2 (sx move.to.x)
+            , SA.y2 (sy move.to.y)
+            , SA.stroke "rgba(255,255,255,0.84)"
+            , SA.strokeWidth "3"
+            , SA.strokeLinecap "round"
+            , SA.strokeLinejoin "round"
             ]
             []
         ]
@@ -508,57 +541,95 @@ viewMoveSegment move =
 
 
 viewLegalTarget : (Point -> msg) -> String -> Point -> S.Svg msg
-viewLegalTarget onMove turn pt =
-    let
-        color =
-            playerHex turn
-
-        -- Hex with 15% opacity for fill
-        fillColor =
-            color ++ "26"
-    in
+viewLegalTarget onMove color pt =
     S.g
         [ SE.onClick (onMove pt)
         , SA.style "cursor:pointer"
         , HA.attribute "data-elm-legal-context" "own-turn"
         , HA.attribute "data-elm-legal-move" (pk pt)
         ]
-        [ S.circle [ SA.cx (sx pt.x), SA.cy (sy pt.y), SA.r "27", SA.fill "transparent" ] []
-        , S.circle
+        [ S.circle
             [ SA.cx (sx pt.x)
             , SA.cy (sy pt.y)
-            , SA.r "17"
-            , SA.fill "none"
-            , SA.stroke color
-            , SA.strokeWidth "1"
-            , SA.opacity "0.35"
+            , SA.r "24"
+            , SA.fill "transparent"
             ]
             []
         , S.circle
             [ SA.cx (sx pt.x)
             , SA.cy (sy pt.y)
-            , SA.r "12"
-            , SA.fill fillColor
+            , SA.r "16"
+            , SA.fill "none"
             , SA.stroke color
+            , SA.strokeWidth "3"
+            ]
+            []
+        ]
+
+
+viewBall : Point -> String -> S.Svg msg
+viewBall ball cyValue =
+    let
+        cxValue =
+            sx ball.x
+
+        centerX =
+            sxv ball.x
+
+        centerY =
+            String.toFloat cyValue |> Maybe.withDefault (syv ball.y)
+
+        spot dx dy =
+            S.circle
+                [ SA.cx (flt (centerX + dx))
+                , SA.cy (flt (centerY + dy))
+                , SA.r "2.6"
+                , SA.fill "#1f1f1f"
+                ]
+                []
+    in
+    S.g []
+        [ S.circle
+            [ SA.cx cxValue
+            , SA.cy cyValue
+            , SA.r "15"
+            , SA.fill "#ffffff"
+            , SA.stroke "rgba(0,0,0,0.18)"
             , SA.strokeWidth "2"
             ]
             []
+        , S.polygon
+            [ SA.points
+                (flt centerX
+                    ++ ","
+                    ++ flt (centerY - 4.8)
+                    ++ " "
+                    ++ flt (centerX + 4.5)
+                    ++ ","
+                    ++ flt (centerY - 1.3)
+                    ++ " "
+                    ++ flt (centerX + 2.8)
+                    ++ ","
+                    ++ flt (centerY + 4.1)
+                    ++ " "
+                    ++ flt (centerX - 2.8)
+                    ++ ","
+                    ++ flt (centerY + 4.1)
+                    ++ " "
+                    ++ flt (centerX - 4.5)
+                    ++ ","
+                    ++ flt (centerY - 1.3)
+                )
+            , SA.fill "#1f1f1f"
+            ]
+            []
+        , spot -7.2 -5.7
+        , spot 0 -8.1
+        , spot 7.2 -5.7
+        , spot -8.2 3.2
+        , spot 8.2 3.2
+        , spot 0 8.2
         ]
-
-
-viewLegalPreview : String -> Point -> S.Svg msg
-viewLegalPreview _ pt =
-    S.circle
-        [ SA.cx (sx pt.x)
-        , SA.cy (sy pt.y)
-        , SA.r "11"
-        , SA.fill "rgba(255,255,255,0.05)"
-        , SA.stroke "rgba(255,255,255,0.18)"
-        , SA.strokeWidth "1"
-        , HA.attribute "data-elm-legal-context" "preview"
-        , HA.attribute "data-elm-legal-move" (pk pt)
-        ]
-        []
 
 
 viewWinnerConfetti : Int -> String -> S.Svg msg

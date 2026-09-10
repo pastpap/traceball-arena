@@ -16363,10 +16363,9 @@ var $author$project$Board$View$allBoardPoints = _Utils_ap(
 		},
 		A2($elm$core$List$range, 3, 5)));
 var $elm$svg$Svg$trustedNode = _VirtualDom_nodeNS('http://www.w3.org/2000/svg');
-var $elm$svg$Svg$circle = $elm$svg$Svg$trustedNode('circle');
-var $elm$svg$Svg$Attributes$cx = _VirtualDom_attribute('cx');
-var $elm$svg$Svg$Attributes$cy = _VirtualDom_attribute('cy');
+var $elm$svg$Svg$defs = $elm$svg$Svg$trustedNode('defs');
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
+var $author$project$Board$View$flt = $elm$core$String$fromFloat;
 var $elm$svg$Svg$g = $elm$svg$Svg$trustedNode('g');
 var $elm$svg$Svg$Attributes$height = _VirtualDom_attribute('height');
 var $elm$svg$Svg$Attributes$id = _VirtualDom_attribute('id');
@@ -16392,16 +16391,21 @@ var $author$project$Board$View$isOwnTurnCheck = F2(
 		}
 	});
 var $elm$svg$Svg$line = $elm$svg$Svg$trustedNode('line');
+var $elm$svg$Svg$linearGradient = $elm$svg$Svg$trustedNode('linearGradient');
+var $elm$svg$Svg$Attributes$offset = _VirtualDom_attribute('offset');
 var $elm$svg$Svg$Attributes$opacity = _VirtualDom_attribute('opacity');
 var $author$project$Board$View$pk = function (p) {
 	return $elm$core$String$fromInt(p.x) + (',' + $elm$core$String$fromInt(p.y));
 };
+var $author$project$Board$View$playerHex = function (seat) {
+	return ($author$project$Board$View$toSeatColor(seat) === 'red') ? '#ff3b30' : '#0b7cff';
+};
 var $elm$svg$Svg$Attributes$points = _VirtualDom_attribute('points');
 var $elm$svg$Svg$polygon = $elm$svg$Svg$trustedNode('polygon');
 var $elm$svg$Svg$Attributes$preserveAspectRatio = _VirtualDom_attribute('preserveAspectRatio');
-var $elm$svg$Svg$Attributes$r = _VirtualDom_attribute('r');
 var $elm$svg$Svg$rect = $elm$svg$Svg$trustedNode('rect');
 var $elm$svg$Svg$Attributes$rx = _VirtualDom_attribute('rx');
+var $elm$svg$Svg$stop = $elm$svg$Svg$trustedNode('stop');
 var $elm$svg$Svg$Attributes$stroke = _VirtualDom_attribute('stroke');
 var $elm$svg$Svg$Attributes$strokeLinecap = _VirtualDom_attribute('stroke-linecap');
 var $elm$svg$Svg$Attributes$strokeLinejoin = _VirtualDom_attribute('stroke-linejoin');
@@ -16409,7 +16413,6 @@ var $elm$svg$Svg$Attributes$strokeWidth = _VirtualDom_attribute('stroke-width');
 var $elm$svg$Svg$Attributes$style = _VirtualDom_attribute('style');
 var $elm$svg$Svg$svg = $elm$svg$Svg$trustedNode('svg');
 var $author$project$Board$View$bm = 58;
-var $author$project$Board$View$flt = $elm$core$String$fromFloat;
 var $author$project$Board$View$stepX = 75.5;
 var $author$project$Board$View$sx = function (x) {
 	return $author$project$Board$View$flt($author$project$Board$View$bm + (x * $author$project$Board$View$stepX));
@@ -16417,6 +16420,9 @@ var $author$project$Board$View$sx = function (x) {
 var $author$project$Board$View$stepY = 67;
 var $author$project$Board$View$sy = function (y) {
 	return $author$project$Board$View$flt($author$project$Board$View$bm + (y * $author$project$Board$View$stepY));
+};
+var $author$project$Board$View$syv = function (y) {
+	return $author$project$Board$View$bm + (y * $author$project$Board$View$stepY);
 };
 var $elm$core$List$takeReverse = F3(
 	function (n, list, kept) {
@@ -16545,15 +16551,74 @@ var $elm$core$List$take = F2(
 		return A3($elm$core$List$takeFast, 0, n, list);
 	});
 var $elm$svg$Svg$Attributes$transform = _VirtualDom_attribute('transform');
-var $elm$svg$Svg$Attributes$viewBox = _VirtualDom_attribute('viewBox');
-var $elm$core$Basics$pow = _Basics_pow;
-var $elm$core$Basics$sqrt = _Basics_sqrt;
+var $elm$svg$Svg$circle = $elm$svg$Svg$trustedNode('circle');
+var $elm$svg$Svg$Attributes$cx = _VirtualDom_attribute('cx');
+var $elm$svg$Svg$Attributes$cy = _VirtualDom_attribute('cy');
+var $elm$svg$Svg$Attributes$r = _VirtualDom_attribute('r');
 var $author$project$Board$View$sxv = function (x) {
 	return $author$project$Board$View$bm + (x * $author$project$Board$View$stepX);
 };
-var $author$project$Board$View$syv = function (y) {
-	return $author$project$Board$View$bm + (y * $author$project$Board$View$stepY);
-};
+var $elm$core$String$toFloat = _String_toFloat;
+var $author$project$Board$View$viewBall = F2(
+	function (ball, cyValue) {
+		var cxValue = $author$project$Board$View$sx(ball.x);
+		var centerY = A2(
+			$elm$core$Maybe$withDefault,
+			$author$project$Board$View$syv(ball.y),
+			$elm$core$String$toFloat(cyValue));
+		var centerX = $author$project$Board$View$sxv(ball.x);
+		var spot = F2(
+			function (dx, dy) {
+				return A2(
+					$elm$svg$Svg$circle,
+					_List_fromArray(
+						[
+							$elm$svg$Svg$Attributes$cx(
+							$author$project$Board$View$flt(centerX + dx)),
+							$elm$svg$Svg$Attributes$cy(
+							$author$project$Board$View$flt(centerY + dy)),
+							$elm$svg$Svg$Attributes$r('2.6'),
+							$elm$svg$Svg$Attributes$fill('#1f1f1f')
+						]),
+					_List_Nil);
+			});
+		return A2(
+			$elm$svg$Svg$g,
+			_List_Nil,
+			_List_fromArray(
+				[
+					A2(
+					$elm$svg$Svg$circle,
+					_List_fromArray(
+						[
+							$elm$svg$Svg$Attributes$cx(cxValue),
+							$elm$svg$Svg$Attributes$cy(cyValue),
+							$elm$svg$Svg$Attributes$r('15'),
+							$elm$svg$Svg$Attributes$fill('#ffffff'),
+							$elm$svg$Svg$Attributes$stroke('rgba(0,0,0,0.18)'),
+							$elm$svg$Svg$Attributes$strokeWidth('2')
+						]),
+					_List_Nil),
+					A2(
+					$elm$svg$Svg$polygon,
+					_List_fromArray(
+						[
+							$elm$svg$Svg$Attributes$points(
+							$author$project$Board$View$flt(centerX) + (',' + ($author$project$Board$View$flt(centerY - 4.8) + (' ' + ($author$project$Board$View$flt(centerX + 4.5) + (',' + ($author$project$Board$View$flt(centerY - 1.3) + (' ' + ($author$project$Board$View$flt(centerX + 2.8) + (',' + ($author$project$Board$View$flt(centerY + 4.1) + (' ' + ($author$project$Board$View$flt(centerX - 2.8) + (',' + ($author$project$Board$View$flt(centerY + 4.1) + (' ' + ($author$project$Board$View$flt(centerX - 4.5) + (',' + $author$project$Board$View$flt(centerY - 1.3))))))))))))))))))),
+							$elm$svg$Svg$Attributes$fill('#1f1f1f')
+						]),
+					_List_Nil),
+					A2(spot, -7.2, -5.7),
+					A2(spot, 0, -8.1),
+					A2(spot, 7.2, -5.7),
+					A2(spot, -8.2, 3.2),
+					A2(spot, 8.2, 3.2),
+					A2(spot, 0, 8.2)
+				]));
+	});
+var $elm$svg$Svg$Attributes$viewBox = _VirtualDom_attribute('viewBox');
+var $elm$core$Basics$pow = _Basics_pow;
+var $elm$core$Basics$sqrt = _Basics_sqrt;
 var $elm$svg$Svg$Attributes$x1 = _VirtualDom_attribute('x1');
 var $elm$svg$Svg$Attributes$x2 = _VirtualDom_attribute('x2');
 var $elm$svg$Svg$Attributes$y1 = _VirtualDom_attribute('y1');
@@ -16681,24 +16746,21 @@ var $author$project$Board$View$viewGridDot = F3(
 			var key = $author$project$Board$View$pk(pt);
 			var isVisited = A2($elm$core$List$member, key, visited);
 			var isGateBounce = (pt.x === 4) && ((pt.y === 1) || (pt.y === 11));
+			var isBoundary = (!pt.x) || ((pt.x === 8) || ((pt.y === 1) || (pt.y === 11)));
 			return isGateBounce ? A2(
-				$elm$svg$Svg$g,
-				_List_Nil,
+				$elm$svg$Svg$circle,
 				_List_fromArray(
 					[
-						A2(
-						$elm$svg$Svg$circle,
-						_List_fromArray(
-							[
-								$elm$svg$Svg$Attributes$cx(
-								$author$project$Board$View$sx(pt.x)),
-								$elm$svg$Svg$Attributes$cy(
-								$author$project$Board$View$sy(pt.y)),
-								$elm$svg$Svg$Attributes$r('8'),
-								$elm$svg$Svg$Attributes$fill('#050c05')
-							]),
-						_List_Nil)
-					])) : (isVisited ? A2(
+						$elm$svg$Svg$Attributes$cx(
+						$author$project$Board$View$sx(pt.x)),
+						$elm$svg$Svg$Attributes$cy(
+						$author$project$Board$View$sy(pt.y)),
+						$elm$svg$Svg$Attributes$r('8'),
+						$elm$svg$Svg$Attributes$fill('#050505'),
+						$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.82)'),
+						$elm$svg$Svg$Attributes$strokeWidth('2.5')
+					]),
+				_List_Nil) : (isVisited ? A2(
 				$elm$svg$Svg$circle,
 				_List_fromArray(
 					[
@@ -16707,7 +16769,22 @@ var $author$project$Board$View$viewGridDot = F3(
 						$elm$svg$Svg$Attributes$cy(
 						$author$project$Board$View$sy(pt.y)),
 						$elm$svg$Svg$Attributes$r('10'),
-						$elm$svg$Svg$Attributes$fill('rgba(255,255,255,0.72)')
+						$elm$svg$Svg$Attributes$fill('#0b7cff'),
+						$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.45)'),
+						$elm$svg$Svg$Attributes$strokeWidth('2')
+					]),
+				_List_Nil) : (isBoundary ? A2(
+				$elm$svg$Svg$circle,
+				_List_fromArray(
+					[
+						$elm$svg$Svg$Attributes$cx(
+						$author$project$Board$View$sx(pt.x)),
+						$elm$svg$Svg$Attributes$cy(
+						$author$project$Board$View$sy(pt.y)),
+						$elm$svg$Svg$Attributes$r('7.5'),
+						$elm$svg$Svg$Attributes$fill('#f5fff7'),
+						$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.34)'),
+						$elm$svg$Svg$Attributes$strokeWidth('2')
 					]),
 				_List_Nil) : A2(
 				$elm$svg$Svg$circle,
@@ -16717,33 +16794,11 @@ var $author$project$Board$View$viewGridDot = F3(
 						$author$project$Board$View$sx(pt.x)),
 						$elm$svg$Svg$Attributes$cy(
 						$author$project$Board$View$sy(pt.y)),
-						$elm$svg$Svg$Attributes$r('4.5'),
-						$elm$svg$Svg$Attributes$fill('rgba(255,255,255,0.28)')
+						$elm$svg$Svg$Attributes$r('7'),
+						$elm$svg$Svg$Attributes$fill('#f5fff7')
 					]),
-				_List_Nil));
+				_List_Nil)));
 		}
-	});
-var $author$project$Board$View$viewLegalPreview = F2(
-	function (_v0, pt) {
-		return A2(
-			$elm$svg$Svg$circle,
-			_List_fromArray(
-				[
-					$elm$svg$Svg$Attributes$cx(
-					$author$project$Board$View$sx(pt.x)),
-					$elm$svg$Svg$Attributes$cy(
-					$author$project$Board$View$sy(pt.y)),
-					$elm$svg$Svg$Attributes$r('11'),
-					$elm$svg$Svg$Attributes$fill('rgba(255,255,255,0.05)'),
-					$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.18)'),
-					$elm$svg$Svg$Attributes$strokeWidth('1'),
-					A2($elm$html$Html$Attributes$attribute, 'data-elm-legal-context', 'preview'),
-					A2(
-					$elm$html$Html$Attributes$attribute,
-					'data-elm-legal-move',
-					$author$project$Board$View$pk(pt))
-				]),
-			_List_Nil);
 	});
 var $elm$svg$Svg$Events$onClick = function (msg) {
 	return A2(
@@ -16751,13 +16806,8 @@ var $elm$svg$Svg$Events$onClick = function (msg) {
 		'click',
 		$elm$json$Json$Decode$succeed(msg));
 };
-var $author$project$Board$View$playerHex = function (seat) {
-	return ($author$project$Board$View$toSeatColor(seat) === 'red') ? '#ff3b30' : '#0b7cff';
-};
 var $author$project$Board$View$viewLegalTarget = F3(
-	function (onMove, turn, pt) {
-		var color = $author$project$Board$View$playerHex(turn);
-		var fillColor = color + '26';
+	function (onMove, color, pt) {
 		return A2(
 			$elm$svg$Svg$g,
 			_List_fromArray(
@@ -16781,7 +16831,7 @@ var $author$project$Board$View$viewLegalTarget = F3(
 							$author$project$Board$View$sx(pt.x)),
 							$elm$svg$Svg$Attributes$cy(
 							$author$project$Board$View$sy(pt.y)),
-							$elm$svg$Svg$Attributes$r('27'),
+							$elm$svg$Svg$Attributes$r('24'),
 							$elm$svg$Svg$Attributes$fill('transparent')
 						]),
 					_List_Nil),
@@ -16793,25 +16843,10 @@ var $author$project$Board$View$viewLegalTarget = F3(
 							$author$project$Board$View$sx(pt.x)),
 							$elm$svg$Svg$Attributes$cy(
 							$author$project$Board$View$sy(pt.y)),
-							$elm$svg$Svg$Attributes$r('17'),
+							$elm$svg$Svg$Attributes$r('16'),
 							$elm$svg$Svg$Attributes$fill('none'),
 							$elm$svg$Svg$Attributes$stroke(color),
-							$elm$svg$Svg$Attributes$strokeWidth('1'),
-							$elm$svg$Svg$Attributes$opacity('0.35')
-						]),
-					_List_Nil),
-					A2(
-					$elm$svg$Svg$circle,
-					_List_fromArray(
-						[
-							$elm$svg$Svg$Attributes$cx(
-							$author$project$Board$View$sx(pt.x)),
-							$elm$svg$Svg$Attributes$cy(
-							$author$project$Board$View$sy(pt.y)),
-							$elm$svg$Svg$Attributes$r('12'),
-							$elm$svg$Svg$Attributes$fill(fillColor),
-							$elm$svg$Svg$Attributes$stroke(color),
-							$elm$svg$Svg$Attributes$strokeWidth('2')
+							$elm$svg$Svg$Attributes$strokeWidth('3')
 						]),
 					_List_Nil)
 				]));
@@ -16835,9 +16870,10 @@ var $author$project$Board$View$viewMoveSegment = function (move) {
 						$author$project$Board$View$sx(move.to.x)),
 						$elm$svg$Svg$Attributes$y2(
 						$author$project$Board$View$sy(move.to.y)),
-						$elm$svg$Svg$Attributes$stroke('rgba(0,0,0,0.25)'),
-						$elm$svg$Svg$Attributes$strokeWidth('10'),
-						$elm$svg$Svg$Attributes$strokeLinecap('round')
+						$elm$svg$Svg$Attributes$stroke(color),
+						$elm$svg$Svg$Attributes$strokeWidth('7'),
+						$elm$svg$Svg$Attributes$strokeLinecap('round'),
+						$elm$svg$Svg$Attributes$strokeLinejoin('round')
 					]),
 				_List_Nil),
 				A2(
@@ -16852,10 +16888,10 @@ var $author$project$Board$View$viewMoveSegment = function (move) {
 						$author$project$Board$View$sx(move.to.x)),
 						$elm$svg$Svg$Attributes$y2(
 						$author$project$Board$View$sy(move.to.y)),
-						$elm$svg$Svg$Attributes$stroke(color),
-						$elm$svg$Svg$Attributes$strokeWidth('6'),
+						$elm$svg$Svg$Attributes$stroke('rgba(255,255,255,0.84)'),
+						$elm$svg$Svg$Attributes$strokeWidth('3'),
 						$elm$svg$Svg$Attributes$strokeLinecap('round'),
-						$elm$svg$Svg$Attributes$opacity('0.88')
+						$elm$svg$Svg$Attributes$strokeLinejoin('round')
 					]),
 				_List_Nil)
 			]));
@@ -17009,6 +17045,7 @@ var $author$project$Board$View$viewBoard = F5(
 					return $.legalMoves;
 				},
 				round)) : _List_Nil;
+		var isLocalBoard = board.code === 'LOCAL';
 		var allMoves = A2(
 			$elm$core$Maybe$withDefault,
 			_List_Nil,
@@ -17033,6 +17070,8 @@ var $author$project$Board$View$viewBoard = F5(
 				return {x: 4, y: 6};
 			}
 		}();
+		var ballDisplayY = flipVertical ? $author$project$Board$View$flt(
+			920 - $author$project$Board$View$syv(ball.y)) : $author$project$Board$View$sy(ball.y);
 		var visited = A2(
 			$elm$core$List$cons,
 			'4,6',
@@ -17055,6 +17094,10 @@ var $author$project$Board$View$viewBoard = F5(
 			},
 			round) : $elm$core$Maybe$Nothing;
 		var interactive = A2($author$project$Board$View$isOwnTurnCheck, ownSeat, turn) && (_Utils_eq(winner, $elm$core$Maybe$Nothing) && _Utils_eq(replayIndex, $elm$core$Maybe$Nothing));
+		var legalMarkerColor = (isLocalBoard && interactive) ? A2(
+			$elm$core$Maybe$withDefault,
+			$author$project$Board$View$playerHex(turn),
+			A2($elm$core$Maybe$map, $author$project$Board$View$playerHex, ownSeat)) : (isLocalBoard ? $author$project$Board$View$playerHex(turn) : '#ffe66d');
 		return A2(
 			$elm$svg$Svg$svg,
 			_List_fromArray(
@@ -17066,6 +17109,41 @@ var $author$project$Board$View$viewBoard = F5(
 				]),
 			_List_fromArray(
 				[
+					A2(
+					$elm$svg$Svg$defs,
+					_List_Nil,
+					_List_fromArray(
+						[
+							A2(
+							$elm$svg$Svg$linearGradient,
+							_List_fromArray(
+								[
+									$elm$svg$Svg$Attributes$id('elmLegacyPitch'),
+									$elm$svg$Svg$Attributes$x1('0%'),
+									$elm$svg$Svg$Attributes$y1('0%'),
+									$elm$svg$Svg$Attributes$x2('100%'),
+									$elm$svg$Svg$Attributes$y2('100%')
+								]),
+							_List_fromArray(
+								[
+									A2(
+									$elm$svg$Svg$stop,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$offset('0%'),
+											A2($elm$html$Html$Attributes$attribute, 'stop-color', '#0cb240')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$stop,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$offset('100%'),
+											A2($elm$html$Html$Attributes$attribute, 'stop-color', '#03651e')
+										]),
+									_List_Nil)
+								]))
+						])),
 					A2(
 					$elm$svg$Svg$g,
 					_List_fromArray(
@@ -17084,15 +17162,14 @@ var $author$project$Board$View$viewBoard = F5(
 									$elm$svg$Svg$Attributes$width('696'),
 									$elm$svg$Svg$Attributes$height('896'),
 									$elm$svg$Svg$Attributes$rx('28'),
-									$elm$svg$Svg$Attributes$fill('#0cb240')
+									$elm$svg$Svg$Attributes$fill('url(#elmLegacyPitch)')
 								]),
 							_List_Nil),
 							A2(
 							$elm$svg$Svg$g,
 							_List_fromArray(
 								[
-									$elm$svg$Svg$Attributes$opacity('0.06'),
-									$elm$svg$Svg$Attributes$fill('white')
+									$elm$svg$Svg$Attributes$opacity('0.22')
 								]),
 							_List_fromArray(
 								[
@@ -17100,21 +17177,40 @@ var $author$project$Board$View$viewBoard = F5(
 									$elm$svg$Svg$polygon,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('-80,1300 120,0 240,0 40,1300')
+											$elm$svg$Svg$Attributes$points('-920,12 -820,12 100,908 0,908'),
+											$elm$svg$Svg$Attributes$fill('#75ff8a')
 										]),
 									_List_Nil),
 									A2(
 									$elm$svg$Svg$polygon,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('300,1300 500,0 620,0 420,1300')
+											$elm$svg$Svg$Attributes$points('-620,12 -520,12 400,908 300,908'),
+											$elm$svg$Svg$Attributes$fill('#004b12')
 										]),
 									_List_Nil),
 									A2(
 									$elm$svg$Svg$polygon,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('680,1300 880,0 1000,0 800,1300')
+											$elm$svg$Svg$Attributes$points('-320,12 -220,12 700,908 600,908'),
+											$elm$svg$Svg$Attributes$fill('#75ff8a')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$polygon,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$points('-20,12 80,12 1000,908 900,908'),
+											$elm$svg$Svg$Attributes$fill('#004b12')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$polygon,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$points('280,12 380,12 1300,908 1200,908'),
+											$elm$svg$Svg$Attributes$fill('#75ff8a')
 										]),
 									_List_Nil)
 								])),
@@ -17340,44 +17436,10 @@ var $author$project$Board$View$viewBoard = F5(
 							_List_Nil,
 							interactive ? A2(
 								$elm$core$List$map,
-								A2($author$project$Board$View$viewLegalTarget, onMove, turn),
-								legalMoves) : ((!$elm$core$List$isEmpty(legalMoves)) ? A2(
-								$elm$core$List$map,
-								$author$project$Board$View$viewLegalPreview(turn),
-								legalMoves) : _List_Nil)),
-							A2(
-							$elm$svg$Svg$g,
-							_List_Nil,
-							_List_fromArray(
-								[
-									A2(
-									$elm$svg$Svg$circle,
-									_List_fromArray(
-										[
-											$elm$svg$Svg$Attributes$cx(
-											$author$project$Board$View$sx(ball.x)),
-											$elm$svg$Svg$Attributes$cy(
-											$author$project$Board$View$sy(ball.y)),
-											$elm$svg$Svg$Attributes$r('15'),
-											$elm$svg$Svg$Attributes$fill('#f8fff8'),
-											$elm$svg$Svg$Attributes$stroke('rgba(0,0,0,0.2)'),
-											$elm$svg$Svg$Attributes$strokeWidth('2')
-										]),
-									_List_Nil),
-									A2(
-									$elm$svg$Svg$circle,
-									_List_fromArray(
-										[
-											$elm$svg$Svg$Attributes$cx(
-											$author$project$Board$View$sx(ball.x)),
-											$elm$svg$Svg$Attributes$cy(
-											$author$project$Board$View$sy(ball.y)),
-											$elm$svg$Svg$Attributes$r('5'),
-											$elm$svg$Svg$Attributes$fill('#101820')
-										]),
-									_List_Nil)
-								]))
-						]))
+								A2($author$project$Board$View$viewLegalTarget, onMove, legalMarkerColor),
+								legalMoves) : _List_Nil)
+						])),
+					A2($author$project$Board$View$viewBall, ball, ballDisplayY)
 				]));
 	});
 var $author$project$Main$viewBoardBadgeHtml = F4(
