@@ -203,20 +203,21 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
               S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "#0a8a2d" ] []
 
             -- Pitch stripe overlay: 100-wide dark / 50-wide light cadence
-                        , S.g
-                                [ HA.attribute "clip-path" "url(#elmPitchClip)"
-                                , SA.transform "rotate(-35 360 460)"
-                                ]
-                                [ S.rect [ SA.x "-540", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "-390", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "-240", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "-90", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "60", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "210", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "360", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "510", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
-                                , S.rect [ SA.x "660", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+            , S.g
+                [ HA.attribute "clip-path" "url(#elmPitchClip)"
+                , SA.transform "rotate(-35 360 460)"
                 ]
+                [ S.rect [ SA.x "-540", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "-390", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "-240", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "-90", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "60", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "210", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "360", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "510", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                , S.rect [ SA.x "660", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                ]
+
             -- Gate mesh (goal net texture)
             , viewGateMesh 0
             , viewGateMesh 11
