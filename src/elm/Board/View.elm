@@ -186,9 +186,8 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
         , SA.preserveAspectRatio "xMidYMid meet"
         ]
         [ S.defs []
-            [ S.linearGradient [ SA.id "elmLegacyPitch", SA.x1 "0%", SA.y1 "0%", SA.x2 "100%", SA.y2 "100%" ]
-                [ S.stop [ SA.offset "0%", HA.attribute "stop-color" "#0cb240" ] []
-                , S.stop [ SA.offset "100%", HA.attribute "stop-color" "#03651e" ] []
+            [ S.clipPath [ SA.id "elmPitchClip" ]
+                [ S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28" ] []
                 ]
             ]
         , S.g
@@ -201,17 +200,23 @@ viewBoard onMove ownSeat replayIndex flipVertical board =
                 )
             ]
             [ -- Main pitch background
-              S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "url(#elmLegacyPitch)" ] []
+              S.rect [ SA.x "12", SA.y "12", SA.width "696", SA.height "896", SA.rx "28", SA.fill "#0a8a2d" ] []
 
-            -- Pitch stripe overlay
-            , S.g [ SA.opacity "0.22" ]
-                [ S.polygon [ SA.points "-920,12 -820,12 100,908 0,908", SA.fill "#75ff8a" ] []
-                , S.polygon [ SA.points "-620,12 -520,12 400,908 300,908", SA.fill "#004b12" ] []
-                , S.polygon [ SA.points "-320,12 -220,12 700,908 600,908", SA.fill "#75ff8a" ] []
-                , S.polygon [ SA.points "-20,12 80,12 1000,908 900,908", SA.fill "#004b12" ] []
-                , S.polygon [ SA.points "280,12 380,12 1300,908 1200,908", SA.fill "#75ff8a" ] []
+            -- Pitch stripe overlay: 100-wide dark / 50-wide light cadence
+                        , S.g
+                                [ HA.attribute "clip-path" "url(#elmPitchClip)"
+                                , SA.transform "rotate(-35 360 460)"
+                                ]
+                                [ S.rect [ SA.x "-540", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "-390", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "-240", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "-90", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "60", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "210", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "360", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "510", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
+                                , S.rect [ SA.x "660", SA.y "-420", SA.width "50", SA.height "1800", SA.fill "#0ca03a" ] []
                 ]
-
             -- Gate mesh (goal net texture)
             , viewGateMesh 0
             , viewGateMesh 11

@@ -16381,6 +16381,7 @@ var $author$project$Board$View$allBoardPoints = _Utils_ap(
 		},
 		A2($elm$core$List$range, 3, 5)));
 var $elm$svg$Svg$trustedNode = _VirtualDom_nodeNS('http://www.w3.org/2000/svg');
+var $elm$svg$Svg$clipPath = $elm$svg$Svg$trustedNode('clipPath');
 var $elm$svg$Svg$defs = $elm$svg$Svg$trustedNode('defs');
 var $elm$svg$Svg$Attributes$fill = _VirtualDom_attribute('fill');
 var $author$project$Board$View$flt = $elm$core$String$fromFloat;
@@ -16409,21 +16410,15 @@ var $author$project$Board$View$isOwnTurnCheck = F2(
 		}
 	});
 var $elm$svg$Svg$line = $elm$svg$Svg$trustedNode('line');
-var $elm$svg$Svg$linearGradient = $elm$svg$Svg$trustedNode('linearGradient');
-var $elm$svg$Svg$Attributes$offset = _VirtualDom_attribute('offset');
-var $elm$svg$Svg$Attributes$opacity = _VirtualDom_attribute('opacity');
 var $author$project$Board$View$pk = function (p) {
 	return $elm$core$String$fromInt(p.x) + (',' + $elm$core$String$fromInt(p.y));
 };
 var $author$project$Board$View$playerHex = function (seat) {
 	return ($author$project$Board$View$toSeatColor(seat) === 'red') ? '#ff3b30' : '#0b7cff';
 };
-var $elm$svg$Svg$Attributes$points = _VirtualDom_attribute('points');
-var $elm$svg$Svg$polygon = $elm$svg$Svg$trustedNode('polygon');
 var $elm$svg$Svg$Attributes$preserveAspectRatio = _VirtualDom_attribute('preserveAspectRatio');
 var $elm$svg$Svg$rect = $elm$svg$Svg$trustedNode('rect');
 var $elm$svg$Svg$Attributes$rx = _VirtualDom_attribute('rx');
-var $elm$svg$Svg$stop = $elm$svg$Svg$trustedNode('stop');
 var $elm$svg$Svg$Attributes$stroke = _VirtualDom_attribute('stroke');
 var $elm$svg$Svg$Attributes$strokeLinecap = _VirtualDom_attribute('stroke-linecap');
 var $elm$svg$Svg$Attributes$strokeLinejoin = _VirtualDom_attribute('stroke-linejoin');
@@ -16572,6 +16567,8 @@ var $elm$svg$Svg$Attributes$transform = _VirtualDom_attribute('transform');
 var $elm$svg$Svg$circle = $elm$svg$Svg$trustedNode('circle');
 var $elm$svg$Svg$Attributes$cx = _VirtualDom_attribute('cx');
 var $elm$svg$Svg$Attributes$cy = _VirtualDom_attribute('cy');
+var $elm$svg$Svg$Attributes$points = _VirtualDom_attribute('points');
+var $elm$svg$Svg$polygon = $elm$svg$Svg$trustedNode('polygon');
 var $elm$svg$Svg$Attributes$r = _VirtualDom_attribute('r');
 var $author$project$Board$View$sxv = function (x) {
 	return $author$project$Board$View$bm + (x * $author$project$Board$View$stepX);
@@ -16635,6 +16632,7 @@ var $author$project$Board$View$viewBall = F2(
 				]));
 	});
 var $elm$svg$Svg$Attributes$viewBox = _VirtualDom_attribute('viewBox');
+var $elm$svg$Svg$Attributes$opacity = _VirtualDom_attribute('opacity');
 var $elm$core$Basics$pow = _Basics_pow;
 var $elm$core$Basics$sqrt = _Basics_sqrt;
 var $elm$svg$Svg$Attributes$x1 = _VirtualDom_attribute('x1');
@@ -17133,31 +17131,22 @@ var $author$project$Board$View$viewBoard = F5(
 					_List_fromArray(
 						[
 							A2(
-							$elm$svg$Svg$linearGradient,
+							$elm$svg$Svg$clipPath,
 							_List_fromArray(
 								[
-									$elm$svg$Svg$Attributes$id('elmLegacyPitch'),
-									$elm$svg$Svg$Attributes$x1('0%'),
-									$elm$svg$Svg$Attributes$y1('0%'),
-									$elm$svg$Svg$Attributes$x2('100%'),
-									$elm$svg$Svg$Attributes$y2('100%')
+									$elm$svg$Svg$Attributes$id('elmPitchClip')
 								]),
 							_List_fromArray(
 								[
 									A2(
-									$elm$svg$Svg$stop,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$offset('0%'),
-											A2($elm$html$Html$Attributes$attribute, 'stop-color', '#0cb240')
-										]),
-									_List_Nil),
-									A2(
-									$elm$svg$Svg$stop,
-									_List_fromArray(
-										[
-											$elm$svg$Svg$Attributes$offset('100%'),
-											A2($elm$html$Html$Attributes$attribute, 'stop-color', '#03651e')
+											$elm$svg$Svg$Attributes$x('12'),
+											$elm$svg$Svg$Attributes$y('12'),
+											$elm$svg$Svg$Attributes$width('696'),
+											$elm$svg$Svg$Attributes$height('896'),
+											$elm$svg$Svg$Attributes$rx('28')
 										]),
 									_List_Nil)
 								]))
@@ -17180,55 +17169,115 @@ var $author$project$Board$View$viewBoard = F5(
 									$elm$svg$Svg$Attributes$width('696'),
 									$elm$svg$Svg$Attributes$height('896'),
 									$elm$svg$Svg$Attributes$rx('28'),
-									$elm$svg$Svg$Attributes$fill('url(#elmLegacyPitch)')
+									$elm$svg$Svg$Attributes$fill('#0a8a2d')
 								]),
 							_List_Nil),
 							A2(
 							$elm$svg$Svg$g,
 							_List_fromArray(
 								[
-									$elm$svg$Svg$Attributes$opacity('0.22')
+									A2($elm$html$Html$Attributes$attribute, 'clip-path', 'url(#elmPitchClip)'),
+									$elm$svg$Svg$Attributes$transform('rotate(-35 360 460)')
 								]),
 							_List_fromArray(
 								[
 									A2(
-									$elm$svg$Svg$polygon,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('-920,12 -820,12 100,908 0,908'),
-											$elm$svg$Svg$Attributes$fill('#75ff8a')
+											$elm$svg$Svg$Attributes$x('-540'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
 										]),
 									_List_Nil),
 									A2(
-									$elm$svg$Svg$polygon,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('-620,12 -520,12 400,908 300,908'),
-											$elm$svg$Svg$Attributes$fill('#004b12')
+											$elm$svg$Svg$Attributes$x('-390'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
 										]),
 									_List_Nil),
 									A2(
-									$elm$svg$Svg$polygon,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('-320,12 -220,12 700,908 600,908'),
-											$elm$svg$Svg$Attributes$fill('#75ff8a')
+											$elm$svg$Svg$Attributes$x('-240'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
 										]),
 									_List_Nil),
 									A2(
-									$elm$svg$Svg$polygon,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('-20,12 80,12 1000,908 900,908'),
-											$elm$svg$Svg$Attributes$fill('#004b12')
+											$elm$svg$Svg$Attributes$x('-90'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
 										]),
 									_List_Nil),
 									A2(
-									$elm$svg$Svg$polygon,
+									$elm$svg$Svg$rect,
 									_List_fromArray(
 										[
-											$elm$svg$Svg$Attributes$points('280,12 380,12 1300,908 1200,908'),
-											$elm$svg$Svg$Attributes$fill('#75ff8a')
+											$elm$svg$Svg$Attributes$x('60'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$rect,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$x('210'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$rect,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$x('360'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$rect,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$x('510'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
+										]),
+									_List_Nil),
+									A2(
+									$elm$svg$Svg$rect,
+									_List_fromArray(
+										[
+											$elm$svg$Svg$Attributes$x('660'),
+											$elm$svg$Svg$Attributes$y('-420'),
+											$elm$svg$Svg$Attributes$width('50'),
+											$elm$svg$Svg$Attributes$height('1800'),
+											$elm$svg$Svg$Attributes$fill('#0ca03a')
 										]),
 									_List_Nil)
 								])),
