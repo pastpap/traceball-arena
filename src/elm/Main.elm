@@ -48,6 +48,7 @@ type alias Model =
     , boardList : List BoardSummary
     , localMoveTimer : Int
     , onlineMoveTimer : Int
+    , confirmLeaveOnlineForLocal : Bool
     , showLobby : Bool
     , localLobbyTab : Bool
     , mainTab : String
@@ -276,6 +277,7 @@ init flags =
             , boardList = []
             , localMoveTimer = 15
             , onlineMoveTimer = 15
+            , confirmLeaveOnlineForLocal = False
             , showLobby = True
             , localLobbyTab = False
             , mainTab = "game"
@@ -378,6 +380,7 @@ applyFlags flags model =
                 , localPaused = parsed.savedLocalPaused
                 , localMoveTimer = localMoveTimer
                 , onlineMoveTimer = parsed.onlineMoveTimer
+                , confirmLeaveOnlineForLocal = False
                 , localBlueName = sanitizePlayerName parsed.playerName
                 , localRedName = "Red"
                 , showLobby = not shouldOpenGameImmediately
@@ -897,30 +900,41 @@ update msg model =
             ( { model | replayIndex = Nothing }, Cmd.none )
 
         StartLocalMatch ->
-            let
-                game =
-                    startLocalGame model.currentTimeMs model.localBlueName model.localRedName model.localMoveTimer
-            in
-            ( { model
-                | localGame = Just game
-                , localPaused = False
-                , error = Nothing
-                , replayIndex = Nothing
-                , dismissedWinnerKey = Nothing
-                , showLobby = False
-                , showTimerSheet = Nothing
-                , historyReplayGame = Nothing
-                , board = Nothing
-                , boardCode = ""
-                , joinedSeat = Nothing
-                , connectionStatus = "idle"
-              }
-            , Cmd.batch
-                [ persistLocalCmd (Just game) False
-                , outgoingClientCommand (Encode.object [ ( "type", Encode.string "disconnectSocket" ) ])
-                , outgoingClientCommand (Encode.object [ ( "type", Encode.string "updateUrl" ), ( "url", Encode.string "/" ) ])
-                ]
-            )
+            if model.board /= Nothing && not model.confirmLeaveOnlineForLocal then
+                ( { model
+                    | confirmLeaveOnlineForLocal = True
+                    , toast = Just "Starting local play will leave the online board and clear its URL. Press again to confirm."
+                    , toastExpiresAtMs = Just (model.currentTimeMs + 3200)
+                  }
+                , Cmd.none
+                )
+
+            else
+                let
+                    game =
+                        startLocalGame model.currentTimeMs model.localBlueName model.localRedName model.localMoveTimer
+                in
+                ( { model
+                    | localGame = Just game
+                    , localPaused = False
+                    , error = Nothing
+                    , replayIndex = Nothing
+                    , dismissedWinnerKey = Nothing
+                    , showLobby = False
+                    , showTimerSheet = Nothing
+                    , historyReplayGame = Nothing
+                    , board = Nothing
+                    , boardCode = ""
+                    , joinedSeat = Nothing
+                    , connectionStatus = "idle"
+                    , confirmLeaveOnlineForLocal = False
+                  }
+                , Cmd.batch
+                    [ persistLocalCmd (Just game) False
+                    , outgoingClientCommand (Encode.object [ ( "type", Encode.string "disconnectSocket" ) ])
+                    , outgoingClientCommand (Encode.object [ ( "type", Encode.string "updateUrl" ), ( "url", Encode.string "/" ) ])
+                    ]
+                )
 
         ToggleLocalPause ->
             case model.localGame of
@@ -1043,7 +1057,7 @@ update msg model =
             ( model, outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchBoardList" ) ]) )
 
         CreateBoard ->
-            ( { model | inviteUrl = Nothing, showLobby = True, showTimerSheet = Nothing, mainTab = "game", error = Nothing }
+            ( { model | inviteUrl = Nothing, showLobby = True, showTimerSheet = Nothing, mainTab = "game", error = Nothing, confirmLeaveOnlineForLocal = False }
             , outgoingClientCommand
                 (Encode.object
                     [ ( "type", Encode.string "createBoard" )
@@ -1107,7 +1121,18 @@ update msg model =
             ( { model | mainTab = tab }, Cmd.none )
 
         SetLobbyTab isLocal ->
-            ( { model | localLobbyTab = isLocal, showLobby = True }, Cmd.none )
+            ( { model
+                | localLobbyTab = isLocal
+                , showLobby = True
+                , confirmLeaveOnlineForLocal =
+                    if isLocal then
+                        model.confirmLeaveOnlineForLocal
+
+                    else
+                        False
+              }
+            , Cmd.none
+            )
 
 
 
@@ -3385,6 +3410,31 @@ viewLocalLobbyContent model =
             [ el [ Font.size 13, Font.bold ] (text "Move timer")
             , el [ width fill ] (viewTimerControl LocalTimer model.localMoveTimer model)
             ]
+        , if model.board /= Nothing then
+            column
+                [ width fill
+                , spacing 6
+                , Bg.color (rgba255 255 193 7 26)
+                , Border.rounded 10
+                , Border.width 1
+                , Border.color (rgba255 255 193 7 120)
+                , padding 12
+                ]
+                [ el [ Font.bold, Font.size 13, Font.color (rgb255 255 233 166) ]
+                    (text "Starting local play leaves the current online board")
+                , el [ Font.size 13, Font.color (rgb255 239 243 225) ]
+                    (text
+                        (if model.confirmLeaveOnlineForLocal then
+                            "Press the button again to confirm. The online board will be disconnected and the URL will be cleared."
+
+                         else
+                            "Your online seat and board route stay active until local play starts."
+                        )
+                    )
+                ]
+
+          else
+            none
 
         -- Start local match (gradient button, full width)
         , Input.button
@@ -3396,7 +3446,18 @@ viewLocalLobbyContent model =
             , Font.color (rgb255 10 20 10)
             , Element.htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
             ]
-            { onPress = Just StartLocalMatch, label = el [ centerX ] (text "Start local match") }
+            { onPress = Just StartLocalMatch
+            , label =
+                el [ centerX ]
+                    (text
+                        (if model.board /= Nothing && model.confirmLeaveOnlineForLocal then
+                            "Leave online board and start local match"
+
+                         else
+                            "Start local match"
+                        )
+                    )
+            }
         ]
 
 

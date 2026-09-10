@@ -5557,6 +5557,7 @@ var $author$project$Main$applyFlags = F2(
 				{
 					boardCode: sanitized,
 					clientId: parsed.clientId,
+					confirmLeaveOnlineForLocal: false,
 					draftBoardCode: sanitized,
 					error: invalid ? $elm$core$Maybe$Just('Enter a valid board code.') : $elm$core$Maybe$Nothing,
 					inviteUrl: $elm$core$Maybe$Nothing,
@@ -5633,7 +5634,7 @@ var $author$project$Main$watchBoardCommand = F2(
 					]))) : $elm$core$Platform$Cmd$none;
 	});
 var $author$project$Main$init = function (flags) {
-	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, historyReplayGame: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localMoveTimer: 15, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', rawHistoryEntries: _List_Nil, replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
+	var emptyModel = {board: $elm$core$Maybe$Nothing, boardCode: '', boardList: _List_Nil, clientId: '', confirmLeaveOnlineForLocal: false, connectionStatus: 'idle', currentTimeMs: 0, dismissedWinnerKey: $elm$core$Maybe$Nothing, draftBoardCode: '', draftFreeSeat: 'p1', error: $elm$core$Maybe$Nothing, gameHistory: _List_Nil, historyReplayGame: $elm$core$Maybe$Nothing, ignoredStaleVersion: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, joinedSeat: $elm$core$Maybe$Nothing, lastOnlineTurn: $elm$core$Maybe$Nothing, localBlueName: 'Blue', localGame: $elm$core$Maybe$Nothing, localLobbyTab: false, localMoveTimer: 15, localPaused: false, localRedName: 'Red', mainTab: 'game', menuPanel: $elm$core$Maybe$Nothing, onlineMoveTimer: 15, playerName: 'Player', rawHistoryEntries: _List_Nil, replayIndex: $elm$core$Maybe$Nothing, showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing, toast: $elm$core$Maybe$Nothing, toastExpiresAtMs: $elm$core$Maybe$Nothing, turnHopSerial: 0, version: 0, viewportWidth: 1024};
 	var model = A2($author$project$Main$applyFlags, flags, emptyModel);
 	var initialCommands = A2(
 		$elm$core$List$cons,
@@ -8941,51 +8942,64 @@ var $author$project$Main$update = F2(
 						{replayIndex: $elm$core$Maybe$Nothing}),
 					$elm$core$Platform$Cmd$none);
 			case 'StartLocalMatch':
-				var game = A4($author$project$Main$startLocalGame, model.currentTimeMs, model.localBlueName, model.localRedName, model.localMoveTimer);
-				return _Utils_Tuple2(
-					_Utils_update(
-						model,
-						{
-							board: $elm$core$Maybe$Nothing,
-							boardCode: '',
-							connectionStatus: 'idle',
-							dismissedWinnerKey: $elm$core$Maybe$Nothing,
-							error: $elm$core$Maybe$Nothing,
-							historyReplayGame: $elm$core$Maybe$Nothing,
-							joinedSeat: $elm$core$Maybe$Nothing,
-							localGame: $elm$core$Maybe$Just(game),
-							localPaused: false,
-							replayIndex: $elm$core$Maybe$Nothing,
-							showLobby: false,
-							showTimerSheet: $elm$core$Maybe$Nothing
-						}),
-					$elm$core$Platform$Cmd$batch(
-						_List_fromArray(
-							[
-								A2(
-								$author$project$Main$persistLocalCmd,
-								$elm$core$Maybe$Just(game),
-								false),
-								$author$project$Main$outgoingClientCommand(
-								$elm$json$Json$Encode$object(
-									_List_fromArray(
-										[
-											_Utils_Tuple2(
-											'type',
-											$elm$json$Json$Encode$string('disconnectSocket'))
-										]))),
-								$author$project$Main$outgoingClientCommand(
-								$elm$json$Json$Encode$object(
-									_List_fromArray(
-										[
-											_Utils_Tuple2(
-											'type',
-											$elm$json$Json$Encode$string('updateUrl')),
-											_Utils_Tuple2(
-											'url',
-											$elm$json$Json$Encode$string('/'))
-										])))
-							])));
+				if ((!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) && (!model.confirmLeaveOnlineForLocal)) {
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								confirmLeaveOnlineForLocal: true,
+								toast: $elm$core$Maybe$Just('Starting local play will leave the online board and clear its URL. Press again to confirm.'),
+								toastExpiresAtMs: $elm$core$Maybe$Just(model.currentTimeMs + 3200)
+							}),
+						$elm$core$Platform$Cmd$none);
+				} else {
+					var game = A4($author$project$Main$startLocalGame, model.currentTimeMs, model.localBlueName, model.localRedName, model.localMoveTimer);
+					return _Utils_Tuple2(
+						_Utils_update(
+							model,
+							{
+								board: $elm$core$Maybe$Nothing,
+								boardCode: '',
+								confirmLeaveOnlineForLocal: false,
+								connectionStatus: 'idle',
+								dismissedWinnerKey: $elm$core$Maybe$Nothing,
+								error: $elm$core$Maybe$Nothing,
+								historyReplayGame: $elm$core$Maybe$Nothing,
+								joinedSeat: $elm$core$Maybe$Nothing,
+								localGame: $elm$core$Maybe$Just(game),
+								localPaused: false,
+								replayIndex: $elm$core$Maybe$Nothing,
+								showLobby: false,
+								showTimerSheet: $elm$core$Maybe$Nothing
+							}),
+						$elm$core$Platform$Cmd$batch(
+							_List_fromArray(
+								[
+									A2(
+									$author$project$Main$persistLocalCmd,
+									$elm$core$Maybe$Just(game),
+									false),
+									$author$project$Main$outgoingClientCommand(
+									$elm$json$Json$Encode$object(
+										_List_fromArray(
+											[
+												_Utils_Tuple2(
+												'type',
+												$elm$json$Json$Encode$string('disconnectSocket'))
+											]))),
+									$author$project$Main$outgoingClientCommand(
+									$elm$json$Json$Encode$object(
+										_List_fromArray(
+											[
+												_Utils_Tuple2(
+												'type',
+												$elm$json$Json$Encode$string('updateUrl')),
+												_Utils_Tuple2(
+												'url',
+												$elm$json$Json$Encode$string('/'))
+											])))
+								])));
+				}
 			case 'ToggleLocalPause':
 				var _v11 = model.localGame;
 				if (_v11.$ === 'Just') {
@@ -9186,7 +9200,7 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, mainTab: 'game', showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing}),
+						{confirmLeaveOnlineForLocal: false, error: $elm$core$Maybe$Nothing, inviteUrl: $elm$core$Maybe$Nothing, mainTab: 'game', showLobby: true, showTimerSheet: $elm$core$Maybe$Nothing}),
 					$author$project$Main$outgoingClientCommand(
 						$elm$json$Json$Encode$object(
 							_List_fromArray(
@@ -9280,7 +9294,11 @@ var $author$project$Main$update = F2(
 				return _Utils_Tuple2(
 					_Utils_update(
 						model,
-						{localLobbyTab: isLocal, showLobby: true}),
+						{
+							confirmLeaveOnlineForLocal: isLocal ? model.confirmLeaveOnlineForLocal : false,
+							localLobbyTab: isLocal,
+							showLobby: true
+						}),
 					$elm$core$Platform$Cmd$none);
 		}
 	});
@@ -21023,6 +21041,43 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 							]),
 						A3($author$project$Main$viewTimerControl, $author$project$Main$LocalTimer, model.localMoveTimer, model))
 					])),
+				(!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) ? A2(
+				$mdgriffith$elm_ui$Element$column,
+				_List_fromArray(
+					[
+						$mdgriffith$elm_ui$Element$width($mdgriffith$elm_ui$Element$fill),
+						$mdgriffith$elm_ui$Element$spacing(6),
+						$mdgriffith$elm_ui$Element$Background$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 193, 7, 26)),
+						$mdgriffith$elm_ui$Element$Border$rounded(10),
+						$mdgriffith$elm_ui$Element$Border$width(1),
+						$mdgriffith$elm_ui$Element$Border$color(
+						A4($mdgriffith$elm_ui$Element$rgba255, 255, 193, 7, 120)),
+						$mdgriffith$elm_ui$Element$padding(12)
+					]),
+				_List_fromArray(
+					[
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$bold,
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 255, 233, 166))
+							]),
+						$mdgriffith$elm_ui$Element$text('Starting local play leaves the current online board')),
+						A2(
+						$mdgriffith$elm_ui$Element$el,
+						_List_fromArray(
+							[
+								$mdgriffith$elm_ui$Element$Font$size(13),
+								$mdgriffith$elm_ui$Element$Font$color(
+								A3($mdgriffith$elm_ui$Element$rgb255, 239, 243, 225))
+							]),
+						$mdgriffith$elm_ui$Element$text(
+							model.confirmLeaveOnlineForLocal ? 'Press the button again to confirm. The online board will be disconnected and the URL will be cleared.' : 'Your online seat and board route stay active until local play starts.'))
+					])) : $mdgriffith$elm_ui$Element$none,
 				A2(
 				$mdgriffith$elm_ui$Element$Input$button,
 				_List_fromArray(
@@ -21042,7 +21097,8 @@ var $author$project$Main$viewLocalLobbyContent = function (model) {
 						$mdgriffith$elm_ui$Element$el,
 						_List_fromArray(
 							[$mdgriffith$elm_ui$Element$centerX]),
-						$mdgriffith$elm_ui$Element$text('Start local match')),
+						$mdgriffith$elm_ui$Element$text(
+							((!_Utils_eq(model.board, $elm$core$Maybe$Nothing)) && model.confirmLeaveOnlineForLocal) ? 'Leave online board and start local match' : 'Start local match')),
 					onPress: $elm$core$Maybe$Just($author$project$Main$StartLocalMatch)
 				})
 			]));
