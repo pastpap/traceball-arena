@@ -19,8 +19,10 @@ Live app: https://traceball-arena-production.up.railway.app
 - Bounce/continue turns from already visited points, boundary points, and black gate-mouth center dots.
 - Goals, own goals, stuck-loss detection, cumulative room/local score, and new-round reset.
 - Configurable per-move clock: off, 5, 10, 15, 20, or 30 seconds; timeout passes the turn without drawing a line.
+- Online pause is turn-owner-gated: only the seated player whose turn it is can manually pause or resume, and paused overlays expose Resume only.
 - Client-side replay controls live with the board. No accounts and no persistent database.
-- Responsive layout: desktop uses a board + match side panel; phones/tablets use Home / Play / Match tabs.
+- Responsive layout: desktop uses a board + match side panel with a lobby/game toggle; phones/tablets use Home / Boards / Play / Match tabs.
+- In-view notifications: when you are away from gameplay, opponent updates surface with a badge (desktop Game button or mobile Play tab) and a short toast, without forced navigation.
 
 ## Gameplay
 
@@ -41,7 +43,8 @@ Visual feedback:
 - Legal move circles are dimmed and use the current player color instead of generic yellow.
 - Black dots in the middle of the gate lines mark special bounce points: they continue the mover's turn even before being visited.
 - The turn marker ball sits next to the current player's home gate.
-- When the turn changes, the marker jumps across the board and changes color as it reaches the next gate.
+- When the turn changes, the marker travels in a visible arc across the board, grows mid-flight, and settles at the next gate.
+- The move countdown appears beside the active gate and the paused board keeps the pitch blurred behind the overlay.
 - Winner state appears as a golden overlay with confetti at the winner's own gate.
 
 ## Technologies
@@ -51,7 +54,7 @@ Visual feedback:
 - **Realtime:** `ws` WebSocket rooms with in-memory room state
 - **IDs:** `nanoid` room codes
 - **QR:** `qrcode` endpoint for invite links
-- **Frontend:** vanilla HTML/CSS/JavaScript canvas renderer
+- **Frontend:** compiled Elm runtime from `src/elm/Main.elm` served as `public/elm-runtime.js`, plus a small `public/elm.js` bridge for WebSocket/localStorage/browser plumbing
 - **PWA:** manifest + service worker app-shell cache with forced refresh on updates
 - **Tests:** Vitest rule/state tests plus static build checks for UI and deployment contracts
 - **Deployment:** Railway single-service Node app using `railway.json`
@@ -66,8 +69,46 @@ The project grew through small playable slices:
 4. **Robust room lifecycle** — watcher sockets for invite pages, stable client IDs, reconnect/rejoin handling for mobile/PWA lifecycle events, and guarded mutating actions.
 5. **Local same-screen mode** — client-side local PvP with the same state shape as online rooms, cumulative score preservation, static face-to-face board, and no WebSocket slot consumption.
 6. **Game polish** — gate labels, score strip, winner modal, gate confetti, player-colored move hints, slower result animation, and a jumping turn marker.
+7. **Phase 9 Elm parity** — legacy UI retired, desktop lobby/game toggle, desktop lobby tabs (Game/Boards), board-focused Play surface, player name badges on board, richer board visuals/overlays, seated-player board orientation, arc-based turn marker motion, owner-gated pause/resume, compact board list cards, and non-disruptive move notifications (badges + toasts, no auto-navigation).
 
 The implementation intentionally stays no-DB for now: rooms, scores, and replays are in memory and disappear when the Railway service restarts.
+
+## Elm rewrite and repo agents
+
+The `elm-rewrite` branch is the staging branch for introducing Elm into the frontend while the Node backend stays authoritative.
+
+Current default frontend:
+
+- `/` and `/elm` both serve the compiled Elm runtime; the pre-Elm legacy UI has been removed from shipped routes.
+- `public/elm-runtime.js` is generated from `src/elm/Main.elm`, while `public/elm.js` is now the bridge layer for WebSocket, localStorage, route updates, and service-worker/browser hooks.
+- Phase 9 parity includes intentionally improved structure: Play stays board/replay-focused, and detailed board/match metadata lives in Match instead of large always-visible play-surface cards.
+- Recent Phase 9 progress includes seated-player attack-up orientation online, fixed gate-side countdown placement, arc-based turn marker motion, compact mobile/desktop board-list cleanup, player names that preserve spaces while normalizing on persist, and turn-owner-only pause/resume with a resume-only pause overlay.
+- `/room/:roomId` redirects to `/?board=<code>` so older invite links continue into the primary board-centric frontend.
+- The Elm model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript bridge with stable `traceballElmClientId` identity.
+- The default runtime has board-centric seating actions: create board as Blue, watch boards without claiming a seat, choose Blue/Red explicitly when seats are open, reclaim your own reserved seat on reload without silently resuming, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
+- Online pause remains server-authoritative: only the seated current-turn player can pause or resume, automatic pauses also resume through that same turn owner, and paused overlays do not expose New Round.
+- `/api/rooms` exposes live board list cards with `lastActivityAt` and `expiresAt`, while expired boards are cleaned up and direct links recover through the Elm not-found flow.
+- PWA cache version is currently `traceball-arena-v40`.
+
+Architecture and rewrite docs:
+
+- `docs/architecture/board-state-machine.md`
+- `docs/history/elm-rewrite-phases.md`
+- `docs/architecture/realtime-protocol-phase1.md`
+- `docs/README.md`
+
+Repo-local agent definitions live in `.github/agents/` for IDE-assisted work:
+
+- `squad.agent.md` — squad entry point
+- `traceball-orchestrator.agent.md` — primary point of entry for tasks/questions
+- `traceball-state-architect.agent.md` — board/session/seat lifecycle
+- `traceball-elm-frontend.agent.md` — Elm architecture and UI state
+- `traceball-realtime-backend.agent.md` — WebSocket/backend protocol
+- `traceball-qa-mobile.agent.md` — tests, staging, and mobile regressions
+
+Railway staging for `elm-rewrite`:
+
+https://traceball-arena-elm-staging-staging.up.railway.app
 
 ## Local development
 
@@ -81,11 +122,12 @@ Open http://localhost:3000.
 Useful checks:
 
 ```bash
+npm run build:elm
 npm test
 npm run build
 ```
 
-`npm run build` currently runs static contract checks rather than bundling; this app is served directly from `public/`.
+`npm run build:elm` regenerates the runtime that is actually served at `/`. `npm run build` runs static contract checks rather than bundling; this app is served directly from `public/`.
 
 ## Railway
 
