@@ -7,6 +7,8 @@ const required = [
   "public/sw.js",
   "public/elm.html",
   "public/elm.js",
+  "public/react.html",
+  "public/react-build/main.js",
   "src/server.js",
   "src/game.js",
   "src/elm/Main.elm",
@@ -23,6 +25,8 @@ for (const file of required) {
 
 const elmHtml = readFileSync("public/elm.html", "utf8");
 const elmBundle = readFileSync("public/elm.js", "utf8");
+const reactHtml = readFileSync("public/react.html", "utf8");
+const reactBundle = readFileSync("public/react-build/main.js", "utf8");
 const elmMain = readFileSync("src/elm/Main.elm", "utf8");
 const elmDecode = readFileSync("src/elm/Board/Decode.elm", "utf8");
 const elmView = readFileSync("src/elm/Board/View.elm", "utf8");
@@ -34,9 +38,32 @@ const serverSource = readFileSync("src/server.js", "utf8");
 if (
   !elmHtml.includes('id="elm-root"') ||
   !elmHtml.includes("/elm.js") ||
-  !elmHtml.includes("<title>Traceball Arena</title>")
+  !elmHtml.includes("<title>Traceball Arena</title>") ||
+  elmHtml.includes('id="react-root"') ||
+  elmHtml.includes("/react-build/main.js")
 ) {
   throw new Error("Elm shell must mount #elm-root and load /elm.js.");
+}
+
+if (
+  !reactHtml.includes('id="react-root"') ||
+  !reactHtml.includes('type="module"') ||
+  !reactHtml.includes("/react-build/main.js") ||
+  reactHtml.includes('id="elm-root"') ||
+  reactHtml.includes("/elm.js")
+) {
+  throw new Error(
+    "React shell must mount #react-root and load the built /react-build/main.js bundle.",
+  );
+}
+
+if (
+  !reactBundle.includes('getElementById("react-root")') ||
+  !reactBundle.includes("React product shell")
+) {
+  throw new Error(
+    "Built React bundle must target #react-root and render the hybrid shell stub.",
+  );
 }
 
 if (
@@ -96,12 +123,13 @@ if (
 
 if (
   !/app\.get\((['\"])\/elm\1/.test(serverSource) ||
+  !/app\.get\((['\"])\/react\1/.test(serverSource) ||
   !/app\.get\((['\"])\/room\/:roomId\1/.test(serverSource) ||
   !serverSource.includes("statePayloadFromGame") ||
   !serverSource.includes("game: publicGame(game)")
 ) {
   throw new Error(
-    "Server must be Elm-only and broadcast raw public game payloads.",
+    "Server must preserve Elm rollback routes, add the /react shell, and broadcast raw public game payloads.",
   );
 }
 

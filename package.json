@@ -8,8 +8,9 @@
         "dev": "node src/server.js",
         "start": "node src/server.js",
         "test": "vitest run",
-        "build": "npm run build:elm && node scripts/check-static.js",
+        "build": "npm run build:elm && npm run build:react && node scripts/check-static.js",
         "build:elm": "node scripts/build-elm.js",
+        "build:react": "vite build",
         "test:e2e": "playwright test"
     },
     "keywords": [
@@ -24,6 +25,8 @@
         "express": "^5.1.0",
         "nanoid": "^5.1.5",
         "qrcode": "^1.5.4",
+        "react": "^19.3.0",
+        "react-dom": "^19.3.0",
         "ws": "^8.18.3"
     },
     "devDependencies": {
@@ -31,7 +34,9 @@
         "@types/express": "^5.0.3",
         "@types/node": "^24.1.0",
         "@types/ws": "^8.18.1",
+        "@vitejs/plugin-react": "^5.2.0",
         "typescript": "^5.8.3",
+        "vite": "^7.3.6",
         "vitest": "^3.2.4"
     },
     "engines": {
