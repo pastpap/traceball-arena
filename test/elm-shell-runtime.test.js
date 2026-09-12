@@ -4,6 +4,11 @@ import { describe, expect, it } from "vitest";
 
 const bridgeSource = readFileSync("public/elm.js", "utf8");
 
+async function importFresh(relativePath) {
+  const url = new URL(relativePath, import.meta.url);
+  return import(`${url.href}?t=${Date.now()}-${Math.random()}`);
+}
+
 function loadBridge(overrides = {}) {
   const storage = overrides.localStorage ?? {
     values: new Map(),
@@ -756,5 +761,248 @@ describe("Elm runtime bridge — WebSocket lifecycle", () => {
     sockets[0].onopen();
     // JS must not update URL on connect; Elm emits updateUrl after ConnectionChanged "connected"
     expect(historyCalls.length).toBe(0);
+  });
+});
+
+describe("React shell bridge modules", () => {
+  it("persists stable shell identity and online timer in storage helpers", async () => {
+    const storage = {
+      values: new Map([["traceballPlayerName", "  Alex   Smith  "]]),
+      getItem(key) {
+        return this.values.get(key) ?? null;
+      },
+      setItem(key, value) {
+        this.values.set(key, String(value));
+      },
+    };
+    const storageModule = await importFresh("../src/react/lib/storage.js");
+
+    const firstId = storageModule.getOrCreateClientId({
+      storage,
+      random: () => 0.123456789,
+    });
+    const secondId = storageModule.getOrCreateClientId({
+      storage,
+      random: () => 0.987654321,
+    });
+    const normalizedName = storageModule.getStoredPlayerName({
+      storage,
+      randomName: () => "Fallback Player",
+    });
+    const zeroTimer = storageModule.persistOnlineMoveTimer(0, { storage });
+
+    expect(firstId).toBe(secondId);
+    expect(firstId).toMatch(/^traceball-elm-/);
+    expect(normalizedName).toBe("Alex Smith");
+    expect(storage.values.get("traceballPlayerName")).toBe("Alex Smith");
+    expect(zeroTimer).toBe(0);
+    expect(storage.values.get("traceballOnlineMoveTimer")).toBe("0");
+  });
+
+  it("builds board-list and create-board requests through the API helpers", async () => {
+    const requests = [];
+    const apiModule = await importFresh("../src/react/lib/api.js");
+    const fetchImpl = async (url, options = {}) => {
+      requests.push({ url: String(url), options });
+      return {
+        ok: true,
+        json: async () =>
+          options.method === "POST"
+            ? { roomId: "NEWRM1", url: "https://example.test/room/NEWRM1" }
+            : { rooms: [{ roomId: "LIVE42" }] },
+      };
+    };
+
+    const boardList = await apiModule.fetchBoardList("traceball-elm-123", {
+      fetchImpl,
+    });
+    const created = await apiModule.createBoard(
+      { clientId: "traceball-elm-123", moveTimeLimitSeconds: 0 },
+      { fetchImpl },
+    );
+
+    expect(boardList).toMatchObject({ rooms: [{ roomId: "LIVE42" }] });
+    expect(created).toMatchObject({ roomId: "NEWRM1" });
+    expect(requests[0]).toMatchObject({
+      url: "/api/rooms?clientId=traceball-elm-123",
+      options: { cache: "no-store" },
+    });
+    expect(requests[1]).toMatchObject({
+      url: "/api/rooms",
+      options: {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      },
+    });
+    expect(JSON.parse(String(requests[1].options.body))).toMatchObject({
+      clientId: "traceball-elm-123",
+      moveTimeLimitSeconds: 0,
+    });
+  });
+
+  it("builds delete-board requests and surfaces creator-only server errors", async () => {
+    const requests = [];
+    const apiModule = await importFresh("../src/react/lib/api.js");
+    const fetchImpl = async (url, options = {}) => {
+      requests.push({ url: String(url), options });
+      return {
+        ok: false,
+        status: 403,
+        json: async () => ({
+          error: "Only the board creator can delete this board.",
+        }),
+      };
+    };
+
+    await expect(
+      apiModule.deleteBoard(
+        { roomId: "ROOM 123", clientId: "traceball-elm-123" },
+        { fetchImpl },
+      ),
+    ).rejects.toThrow("Only the board creator can delete this board.");
+
+    expect(requests[0]).toMatchObject({
+      url: "/api/rooms/ROOM%20123?clientId=traceball-elm-123",
+      options: { method: "DELETE" },
+    });
+  });
+
+  it("opens a board socket and emits status plus authoritative messages", async () => {
+    const statuses = [];
+    const messages = [];
+    const sockets = [];
+    class FakeWebSocket {
+      constructor(url) {
+        this.url = url;
+        this.sent = [];
+        sockets.push(this);
+      }
+      send(raw) {
+        this.sent.push(JSON.parse(raw));
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    const socketModule = await importFresh("../src/react/lib/socket.js");
+
+    const connection = socketModule.connectBoardSocket({
+      roomId: "ROOM123",
+      clientId: "traceball-elm-xyz",
+      onStatus: (status) => statuses.push(status),
+      onMessage: (message) => messages.push(message),
+      WebSocketImpl: FakeWebSocket,
+      socketUrl: "wss://example.test/ws",
+    });
+
+    sockets[0].onopen();
+    sockets[0].onmessage({
+      data: JSON.stringify({ type: "state", boardCode: "ROOM123", version: 2 }),
+    });
+    connection.close();
+
+    expect(sockets[0].url).toBe("wss://example.test/ws");
+    expect(sockets[0].sent[0]).toMatchObject({
+      type: "watch",
+      roomId: "ROOM123",
+      clientId: "traceball-elm-xyz",
+    });
+    expect(statuses).toEqual(["connected", "disconnected"]);
+    expect(messages).toEqual([
+      { type: "state", boardCode: "ROOM123", version: 2 },
+    ]);
+  });
+
+  it("stores only newer board snapshots and keeps local and online timers separate", async () => {
+    const reducerModule = await importFresh(
+      "../src/react/state/shellReducer.js",
+    );
+
+    let state = reducerModule.createInitialShellState({
+      clientId: "traceball-elm-123",
+      playerName: "Stefan",
+      onlineMoveTimer: 15,
+      localMoveTimer: 45,
+    });
+
+    state = reducerModule.shellReducer(state, {
+      type: "receiveBoardState",
+      boardState: {
+        boardCode: "ROOM123",
+        version: 3,
+        game: { state: "SessionActive" },
+      },
+    });
+    state = reducerModule.shellReducer(state, {
+      type: "receiveBoardState",
+      boardState: {
+        boardCode: "ROOM123",
+        version: 2,
+        game: { state: "WaitingForPlayers" },
+      },
+    });
+    state = reducerModule.shellReducer(state, {
+      type: "setLocalMoveTimer",
+      seconds: 30,
+    });
+
+    expect(state.boardState).toMatchObject({
+      boardCode: "ROOM123",
+      version: 3,
+    });
+    expect(state.localSetup.moveTimeLimitSeconds).toBe(30);
+    expect(state.onlineSetup.moveTimeLimitSeconds).toBe(15);
+  });
+
+  it("ignores late snapshots from a previous board after an explicit board switch", async () => {
+    const reducerModule = await importFresh(
+      "../src/react/state/shellReducer.js",
+    );
+
+    let state = reducerModule.createInitialShellState({
+      clientId: "traceball-elm-123",
+      currentBoardCode: "ROOM123",
+      boardState: {
+        boardCode: "ROOM123",
+        version: 3,
+        game: { state: "SessionActive" },
+      },
+    });
+
+    state = reducerModule.shellReducer(state, {
+      type: "setCurrentBoardCode",
+      boardCode: "ROOM999",
+    });
+    const afterLateRoom123 = reducerModule.shellReducer(state, {
+      type: "receiveBoardState",
+      boardState: {
+        boardCode: "ROOM123",
+        version: 4,
+        game: { state: "BetweenRounds" },
+      },
+    });
+
+    expect(afterLateRoom123.currentBoardCode).toBe("ROOM999");
+    expect(afterLateRoom123.boardState).toMatchObject({
+      boardCode: "ROOM123",
+      version: 3,
+      game: { state: "SessionActive" },
+    });
+
+    state = reducerModule.shellReducer(afterLateRoom123, {
+      type: "receiveBoardState",
+      boardState: {
+        boardCode: "ROOM999",
+        version: 1,
+        game: { state: "WaitingForPlayers" },
+      },
+    });
+
+    expect(state.currentBoardCode).toBe("ROOM999");
+    expect(state.boardState).toMatchObject({
+      boardCode: "ROOM999",
+      version: 1,
+      game: { state: "WaitingForPlayers" },
+    });
   });
 });
