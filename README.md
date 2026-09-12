@@ -123,11 +123,12 @@ Useful checks:
 
 ```bash
 npm run build:elm
+npm run build:react
 npm test
 npm run build
 ```
 
-`npm run build:elm` regenerates the runtime that is actually served at `/`. `npm run build` runs static contract checks rather than bundling; this app is served directly from `public/`.
+`npm run build:elm` regenerates the runtime that is actually served at `/`. `npm run build:react` generates the additive React shell bundle that is served at `/react` from `public/react-build/main.js`. This repo serves static files directly from `public/`, so the React bundle is a build prerequisite for `/react` in local and deployment-like environments. The generated bundle is intentionally not treated as a checked-in source-of-truth; the canonical source remains `src/react/*` and the build step keeps `public/react-build/` in sync.
 
 ## Railway
 

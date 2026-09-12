@@ -1,4 +1,4 @@
-const CACHE_NAME = "traceball-arena-v40";
+const CACHE_NAME = "traceball-arena-v41";
 const APP_SHELL = [
   "/",
   "/elm.html",
@@ -9,6 +9,9 @@ const APP_SHELL = [
   "/history.js",
   "/icon.svg",
   "/manifest.webmanifest",
+  "/react",
+  "/react.html",
+  "/react-build/main.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -46,6 +49,13 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/ws") || url.pathname.startsWith("/api/"))
     return;
 
+  const fallbackCandidates =
+    url.pathname === "/react-build/main.js"
+      ? ["/react-build/main.js"]
+      : url.pathname.startsWith("/react")
+        ? ["/react", "/react.html"]
+        : ["/"];
+
   event.respondWith(
     fetch(request)
       .then((response) => {
@@ -56,8 +66,16 @@ self.addEventListener("fetch", (event) => {
         );
         return response;
       })
-      .catch(() =>
-        caches.match(request).then((cached) => cached || caches.match("/")),
-      ),
+      .catch(async () => {
+        const exact = await caches.match(request);
+        if (exact) return exact;
+
+        for (const candidate of fallbackCandidates) {
+          const cached = await caches.match(candidate);
+          if (cached) return cached;
+        }
+
+        return caches.match("/");
+      }),
   );
 });

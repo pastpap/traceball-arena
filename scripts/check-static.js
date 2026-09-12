@@ -184,9 +184,22 @@ const sw = readFileSync("public/sw.js", "utf8");
 if (
   !sw.includes("CACHE_NAME") ||
   !sw.includes("/elm.js") ||
-  !sw.includes("/elm.html")
+  !sw.includes("/elm.html") ||
+  !sw.includes("/react") ||
+  !sw.includes("/react-build/main.js")
 ) {
-  throw new Error("Service worker must cache Elm shell assets.");
+  throw new Error(
+    "Service worker must cache Elm shell and additive React shell assets.",
+  );
+}
+
+if (
+  !/url\.pathname\s*===\s*["']\/react-build\/main\.js["']/.test(sw) ||
+  !/url\.pathname\.startsWith\(\s*["']\/react["']\s*\)/.test(sw)
+) {
+  throw new Error(
+    "Service worker must use React-specific fallbacks instead of defaulting JS module requests to /.",
+  );
 }
 
 console.log("Static build checks passed.");

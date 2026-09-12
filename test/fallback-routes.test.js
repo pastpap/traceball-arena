@@ -137,6 +137,19 @@ describe("frontend routes", () => {
     }
   });
 
+  it("serves the generated React bundle from the running server", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const bundle = await fetch(`${server.baseUrl}/react-build/main.js`);
+      const bundleText = await bundle.text();
+      expect(bundle.status).toBe(200);
+      expect(bundleText).toContain("React product shell");
+      expect(bundleText).toContain("react-root");
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
   it("redirects /room/:roomId to board query in Elm mode", async () => {
     const server = await startServer(randomPort());
     try {
