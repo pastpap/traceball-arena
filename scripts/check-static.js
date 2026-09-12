@@ -12,6 +12,7 @@ const required = [
   "src/server.js",
   "src/game.js",
   "src/elm/Main.elm",
+  "src/elm/BoardIsland.elm",
   "src/elm/Board/Decode.elm",
   "src/elm/Board/View.elm",
   "src/elm/Board/Types.elm",
@@ -28,6 +29,7 @@ const elmBundle = readFileSync("public/elm.js", "utf8");
 const reactHtml = readFileSync("public/react.html", "utf8");
 const reactBundle = readFileSync("public/react-build/main.js", "utf8");
 const elmMain = readFileSync("src/elm/Main.elm", "utf8");
+const boardIsland = readFileSync("src/elm/BoardIsland.elm", "utf8");
 const elmDecode = readFileSync("src/elm/Board/Decode.elm", "utf8");
 const elmView = readFileSync("src/elm/Board/View.elm", "utf8");
 const elmTypes = readFileSync("src/elm/Board/Types.elm", "utf8");
@@ -81,6 +83,19 @@ if (
 ) {
   throw new Error(
     "Elm Main must define model/update/view and stale-version handling.",
+  );
+}
+
+if (
+  !boardIsland.includes("port boardSnapshot") ||
+  !boardIsland.includes("port boardMoveClicked") ||
+  !boardIsland.includes("ReceiveBoardSnapshot") ||
+  !boardIsland.includes("BoardClicked") ||
+  !boardIsland.includes("viewBoard") ||
+  !boardIsland.includes('"boardMoveClick"')
+) {
+  throw new Error(
+    "BoardIsland must define the passive board snapshot input port and board move-click output port.",
   );
 }
 

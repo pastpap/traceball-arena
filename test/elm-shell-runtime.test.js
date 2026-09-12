@@ -91,6 +91,19 @@ function makeElmWithPorts(extraPorts = {}) {
   return { elm, getSendCommand: () => sendCommand };
 }
 
+describe("BoardIsland seam contract", () => {
+  it("defines a passive board snapshot seam with a move-click port", () => {
+    const source = readFileSync("src/elm/BoardIsland.elm", "utf8");
+
+    expect(source).toContain("port boardSnapshot");
+    expect(source).toContain("port boardMoveClicked");
+    expect(source).toContain("ReceiveBoardSnapshot");
+    expect(source).toContain("BoardClicked");
+    expect(source).toContain("viewBoard");
+    expect(source).toContain('"boardMoveClick"');
+  });
+});
+
 describe("Elm runtime bridge — flags", () => {
   it("passes boardCode, clientId, playerName, onlineMoveTimer to Elm init", async () => {
     let initFlags = null;

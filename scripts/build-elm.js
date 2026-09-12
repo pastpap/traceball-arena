@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 const sources = [
   "elm.json",
   "src/elm/Main.elm",
+  "src/elm/BoardIsland.elm",
   "src/elm/Board/Types.elm",
   "src/elm/Board/Decode.elm",
   "src/elm/Board/View.elm",
@@ -26,14 +27,24 @@ if (!compiler) {
   process.exit(0);
 }
 
-const result = spawnSync(
+const mainCompile = spawnSync(
   compiler,
   ["make", "src/elm/Main.elm", "--output=/tmp/traceball-elm-compile-check.js"],
   { stdio: "inherit" },
 );
-if (result.status !== 0) {
-  throw new Error("Elm compiler check failed.");
+if (mainCompile.status !== 0) {
+  throw new Error("Elm Main compiler check failed.");
 }
+
+const islandCompile = spawnSync(
+  compiler,
+  ["make", "src/elm/BoardIsland.elm", "--output=/tmp/traceball-board-island-compile-check.js"],
+  { stdio: "inherit" },
+);
+if (islandCompile.status !== 0) {
+  throw new Error("Elm BoardIsland compiler check failed.");
+}
+
 const runtimeBuild = spawnSync(
   compiler,
   ["make", "src/elm/Main.elm", "--output=public/elm-runtime.js"],
