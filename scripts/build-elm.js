@@ -38,7 +38,11 @@ if (mainCompile.status !== 0) {
 
 const islandCompile = spawnSync(
   compiler,
-  ["make", "src/elm/BoardIsland.elm", "--output=/tmp/traceball-board-island-compile-check.js"],
+  [
+    "make",
+    "src/elm/BoardIsland.elm",
+    "--output=/tmp/traceball-board-island-compile-check.js",
+  ],
   { stdio: "inherit" },
 );
 if (islandCompile.status !== 0) {
