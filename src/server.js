@@ -40,6 +40,9 @@ const roomTimers = new Map();
 const elmShellPath = fileURLToPath(
   new URL("../public/elm.html", import.meta.url),
 );
+const reactShellPath = fileURLToPath(
+  new URL("../public/react.html", import.meta.url),
+);
 
 function servePrimaryShell(_req, res) {
   res.type("html").send(readFileSync(elmShellPath, "utf8"));
@@ -49,8 +52,13 @@ function serveElmShell(_req, res) {
   res.type("html").send(readFileSync(elmShellPath, "utf8"));
 }
 
+function serveReactShell(_req, res) {
+  res.type("html").send(readFileSync(reactShellPath, "utf8"));
+}
+
 app.get("/", servePrimaryShell);
 app.get("/elm", serveElmShell);
+app.get("/react", serveReactShell);
 app.get("/room/:roomId", (req, res) => {
   const roomId = safeRoomId(req.params.roomId);
   if (!roomId) return res.redirect(302, "/");

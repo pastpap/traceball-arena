@@ -16,11 +16,13 @@ Start from a clean, green baseline:
 
 1. Merge `feature/full-elm-ui-replace` into `elm-rewrite` after CI/local gates pass.
 2. Create a new branch from updated `elm-rewrite`:
+
    ```bash
    git checkout elm-rewrite
    git pull --ff-only origin elm-rewrite
-   git checkout -b feature/hybrid-elm-react-shell
+   git checkout -b feature/elm-board-react-product-shell
    ```
+
 3. Keep the full-Elm frontend available as rollback during the hybrid work, for example `/elm` or `/full-elm`.
 4. Do not remove full-Elm shell code until React shell reaches parity gates.
 
@@ -28,7 +30,7 @@ If merging to `elm-rewrite` would trigger staging and you do not want the full-E
 
 ```bash
 git checkout -b integration/hybrid-base feature/full-elm-ui-replace
-git checkout -b feature/hybrid-elm-react-shell
+git checkout -b feature/elm-board-react-product-shell
 ```
 
 But preferred path is still: green Phase 1 -> merge to `elm-rewrite` -> branch hybrid.
@@ -438,7 +440,7 @@ You are traceball-orchestrator. Read:
 - docs/architecture/realtime-protocol-phase1.md
 - .github/agents/squad.agent.md
 
-Goal: prepare the first hybridization execution board for feature/hybrid-elm-react-shell.
+Goal: prepare the first hybridization execution board for feature/elm-board-react-product-shell.
 
 Constraints:
 - Server remains authoritative.
