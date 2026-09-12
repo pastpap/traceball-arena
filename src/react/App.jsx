@@ -1,4 +1,5 @@
 import React, { useReducer } from "react";
+import { persistPlayerName } from "./lib/storage.js";
 import { shellReducer } from "./state/shellReducer.js";
 
 const pageStyle = {
@@ -71,6 +72,43 @@ const valueStyle = {
   wordBreak: "break-word",
 };
 
+const fieldStyle = {
+  width: "100%",
+  marginTop: "10px",
+  padding: "12px 14px",
+  borderRadius: "12px",
+  border: "1px solid rgba(16, 42, 26, 0.14)",
+  fontSize: "1rem",
+  boxSizing: "border-box",
+};
+
+const buttonRowStyle = {
+  display: "flex",
+  gap: "10px",
+  marginTop: "18px",
+  flexWrap: "wrap",
+};
+
+const buttonStyle = (active) => ({
+  border: "1px solid rgba(16, 42, 26, 0.12)",
+  borderRadius: "999px",
+  padding: "8px 14px",
+  background: active ? "#102a1a" : "#f7fbf7",
+  color: active ? "#f6fbf4" : "#102a1a",
+  fontWeight: 700,
+  cursor: "pointer",
+});
+
+const placeholderStyle = {
+  marginTop: "18px",
+  padding: "16px",
+  borderRadius: "16px",
+  background: "#eef7f0",
+  border: "1px dashed rgba(16, 42, 26, 0.18)",
+  color: "#153124",
+  fontWeight: 600,
+};
+
 const noteStyle = {
   marginTop: "24px",
   padding: "16px 18px",
@@ -81,7 +119,18 @@ const noteStyle = {
 };
 
 export default function App({ initialState }) {
-  const [state] = useReducer(shellReducer, initialState);
+  const [state, dispatch] = useReducer(shellReducer, initialState);
+
+  const playerIdentity =
+    state.clientId && state.clientId.length > 6
+      ? `...${state.clientId.slice(-6)}`
+      : "identity ready";
+
+  const handleNameChange = (event) => {
+    const nextName = event.target.value;
+    dispatch({ type: "setPlayerName", playerName: nextName });
+    persistPlayerName(nextName);
+  };
 
   return (
     <main style={pageStyle}>
@@ -89,25 +138,57 @@ export default function App({ initialState }) {
         <p style={eyebrowStyle}>React product shell</p>
         <h1 style={titleStyle}>Traceball Arena</h1>
         <p style={leadStyle}>
-          This additive route proves the hybrid React runtime and bundle. Elm
-          board rendering is not mounted yet, and no gameplay authority or fake
-          move logic lives here.
+          The React shell owns product state only. The Elm board island is not
+          mounted yet, and online authority remains on the server.
         </p>
 
         <div style={cardGridStyle}>
           <article style={cardStyle}>
-            <p style={labelStyle}>Stored Player</p>
-            <p style={valueStyle}>{state.playerName || "Unavailable"}</p>
+            <p style={labelStyle}>Player Name</p>
+            <input
+              aria-label="Player name"
+              value={state.playerName || ""}
+              onChange={handleNameChange}
+              style={fieldStyle}
+              placeholder="Enter your name"
+            />
           </article>
           <article style={cardStyle}>
             <p style={labelStyle}>Client Identity</p>
-            <p style={valueStyle}>{state.clientId || "Unavailable"}</p>
+            <p style={valueStyle}>{playerIdentity}</p>
           </article>
           <article style={cardStyle}>
             <p style={labelStyle}>Online Move Timer</p>
             <p style={valueStyle}>{state.onlineSetup.moveTimeLimitSeconds}s</p>
           </article>
         </div>
+
+        <div style={{ marginTop: "20px" }}>
+          <p style={labelStyle}>Selected Mode</p>
+          <div style={buttonRowStyle}>
+            <button
+              type="button"
+              style={buttonStyle(state.mode === "online")}
+              onClick={() => dispatch({ type: "setMode", mode: "online" })}
+            >
+              Online
+            </button>
+            <button
+              type="button"
+              style={buttonStyle(state.mode === "local")}
+              onClick={() => dispatch({ type: "setMode", mode: "local" })}
+            >
+              Local
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "20px" }}>
+          <p style={labelStyle}>Active Tab</p>
+          <p style={valueStyle}>{state.mainTab || "home"}</p>
+        </div>
+
+        <div style={placeholderStyle}>Board island not mounted yet</div>
 
         <div style={noteStyle}>
           Elm remains the board and replay correctness surface. The server
