@@ -426,9 +426,20 @@ PR / merge notes:
 
 ## VS Code squad prompting guide
 
-Use the orchestrator first. Then assign specialists only after the orchestrator returns a slice plan.
+This is a two-pass workflow. Prompts 1-4 are **pre-flight planning**, not implementation. Prompts 2-4 deliberately say `Do not modify files` because their job is to produce review notes. Those notes must then be fed back into the orchestrator before any slice is implemented.
 
-### Prompt 1 — Orchestrator: make execution board
+Required order:
+
+1. Prompt 1: orchestrator proposes the first 3 slices.
+2. Prompts 2-4: backend, Elm, and QA agents review that proposal and return notes only.
+3. Prompt 1b: orchestrator reconciles those notes into final slice specs.
+4. Optional: commit a short preflight note or updated plan.
+5. Prompt 5: implement Slice 1 using the reconciled slice spec, not the initial orchestrator draft.
+6. Prompt 6: review the implemented slice.
+
+Do **not** implement directly from Prompt 1 if Prompts 2-4 found constraints, seam changes, or required gates.
+
+### Prompt 1 — Orchestrator: draft execution board
 
 ```text
 You are traceball-orchestrator. Read:
@@ -527,8 +538,50 @@ Output:
 - Manual mobile smoke.
 - PWA/cache checks.
 - Rollback checks.
+- Slice changes recommended, if any, for the first 3 slices.
+- Text to include in a preflight note, if useful.
 Do not modify files.
 ```
+
+### Prompt 1b — Orchestrator: reconcile specialist notes into final slice specs
+
+Run this after Prompts 2-4. Paste the full outputs from backend, Elm, and QA into this prompt.
+
+```text
+You are traceball-orchestrator. Reconcile the specialist pre-flight notes into final implementation instructions.
+
+Read:
+- docs/execution/hybrid-elm-react-shell-plan.md
+- README.md
+- docs/architecture/board-state-machine.md
+- docs/architecture/realtime-protocol-phase1.md
+
+Initial Slice Draft from Prompt 1:
+[paste orchestrator's original first-3-slices output]
+
+Backend Preflight Notes from traceball-realtime-backend:
+[paste full output from Prompt 2]
+
+Elm Board-Island Notes from traceball-elm-frontend:
+[paste full output from Prompt 3]
+
+QA Gate Notes from traceball-qa-mobile:
+[paste full output from Prompt 4]
+
+Task:
+1. Produce the FINAL Slice 1, Slice 2, and Slice 3 specs.
+2. For each slice, list exact files allowed to change.
+3. For each slice, list exact tests/checks that must be run.
+4. For each slice, list backend authority constraints to include in Prompt 5.
+5. For each slice, list Elm island constraints to include in Prompt 5.
+6. For each slice, list QA/rollback gates to include in Prompt 5.
+7. Identify any conflict between the specialist notes and decide which constraint wins.
+8. Provide a short Markdown section called `Preflight decisions` that can be pasted into docs or the PR body.
+
+Do not implement code.
+```
+
+Implementation prompts must use the FINAL slice specs from Prompt 1b, not the first draft from Prompt 1.
 
 ### Prompt 5 — Implementation slice prompt template
 
