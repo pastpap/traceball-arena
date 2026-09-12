@@ -1,6 +1,6 @@
 # Traceball Arena Elm Rewrite Phases
 
-> Archived roadmap. The maintained historical copy now lives at `docs/history/elm-rewrite-phases.md`. Current architecture docs stay in `docs/architecture/`, and execution tracking docs live in `docs/execution/`.
+> Historical roadmap. Current architecture docs live in `docs/architecture/`. Execution tracking and runbooks live in `docs/execution/`.
 
 > Phased plan for evolving Traceball Arena toward an Elm frontend while keeping the Node backend authoritative. This is not a commit-by-commit plan; it is the roadmap agents should use when proposing or reviewing implementation work.
 

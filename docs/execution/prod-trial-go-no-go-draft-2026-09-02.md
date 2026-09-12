@@ -31,7 +31,7 @@ Automated checks now cover timeout and fallback gates:
 
 - F Timeout behavior branch 1: alternating timeout pass-then-pause (PASS via `test/realtime-websocket-flow.test.js` and `test/game.test.js`)
 - F Timeout behavior branch 2: repeated same-player timeout auto-pause (PASS via `test/game.test.js`)
-- Legacy fallback drill: `/legacy`, `/legacy/room/:roomId`, and `TRACEBALL_FRONTEND=legacy` (PASS via `test/fallback-routes.test.js`)
+- Elm-only route drill: `/` and `/elm` serve Elm shell; `/room/:roomId` redirects to `/?board=...` (PASS via `test/fallback-routes.test.js`)
 
 Still pending for final sign-off:
 
@@ -44,7 +44,7 @@ Current risk: LOW-MEDIUM
 
 Reasons:
 
-- Core user flows, timeout branches, and fallback behavior are green in automation.
+- Core user flows, timeout branches, and route integrity behavior are green in automation.
 - Final blocker is evidence completeness for manual matrix artifacts and subjective UX confirmation on phone Safari.
 
 ## 4) Recommendation
@@ -54,8 +54,15 @@ Final recommendation: CONDITIONAL GO
 Why:
 
 - Automated evidence is green across the critical smoke pack.
-- Timeout behavior and legacy-fallback protections are validated in code-level and WebSocket tests.
+- Timeout behavior and route-integrity protections are validated in code-level and WebSocket tests.
 - Remaining condition is not product risk; it is manual evidence completeness for Safari/iPhone validation.
+
+2026-09-09 addendum:
+
+- Online pause was tightened to current-turn ownership only.
+- Reconnect no longer auto-resumes a paused game.
+- The pause overlay is now resume-only on both desktop and mobile; New Round remains a winner/between-round action.
+- If this draft is reused for a fresh decision pass, refresh any Playwright evidence that still depends on removed selectors such as `#playerNameInput`.
 
 Condition to remove the condition:
 

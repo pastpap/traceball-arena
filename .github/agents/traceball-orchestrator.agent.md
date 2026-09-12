@@ -14,7 +14,7 @@ Your job is to turn Stefan's intent into safe, staged development work while pre
 Before answering or changing code, read:
 
 1. `docs/architecture/board-state-machine.md`
-2. `docs/architecture/elm-rewrite-phases.md`
+2. `docs/history/elm-rewrite-phases.md`
 3. `docs/architecture/realtime-protocol-phase1.md`
 4. `README.md`
 5. Relevant source/tests for the task

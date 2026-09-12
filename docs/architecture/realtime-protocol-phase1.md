@@ -1,13 +1,12 @@
 # Traceball Arena Phase 1 Realtime Protocol
 
-> Canonical server/client contract for the Elm rewrite. Phase 1 is additive: the current JavaScript frontend may keep using the legacy `game` payload while Elm targets the canonical `board` payload.
+> Canonical server/client contract for the Elm rewrite. The Phase 1 adapter layer is retired: the server broadcasts raw `game` payloads, and Elm derives the board/session view model in `Board.Decode`.
 
 ## Goals
 
 - Freeze a board-centric JSON shape for Elm decoders.
 - Keep the Node backend authoritative.
 - Include monotonic state versions for stale-message protection.
-- Preserve legacy frontend compatibility during migration.
 - Make watcher vs waiting-list membership explicit.
 
 ## Naming
@@ -18,7 +17,7 @@ The canonical architecture uses board-centric names:
 - blue/red seats, not p1/p2 in Elm-facing data
 - session/round state nested under board
 
-During migration, the server may send lowercase legacy `type` values for compatibility. The canonical Elm fields are the `boardCode`, `version`, and `board` fields on state messages.
+State message fields are `type`, `boardCode`, `version`, and `game`.
 
 ## ServerToClient messages
 
@@ -31,22 +30,20 @@ Authoritative board snapshot.
   "type": "state",
   "boardCode": "ROOM123",
   "version": 2,
-  "board": {},
   "game": {}
 }
 ```
 
 Fields:
 
-- `type`: currently lowercase `state` for legacy compatibility.
+- `type`: lowercase `state`.
 - `boardCode`: board/table code.
 - `version`: monotonically increasing board version. Elm must ignore incoming state where `incoming.version <= current.version` for the same board.
-- `board`: canonical Elm-facing board snapshot.
-- `game`: legacy JS-facing payload from `publicGame(game)`. Temporary during migration.
+- `game`: authoritative server payload from `publicGame(game)`.
 
 ### Joined
 
-Legacy acknowledgement still used by current frontend.
+Current acknowledgement message used by the runtime.
 
 ```json
 {
@@ -61,7 +58,7 @@ Elm should eventually prefer board/seat state from the next `state` message over
 
 ### Left
 
-Legacy acknowledgement for explicit leave.
+Current acknowledgement for explicit leave.
 
 ```json
 {
@@ -146,13 +143,13 @@ Canonical values:
 - `SessionEnded`
 - `BoardExpired`
 
-Current adapter mappings:
+Current mappings used by Elm decoder:
 
-- legacy `waiting` + zero active seats -> `WaitingForPlayers`
-- legacy `waiting` + one active seat -> `OneSeatOccupied`
-- legacy `playing` -> `SessionActive`
-- legacy `paused` -> `SessionPaused`
-- legacy `finished` -> `BetweenRounds`
+- backend `waiting` + zero active seats -> `WaitingForPlayers`
+- backend `waiting` + one active seat -> `OneSeatOccupied`
+- backend `playing` -> `SessionActive`
+- backend `paused` -> `SessionPaused`
+- backend `finished` -> `BetweenRounds`
 
 `SessionEnded` and `BoardExpired` are documented target states but are not fully implemented in the current backend yet.
 
@@ -183,9 +180,7 @@ Watching is passive:
 
 ```json
 {
-  "watchers": [
-    { "displayName": "Watcher One", "joinedAt": 3000 }
-  ],
+  "watchers": [{ "displayName": "Watcher One", "joinedAt": 3000 }],
   "waitingList": []
 }
 ```
@@ -194,9 +189,7 @@ Waiting-list opt-in is explicit:
 
 ```json
 {
-  "waitingList": [
-    { "displayName": "Next Player", "joinedAt": 3100 }
-  ]
+  "waitingList": [{ "displayName": "Next Player", "joinedAt": 3100 }]
 }
 ```
 
@@ -208,7 +201,7 @@ The existing frontend/server protocol accepts:
 
 ### join
 
-Legacy generic auto-join/rejoin.
+Current generic auto-join/rejoin command.
 
 ```json
 {
@@ -279,9 +272,16 @@ Elm-facing canonical color mapping:
 { "type": "resume" }
 ```
 
+Current behavior:
+
+- Only the seated player whose turn it is may manually pause.
+- Only that same current-turn seat may resume a paused session.
+- Automatic timeout/disconnect pauses keep resume authority with the current-turn seat.
+- The pause overlay is resume-only; `reset`/new-round actions belong to winner/between-round flows, not to paused play.
+
 ### reset
 
-Legacy name for starting/continuing a new round.
+Current wire name for starting/continuing a new round.
 
 ```json
 { "type": "reset" }
@@ -291,7 +291,7 @@ Canonical Elm name should become `ContinueRound` later.
 
 ## Future canonical ClientToServer messages
 
-These are target names for Elm and/or a later backend protocol adapter:
+These are target names for Elm and/or later protocol cleanup:
 
 - `CreateBoard`
 - `OpenBoard`
@@ -306,41 +306,8 @@ These are target names for Elm and/or a later backend protocol adapter:
 - `ContinueRound`
 - `FreeDisconnectedSeat`
 
-Phase 1 does not need to implement all of them. It documents the direction and freezes the state fixtures that Elm will decode.
+Phase 1 does not need to implement all of them. It documents the direction and naming targets.
 
-## Fixtures
+## Runtime note
 
-Canonical fixtures live in:
-
-```text
-test/fixtures/phase1/
-```
-
-Required fixtures:
-
-- `board-creator-only.json`
-- `board-active-session.json`
-- `board-full-with-watcher.json`
-- `board-full-with-waiting-list-member.json`
-- `board-disconnected-player-during-grace.json`
-- `board-disconnected-player-eligible-to-free.json`
-- `board-between-rounds.json`
-- `board-not-found.json`
-
-These fixtures are intentionally deterministic: fixed board code, timestamps, names, and versions.
-
-## Compatibility rule
-
-Until Elm becomes the primary frontend, `state` broadcasts should include both:
-
-```json
-{
-  "type": "state",
-  "game": {},
-  "boardCode": "ROOM123",
-  "version": 1,
-  "board": {}
-}
-```
-
-Existing JavaScript reads `game`. Elm reads `board`.
+Elm consumes the raw `game` state payload directly.

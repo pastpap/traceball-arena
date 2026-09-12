@@ -49,34 +49,26 @@ async function stopServer(child) {
   if (child.exitCode == null) child.kill("SIGKILL");
 }
 
-describe("legacy frontend fallback routes", () => {
-  it("serves Elm shell on / and legacy shell on /legacy by default", async () => {
+describe("frontend routes", () => {
+  it("serves Elm shell on /", async () => {
     const server = await startServer(randomPort());
     try {
       const root = await fetch(`${server.baseUrl}/`);
       const rootHtml = await root.text();
       expect(root.status).toBe(200);
       expect(rootHtml).toContain('id="elm-root"');
-
-      const legacy = await fetch(`${server.baseUrl}/legacy`);
-      const legacyHtml = await legacy.text();
-      expect(legacy.status).toBe(200);
-      expect(legacyHtml).toContain('id="playerNameInput"');
     } finally {
       await stopServer(server.child);
     }
   });
 
-  it("forces legacy shell on / when TRACEBALL_FRONTEND=legacy", async () => {
-    const server = await startServer(randomPort(), {
-      TRACEBALL_FRONTEND: "legacy",
-    });
+  it("serves Elm shell on /elm", async () => {
+    const server = await startServer(randomPort());
     try {
-      const root = await fetch(`${server.baseUrl}/`);
-      const rootHtml = await root.text();
-      expect(root.status).toBe(200);
-      expect(rootHtml).toContain('id="playerNameInput"');
-      expect(rootHtml).not.toContain('id="elm-root"');
+      const elm = await fetch(`${server.baseUrl}/elm`);
+      const elmHtml = await elm.text();
+      expect(elm.status).toBe(200);
+      expect(elmHtml).toContain('id="elm-root"');
     } finally {
       await stopServer(server.child);
     }
@@ -95,20 +87,18 @@ describe("legacy frontend fallback routes", () => {
     }
   });
 
-  it("serves legacy room shell on /room/:roomId and /legacy/room/:roomId in legacy mode", async () => {
-    const server = await startServer(randomPort(), {
-      TRACEBALL_FRONTEND: "legacy",
-    });
+  it("does not expose removed /legacy routes", async () => {
+    const server = await startServer(randomPort());
     try {
-      const room = await fetch(`${server.baseUrl}/room/ROOM123`);
-      const roomHtml = await room.text();
-      expect(room.status).toBe(200);
-      expect(roomHtml).toContain('id="playerNameInput"');
+      const legacy = await fetch(`${server.baseUrl}/legacy`, {
+        redirect: "manual",
+      });
+      expect(legacy.status).toBe(404);
 
-      const legacyRoom = await fetch(`${server.baseUrl}/legacy/room/ROOM123`);
-      const legacyRoomHtml = await legacyRoom.text();
-      expect(legacyRoom.status).toBe(200);
-      expect(legacyRoomHtml).toContain('id="playerNameInput"');
+      const legacyRoom = await fetch(`${server.baseUrl}/legacy/room/ROOM123`, {
+        redirect: "manual",
+      });
+      expect(legacyRoom.status).toBe(404);
     } finally {
       await stopServer(server.child);
     }
