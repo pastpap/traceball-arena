@@ -33,7 +33,10 @@ describe("React shell hydration", () => {
     };
 
     const clientId = getOrCreateClientId({ storage });
-    const playerName = getStoredPlayerName({ storage, randomName: () => "Guest" });
+    const playerName = getStoredPlayerName({
+      storage,
+      randomName: () => "Guest",
+    });
     const onlineMoveTimer = getStoredOnlineMoveTimer({ storage, fallback: 15 });
     const shell = createInitialShellState({
       clientId,
