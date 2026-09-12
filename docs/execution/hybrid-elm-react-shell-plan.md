@@ -428,7 +428,17 @@ PR / merge notes:
 
 ## VS Code squad prompting guide
 
-Use the orchestrator first. Then assign specialists only after the orchestrator returns a slice plan.
+Use the orchestrator first. Treat Prompts 1-4 as preflight planning and review only, not implementation prompts.
+
+Required order:
+
+1. Prompt 1: orchestrator drafts the first 3 slices.
+2. Prompts 2-4: backend, Elm, and QA return review notes only.
+3. Prompt 1b: orchestrator reconciles specialist notes into final Slice 1/2/3 specs.
+4. Prompt 5: implementation uses the reconciled final slice spec, not the first draft.
+5. Prompt 6: review the implemented slice.
+
+Do not start implementation from Prompt 1 alone. Prompt 1 is the draft execution board; Prompt 1b is the required preflight reconciliation step before any implementation prompt is used.
 
 ### Prompt 1 — Orchestrator: make execution board
 
@@ -455,6 +465,48 @@ Output:
 3. The test command for each slice.
 4. Which specialist agent should implement/review each slice.
 Do not modify files yet.
+```
+
+### Prompt 1b — Orchestrator: reconcile specialist notes into final slice specs
+
+Use this after Prompts 2-4 return their review notes.
+
+```text
+You are traceball-orchestrator. Reconcile the preflight specialist notes into final slice specs.
+
+Read:
+- docs/execution/hybrid-elm-react-shell-plan.md
+- README.md
+- docs/architecture/board-state-machine.md
+- docs/architecture/realtime-protocol-phase1.md
+- .github/agents/squad.agent.md
+
+Inputs:
+- Prompt 1 output: draft Slice 1/2/3 execution board
+- Prompt 2 output: backend/protocol boundary review
+- Prompt 3 output: Elm board island design notes
+- Prompt 4 output: QA and rollback gate notes
+
+Goal: produce the reconciled final Slice 1/2/3 specs for feature/elm-board-react-product-shell.
+
+Constraints:
+- Server remains authoritative.
+- Elm remains board/game correctness island.
+- React owns product shell only.
+- Keep full-Elm rollback route working.
+- Use TDD: test first, implement second.
+
+Output:
+1. Final Slice 1/2/3 specs.
+2. Exact allowed files for each slice.
+3. Tests/checks for each slice.
+4. Backend authority constraints each slice must preserve.
+5. Elm island constraints each slice must preserve.
+6. QA/rollback gates each slice must preserve.
+7. Conflicts between specialist notes and how they were resolved.
+8. Short "Preflight decisions" markdown suitable for docs or a PR body.
+
+Do not modify files.
 ```
 
 ### Prompt 2 — Realtime backend: boundary review before coding
@@ -529,12 +581,14 @@ Output:
 - Manual mobile smoke.
 - PWA/cache checks.
 - Rollback checks.
+- Slice changes recommended, if any, for the first 3 slices.
+- Text to include in a preflight note, if useful.
 Do not modify files.
 ```
 
 ### Prompt 5 — Implementation slice prompt template
 
-Use this for each small slice after the orchestrator approves it:
+Use this only after Prompt 1b produces the reconciled final slice spec:
 
 ```text
 You are [SPECIALIST_AGENT]. Implement Slice [N]: [slice name].
