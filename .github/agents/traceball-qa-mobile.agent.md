@@ -21,7 +21,7 @@ Use this agent when:
 Always read:
 
 1. `docs/architecture/board-state-machine.md`
-2. `docs/architecture/elm-rewrite-phases.md`
+2. `docs/history/elm-rewrite-phases.md`
 3. `docs/architecture/realtime-protocol-phase1.md`
 4. Existing `test/` files and `scripts/check-static.js`
 

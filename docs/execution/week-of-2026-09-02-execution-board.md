@@ -136,7 +136,7 @@ Exit for Day 5:
 
 ## 5) Runbook coverage mapping
 
-Source runbook: docs/plans/prod-trial-smoke-runbook.md
+Source runbook: docs/execution/prod-trial-smoke-runbook.md
 
 - A Home tab
   - Owner: Elm Frontend, QA Mobile
@@ -219,7 +219,7 @@ No-Go if any true:
 - 2026-09-02: Ran consolidated production-trial smoke evidence pack.
   - Command: `npm run test:e2e -- --grep "Home and Boards smoke|Match tab smoke|manual pause only allows the pausing player|local replay controls step through moves|winner overlay appears after a scored local round|PWA refresh smoke"`
   - Result: 22 passed, 2 skipped (PWA refresh smoke skipped on WebKit by design).
-  - Decision artifact: `docs/plans/prod-trial-go-no-go-draft-2026-09-02.md`.
+  - Decision artifact: `docs/execution/prod-trial-go-no-go-draft-2026-09-02.md`.
   - Gate status: PASS for the next plan step; remaining Safari/iPhone manual evidence is procedural, not corrective.
 
 - 2026-09-02: Added automated route integrity coverage in `test/fallback-routes.test.js`.

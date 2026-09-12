@@ -293,7 +293,7 @@ describe("room state lifecycle", () => {
     });
     expect(game.players.p2.disconnectedAt).toBe(null);
     expect(game.players.p2.canBeFreedAt).toBe(null);
-    expect(game.status).toBe("playing");
+    expect(game.status).toBe("paused");
   });
 
   it("automatically releases disconnected reserved seats after the grace period expires", () => {

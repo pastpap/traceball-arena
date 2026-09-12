@@ -32,7 +32,7 @@ Start here when you want help from the project squad inside an IDE.
 All agents should ground decisions in:
 
 - `docs/architecture/board-state-machine.md`
-- `docs/architecture/elm-rewrite-phases.md`
+- `docs/history/elm-rewrite-phases.md`
 - `docs/architecture/realtime-protocol-phase1.md`
 
 ## How to use this squad

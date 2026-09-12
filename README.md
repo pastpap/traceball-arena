@@ -93,8 +93,9 @@ Current default frontend:
 Architecture and rewrite docs:
 
 - `docs/architecture/board-state-machine.md`
-- `docs/architecture/elm-rewrite-phases.md`
+- `docs/history/elm-rewrite-phases.md`
 - `docs/architecture/realtime-protocol-phase1.md`
+- `docs/README.md`
 
 Repo-local agent definitions live in `.github/agents/` for IDE-assisted work:
 

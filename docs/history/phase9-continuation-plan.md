@@ -12,8 +12,8 @@
 
 Execution tracking for this week is consolidated in:
 
-- `docs/plans/week-of-2026-09-02-execution-board.md`
-- `docs/plans/prod-trial-smoke-runbook.md`
+- `docs/execution/week-of-2026-09-02-execution-board.md`
+- `docs/execution/prod-trial-smoke-runbook.md`
 
 Use the weekly execution board as the source for owner assignments/day-by-day sequencing, and keep this document focused on implementation scope and parity detail.
 
@@ -171,7 +171,7 @@ npm run build
 **Step 5: Commit**
 
 ```bash
-git add public/elm.js public/styles.css scripts/check-static.js test/elm-shell-runtime.test.js docs/plans/phase9-continuation-plan.md
+git add public/elm.js public/styles.css scripts/check-static.js test/elm-shell-runtime.test.js docs/history/phase9-continuation-plan.md
 git commit -m "feat: add Phase 9 board HUD orientation"
 ```
 
@@ -258,7 +258,7 @@ Run targeted tests, `npm test`, `npm run build`, and local smoke creating a time
 **Step 5: Commit**
 
 ```bash
-git add public/elm.js src/elm/Board/Decode.elm src/elm/Protocol.elm test/elm-shell-runtime.test.js docs/plans/phase9-continuation-plan.md
+git add public/elm.js src/elm/Board/Decode.elm src/elm/Protocol.elm test/elm-shell-runtime.test.js docs/history/phase9-continuation-plan.md
 git commit -m "feat: surface online move timer settings"
 ```
 

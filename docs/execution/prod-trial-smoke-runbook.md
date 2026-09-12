@@ -193,4 +193,4 @@ Date:
 
 Latest draft decision artifact:
 
-- docs/plans/prod-trial-go-no-go-draft-2026-09-02.md
+- docs/execution/prod-trial-go-no-go-draft-2026-09-02.md
