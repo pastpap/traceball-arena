@@ -5,7 +5,10 @@ import {
   handlePendingBoardMoveClick,
 } from "../src/react/App.jsx";
 import { buildBoardIslandFlags } from "../src/react/components/ElmBoard.jsx";
-import { createInitialShellState, shellReducer } from "../src/react/state/shellReducer.js";
+import {
+  createInitialShellState,
+  shellReducer,
+} from "../src/react/state/shellReducer.js";
 
 describe("React live snapshot wiring", () => {
   it("connects watch socket for current board and dispatches live state snapshots", () => {

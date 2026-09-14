@@ -318,7 +318,9 @@ export default function App({ initialState }) {
         )}
 
         {state.toast ? (
-          <div style={{ ...placeholderStyle, marginTop: "10px" }}>{state.toast}</div>
+          <div style={{ ...placeholderStyle, marginTop: "10px" }}>
+            {state.toast}
+          </div>
         ) : null}
 
         <div style={noteStyle}>
