@@ -360,6 +360,22 @@ export function getPauseResumeActions({ ownSeat, snapshot } = {}) {
   return [];
 }
 
+export function getNewRoundAction({ ownSeat, snapshot } = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") return null;
+
+  const status = String(snapshot?.game?.status || "").trim();
+  if (status === "finished") {
+    return { label: "Continue", reason: "between-rounds" };
+  }
+
+  if (status === "paused" && snapshot?.game?.pause?.byPlayerId === seat) {
+    return { label: "Start New Round", reason: "paused-owner" };
+  }
+
+  return null;
+}
+
 export function initializeBoardFromUrl({
   clientId,
   dispatch,
@@ -533,6 +549,24 @@ export function handleResumeAction({ ownSeat, connection, dispatch }) {
   connection.send({ type: "resume" });
 }
 
+export function handleNewRoundAction({ ownSeat, connection, dispatch }) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "You are not occupying a seat." });
+    return;
+  }
+
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to continue.",
+    });
+    return;
+  }
+
+  connection.send({ type: "reset" });
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -583,6 +617,10 @@ export default function App({ initialState }) {
     snapshot: liveSnapshot,
   });
   const pauseResumeActions = getPauseResumeActions({
+    ownSeat,
+    snapshot: liveSnapshot,
+  });
+  const newRoundAction = getNewRoundAction({
     ownSeat,
     snapshot: liveSnapshot,
   });
@@ -848,6 +886,27 @@ export default function App({ initialState }) {
                   {action.label}
                 </button>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {newRoundAction ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Round</p>
+            <div style={buttonRowStyle}>
+              <button
+                type="button"
+                style={buttonStyle(false)}
+                onClick={() =>
+                  handleNewRoundAction({
+                    ownSeat,
+                    connection: connectionRef.current,
+                    dispatch,
+                  })
+                }
+              >
+                {newRoundAction.label}
+              </button>
             </div>
           </div>
         ) : null}
