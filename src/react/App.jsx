@@ -1,5 +1,6 @@
-import React, { useReducer } from "react";
+import React, { useEffect, useReducer } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
+import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
 import { shellReducer } from "./state/shellReducer.js";
 
@@ -119,9 +120,101 @@ const noteStyle = {
   lineHeight: 1.55,
 };
 
+const connectionDotStyle = {
+  display: "inline-block",
+  width: "10px",
+  height: "10px",
+  borderRadius: "999px",
+  marginRight: "8px",
+  background: "#9aa79e",
+};
+
+function normalizeBoardCode(value) {
+  return String(value || "").trim();
+}
+
+function normalizeVersion(value) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : 0;
+}
+
+export function buildElmSnapshotFromServerMessage(message) {
+  if (!message || typeof message !== "object") return null;
+  if (String(message.type || "") !== "state") return null;
+
+  const boardCode = normalizeBoardCode(message.boardCode || message.roomId);
+  const hasBoard = message.board && typeof message.board === "object";
+  const hasGame = message.game && typeof message.game === "object";
+
+  if (!boardCode || (!hasBoard && !hasGame)) return null;
+
+  return {
+    boardCode,
+    version: normalizeVersion(message.version),
+    ...(hasBoard ? { board: message.board } : {}),
+    ...(hasGame ? { game: message.game } : {}),
+  };
+}
+
+export function connectLiveBoardSnapshot({
+  currentBoardCode,
+  clientId,
+  dispatch,
+  connect = connectBoardSocket,
+}) {
+  const roomId = normalizeBoardCode(currentBoardCode);
+  if (!roomId || typeof connect !== "function") return null;
+
+  return connect({
+    roomId,
+    clientId: String(clientId || ""),
+    onStatus(status) {
+      dispatch?.({ type: "setConnectionStatus", status });
+    },
+    onMessage(message) {
+      const snapshot = buildElmSnapshotFromServerMessage(message);
+      if (!snapshot) return;
+      dispatch?.({ type: "receiveBoardState", boardState: snapshot });
+    },
+  });
+}
+
+export function handlePendingBoardMoveClick({ dispatch }) {
+  dispatch?.({
+    type: "setToast",
+    toast: "Move click received; server command not wired yet.",
+  });
+}
+
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
+  const liveSnapshot = state.boardState || demoSnapshot;
+  const connectionStatus = String(state.connectionStatus || "idle");
+
+  useEffect(() => {
+    const roomId = normalizeBoardCode(state.currentBoardCode);
+    if (!roomId) {
+      dispatch({ type: "setConnectionStatus", status: "idle" });
+      return undefined;
+    }
+
+    let runtime = null;
+    try {
+      runtime = connectLiveBoardSnapshot({
+        currentBoardCode: roomId,
+        clientId: state.clientId,
+        dispatch,
+      });
+    } catch {
+      dispatch({ type: "setConnectionStatus", status: "error" });
+      return undefined;
+    }
+
+    return () => {
+      runtime?.close?.();
+    };
+  }, [state.currentBoardCode, state.clientId]);
 
   const playerIdentity =
     state.clientId && state.clientId.length > 6
@@ -163,6 +256,23 @@ export default function App({ initialState }) {
             <p style={labelStyle}>Online Move Timer</p>
             <p style={valueStyle}>{state.onlineSetup.moveTimeLimitSeconds}s</p>
           </article>
+          <article style={cardStyle}>
+            <p style={labelStyle}>Connection</p>
+            <p style={valueStyle}>
+              <span
+                style={{
+                  ...connectionDotStyle,
+                  background:
+                    connectionStatus === "connected"
+                      ? "#0a8f28"
+                      : connectionStatus === "error"
+                        ? "#d64545"
+                        : "#9aa79e",
+                }}
+              />
+              {connectionStatus}
+            </p>
+          </article>
         </div>
 
         <div style={{ marginTop: "20px" }}>
@@ -190,19 +300,26 @@ export default function App({ initialState }) {
           <p style={valueStyle}>{state.mainTab || "home"}</p>
         </div>
 
-        {demoSnapshot ? (
+        {liveSnapshot ? (
           <div style={placeholderStyle}>
             <ElmBoard
-              snapshot={demoSnapshot}
+              snapshot={liveSnapshot}
               ownSeat={null}
               replayIndex={null}
               flipVertical={false}
-              onMoveClick={() => {}}
+              onMoveClick={(payload) => {
+                console.info("Board move click", payload);
+                handlePendingBoardMoveClick({ dispatch });
+              }}
             />
           </div>
         ) : (
           <div style={placeholderStyle}>Board island not mounted yet</div>
         )}
+
+        {state.toast ? (
+          <div style={{ ...placeholderStyle, marginTop: "10px" }}>{state.toast}</div>
+        ) : null}
 
         <div style={noteStyle}>
           Elm remains the board and replay correctness surface. The server
