@@ -1,4 +1,5 @@
 import React, { useReducer } from "react";
+import ElmBoard from "./components/ElmBoard.jsx";
 import { persistPlayerName } from "./lib/storage.js";
 import { shellReducer } from "./state/shellReducer.js";
 
@@ -120,6 +121,7 @@ const noteStyle = {
 
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
+  const demoSnapshot = initialState?.demoBoardSnapshot || null;
 
   const playerIdentity =
     state.clientId && state.clientId.length > 6
@@ -188,7 +190,19 @@ export default function App({ initialState }) {
           <p style={valueStyle}>{state.mainTab || "home"}</p>
         </div>
 
-        <div style={placeholderStyle}>Board island not mounted yet</div>
+        {demoSnapshot ? (
+          <div style={placeholderStyle}>
+            <ElmBoard
+              snapshot={demoSnapshot}
+              ownSeat={null}
+              replayIndex={null}
+              flipVertical={false}
+              onMoveClick={() => {}}
+            />
+          </div>
+        ) : (
+          <div style={placeholderStyle}>Board island not mounted yet</div>
+        )}
 
         <div style={noteStyle}>
           Elm remains the board and replay correctness surface. The server
