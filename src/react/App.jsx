@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer } from "react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
@@ -160,6 +160,7 @@ export function connectLiveBoardSnapshot({
   currentBoardCode,
   clientId,
   dispatch,
+  onOwnSeat,
   connect = connectBoardSocket,
 }) {
   const roomId = normalizeBoardCode(currentBoardCode);
@@ -172,6 +173,19 @@ export function connectLiveBoardSnapshot({
       dispatch?.({ type: "setConnectionStatus", status });
     },
     onMessage(message) {
+      if (message?.type === "joined") {
+        const seat = String(message.playerId || "").trim();
+        if (seat === "p1" || seat === "p2") {
+          onOwnSeat?.(seat);
+        }
+        return;
+      }
+
+      if (message?.type === "error" && typeof message.error === "string") {
+        dispatch?.({ type: "setToast", toast: message.error });
+        return;
+      }
+
       const snapshot = buildElmSnapshotFromServerMessage(message);
       if (!snapshot) return;
       dispatch?.({ type: "receiveBoardState", boardState: snapshot });
@@ -186,8 +200,63 @@ export function handlePendingBoardMoveClick({ dispatch }) {
   });
 }
 
+function moveTargetFromPayload(payload) {
+  const point = payload?.point;
+  if (!point || typeof point !== "object") return null;
+  const x = Number(point.x);
+  const y = Number(point.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
+}
+
+function isSocketOpen(connection) {
+  const OPEN = 1;
+  return (
+    typeof connection?.send === "function" &&
+    Number(connection?.socket?.readyState) === OPEN
+  );
+}
+
+export function handleElmBoardMoveClick({
+  payload,
+  ownSeat,
+  connection,
+  dispatch,
+}) {
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to move.",
+    });
+    return;
+  }
+
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "Join a seat to move." });
+    return;
+  }
+
+  const to = moveTargetFromPayload(payload);
+  if (!to) {
+    dispatch?.({ type: "setToast", toast: "Invalid move target." });
+    return;
+  }
+
+  try {
+    connection.send({ type: "move", to });
+  } catch {
+    dispatch?.({
+      type: "setToast",
+      toast: "Move could not be sent. Reconnect and try again.",
+    });
+  }
+}
+
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
+  const [ownSeat, setOwnSeat] = useState(null);
+  const connectionRef = useRef(null);
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
   const liveSnapshot = state.boardState || demoSnapshot;
   const connectionStatus = String(state.connectionStatus || "idle");
@@ -195,23 +264,30 @@ export default function App({ initialState }) {
   useEffect(() => {
     const roomId = normalizeBoardCode(state.currentBoardCode);
     if (!roomId) {
+      connectionRef.current = null;
+      setOwnSeat(null);
       dispatch({ type: "setConnectionStatus", status: "idle" });
       return undefined;
     }
 
     let runtime = null;
     try {
+      setOwnSeat(null);
       runtime = connectLiveBoardSnapshot({
         currentBoardCode: roomId,
         clientId: state.clientId,
         dispatch,
+        onOwnSeat: setOwnSeat,
       });
+      connectionRef.current = runtime;
     } catch {
+      connectionRef.current = null;
       dispatch({ type: "setConnectionStatus", status: "error" });
       return undefined;
     }
 
     return () => {
+      connectionRef.current = null;
       runtime?.close?.();
     };
   }, [state.currentBoardCode, state.clientId]);
@@ -304,12 +380,17 @@ export default function App({ initialState }) {
           <div style={placeholderStyle}>
             <ElmBoard
               snapshot={liveSnapshot}
-              ownSeat={null}
+              ownSeat={ownSeat}
               replayIndex={null}
               flipVertical={false}
               onMoveClick={(payload) => {
                 console.info("Board move click", payload);
-                handlePendingBoardMoveClick({ dispatch });
+                handleElmBoardMoveClick({
+                  payload,
+                  ownSeat,
+                  connection: connectionRef.current,
+                  dispatch,
+                });
               }}
             />
           </div>
