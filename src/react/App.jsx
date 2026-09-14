@@ -336,6 +336,30 @@ export function getLeaveSeatAction({ ownSeat, snapshot } = {}) {
     : { label: "Leave Seat", danger: false };
 }
 
+export function getPauseResumeActions({ ownSeat, snapshot } = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") return [];
+
+  const status = String(snapshot?.game?.status || "").trim();
+  if (status === "playing") {
+    return snapshot?.game?.turn === seat
+      ? [{ type: "pause", label: "Pause Game" }]
+      : [];
+  }
+
+  if (status === "paused") {
+    const resumeOwner =
+      snapshot?.game?.pause?.resumeTurn ||
+      snapshot?.game?.pause?.byPlayerId ||
+      null;
+    return resumeOwner === seat
+      ? [{ type: "resume", label: "Resume Game" }]
+      : [];
+  }
+
+  return [];
+}
+
 export function initializeBoardFromUrl({
   clientId,
   dispatch,
@@ -473,6 +497,42 @@ export function handleLeaveSeat({ ownSeat, connection, dispatch }) {
   connection.send({ type: "leave" });
 }
 
+export function handlePauseAction({ ownSeat, connection, dispatch }) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "You are not occupying a seat." });
+    return;
+  }
+
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to pause.",
+    });
+    return;
+  }
+
+  connection.send({ type: "pause" });
+}
+
+export function handleResumeAction({ ownSeat, connection, dispatch }) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "You are not occupying a seat." });
+    return;
+  }
+
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to resume.",
+    });
+    return;
+  }
+
+  connection.send({ type: "resume" });
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -519,6 +579,10 @@ export default function App({ initialState }) {
     ownSeat,
   });
   const leaveSeatAction = getLeaveSeatAction({
+    ownSeat,
+    snapshot: liveSnapshot,
+  });
+  const pauseResumeActions = getPauseResumeActions({
     ownSeat,
     snapshot: liveSnapshot,
   });
@@ -751,6 +815,39 @@ export default function App({ initialState }) {
               >
                 {leaveSeatAction.label}
               </button>
+            </div>
+          </div>
+        ) : null}
+
+        {pauseResumeActions.length > 0 ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Session</p>
+            <div style={buttonRowStyle}>
+              {pauseResumeActions.map((action) => (
+                <button
+                  key={action.type}
+                  type="button"
+                  style={buttonStyle(false)}
+                  onClick={() => {
+                    if (action.type === "pause") {
+                      handlePauseAction({
+                        ownSeat,
+                        connection: connectionRef.current,
+                        dispatch,
+                      });
+                      return;
+                    }
+
+                    handleResumeAction({
+                      ownSeat,
+                      connection: connectionRef.current,
+                      dispatch,
+                    });
+                  }}
+                >
+                  {action.label}
+                </button>
+              ))}
             </div>
           </div>
         ) : null}
