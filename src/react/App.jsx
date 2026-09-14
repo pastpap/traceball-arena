@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
+import { createBoard as createBoardRequest } from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
 import { shellReducer } from "./state/shellReducer.js";
@@ -138,6 +139,14 @@ function normalizeVersion(value) {
   return Number.isFinite(next) ? next : 0;
 }
 
+function defaultHistory() {
+  return globalThis.window?.history ?? globalThis.history ?? null;
+}
+
+function defaultLocation() {
+  return globalThis.window?.location ?? globalThis.location ?? null;
+}
+
 export function buildElmSnapshotFromServerMessage(message) {
   if (!message || typeof message !== "object") return null;
   if (String(message.type || "") !== "state") return null;
@@ -154,6 +163,30 @@ export function buildElmSnapshotFromServerMessage(message) {
     ...(hasBoard ? { board: message.board } : {}),
     ...(hasGame ? { game: message.game } : {}),
   };
+}
+
+export function syncReactBoardUrl(
+  boardCode,
+  { historyLike = defaultHistory(), locationLike = defaultLocation() } = {},
+) {
+  if (!locationLike || typeof historyLike?.replaceState !== "function") {
+    return null;
+  }
+
+  const currentHref =
+    typeof locationLike.href === "string" && locationLike.href
+      ? locationLike.href
+      : `${locationLike.origin || "http://localhost"}${locationLike.pathname || "/react"}${locationLike.search || ""}${locationLike.hash || ""}`;
+  const url = new URL(currentHref);
+  url.pathname = "/react";
+  if (boardCode) {
+    url.searchParams.set("board", String(boardCode).trim());
+  } else {
+    url.searchParams.delete("board");
+  }
+  const nextUrl = `${url.pathname}${url.search}${url.hash}`;
+  historyLike.replaceState(historyLike.state ?? null, "", nextUrl);
+  return nextUrl;
 }
 
 export function connectLiveBoardSnapshot({
@@ -191,6 +224,41 @@ export function connectLiveBoardSnapshot({
       dispatch?.({ type: "receiveBoardState", boardState: snapshot });
     },
   });
+}
+
+export function startWatchingBoard({
+  roomId,
+  clientId,
+  dispatch,
+  setOwnSeat,
+  connectionRef,
+  activeBoardRef,
+  connect = connectLiveBoardSnapshot,
+}) {
+  const nextRoomId = normalizeBoardCode(roomId);
+  if (!nextRoomId || typeof connect !== "function") return null;
+
+  if (
+    activeBoardRef?.current === nextRoomId &&
+    connectionRef?.current
+  ) {
+    return connectionRef.current;
+  }
+
+  connectionRef?.current?.close?.();
+  if (connectionRef) connectionRef.current = null;
+  if (activeBoardRef) activeBoardRef.current = nextRoomId;
+  setOwnSeat?.(null);
+
+  const runtime = connect({
+    currentBoardCode: nextRoomId,
+    clientId,
+    dispatch,
+    onOwnSeat: setOwnSeat,
+  });
+
+  if (connectionRef) connectionRef.current = runtime;
+  return runtime;
 }
 
 export function handlePendingBoardMoveClick({ dispatch }) {
@@ -253,10 +321,44 @@ export function handleElmBoardMoveClick({
   }
 }
 
+export async function createReactBoardFlow({
+  clientId,
+  moveTimeLimitSeconds,
+  dispatch,
+  create = createBoardRequest,
+  syncUrl = syncReactBoardUrl,
+  startWatching,
+  refreshBoardList,
+}) {
+  try {
+    const created = await create({ clientId, moveTimeLimitSeconds });
+    const roomId = normalizeBoardCode(created?.roomId);
+    if (!roomId) {
+      throw new Error("Board creation response missing roomId.");
+    }
+
+    dispatch?.({ type: "setCurrentBoardCode", boardCode: roomId });
+    syncUrl?.(roomId);
+    startWatching?.({ roomId, clientId });
+    await refreshBoardList?.();
+    return created;
+  } catch (error) {
+    dispatch?.({
+      type: "setToast",
+      toast:
+        error instanceof Error && error.message
+          ? error.message
+          : "Board creation failed.",
+    });
+    return null;
+  }
+}
+
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
   const [ownSeat, setOwnSeat] = useState(null);
   const connectionRef = useRef(null);
+  const activeBoardRef = useRef("");
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
   const liveSnapshot = state.boardState || demoSnapshot;
   const connectionStatus = String(state.connectionStatus || "idle");
@@ -272,23 +374,27 @@ export default function App({ initialState }) {
 
     let runtime = null;
     try {
-      setOwnSeat(null);
-      runtime = connectLiveBoardSnapshot({
-        currentBoardCode: roomId,
+      runtime = startWatchingBoard({
+        roomId,
         clientId: state.clientId,
         dispatch,
-        onOwnSeat: setOwnSeat,
+        setOwnSeat,
+        connectionRef,
+        activeBoardRef,
       });
-      connectionRef.current = runtime;
     } catch {
+      activeBoardRef.current = "";
       connectionRef.current = null;
       dispatch({ type: "setConnectionStatus", status: "error" });
       return undefined;
     }
 
     return () => {
-      connectionRef.current = null;
-      runtime?.close?.();
+      if (connectionRef.current === runtime) {
+        activeBoardRef.current = "";
+        connectionRef.current = null;
+        runtime?.close?.();
+      }
     };
   }, [state.currentBoardCode, state.clientId]);
 
@@ -301,6 +407,23 @@ export default function App({ initialState }) {
     const nextName = event.target.value;
     dispatch({ type: "setPlayerName", playerName: nextName });
     persistPlayerName(nextName);
+  };
+
+  const handleCreateBoard = async () => {
+    await createReactBoardFlow({
+      clientId: state.clientId,
+      moveTimeLimitSeconds: state.onlineSetup.moveTimeLimitSeconds,
+      dispatch,
+      startWatching: ({ roomId, clientId }) =>
+        startWatchingBoard({
+          roomId,
+          clientId,
+          dispatch,
+          setOwnSeat,
+          connectionRef,
+          activeBoardRef,
+        }),
+    });
   };
 
   return (
@@ -372,9 +495,29 @@ export default function App({ initialState }) {
         </div>
 
         <div style={{ marginTop: "20px" }}>
+          <p style={labelStyle}>Online Actions</p>
+          <div style={buttonRowStyle}>
+            <button
+              type="button"
+              style={buttonStyle(false)}
+              onClick={handleCreateBoard}
+            >
+              Create Board
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: "20px" }}>
           <p style={labelStyle}>Active Tab</p>
           <p style={valueStyle}>{state.mainTab || "home"}</p>
         </div>
+
+        {state.currentBoardCode ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Current Board</p>
+            <p style={valueStyle}>{state.currentBoardCode}</p>
+          </div>
+        ) : null}
 
         {liveSnapshot ? (
           <div style={placeholderStyle}>
