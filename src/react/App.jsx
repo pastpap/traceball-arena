@@ -148,6 +148,12 @@ function seatLabel(seatId) {
   return seatId === "p1" ? "Claim Blue" : "Claim Red";
 }
 
+function isActiveSession(snapshot) {
+  return (
+    snapshot?.game?.status === "playing" || snapshot?.game?.status === "paused"
+  );
+}
+
 function defaultHistory() {
   return globalThis.window?.history ?? globalThis.history ?? null;
 }
@@ -249,6 +255,12 @@ export function connectLiveBoardSnapshot({
         return;
       }
 
+      if (message?.type === "left") {
+        onOwnSeat?.(null);
+        dispatch?.({ type: "setToast", toast: "You left the board." });
+        return;
+      }
+
       if (
         message?.type === "BoardNotFound" &&
         typeof message.message === "string"
@@ -313,6 +325,15 @@ export function getClaimableSeatActions({ snapshot, ownSeat } = {}) {
   return ["p1", "p2"]
     .filter((seatId) => players?.[seatId]?.status === "vacant")
     .map((seatId) => ({ seatId, label: seatLabel(seatId) }));
+}
+
+export function getLeaveSeatAction({ ownSeat, snapshot } = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") return null;
+
+  return isActiveSession(snapshot)
+    ? { label: "Leave Seat (Forfeit)", danger: true }
+    : { label: "Leave Seat", danger: false };
 }
 
 export function initializeBoardFromUrl({
@@ -434,6 +455,24 @@ export function handleClaimSeat({
   });
 }
 
+export function handleLeaveSeat({ ownSeat, connection, dispatch }) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "You are not occupying a seat." });
+    return;
+  }
+
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to leave your seat.",
+    });
+    return;
+  }
+
+  connection.send({ type: "leave" });
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -478,6 +517,10 @@ export default function App({ initialState }) {
   const claimableSeatActions = getClaimableSeatActions({
     snapshot: liveSnapshot,
     ownSeat,
+  });
+  const leaveSeatAction = getLeaveSeatAction({
+    ownSeat,
+    snapshot: liveSnapshot,
   });
 
   useEffect(() => {
@@ -687,6 +730,27 @@ export default function App({ initialState }) {
                   {action.label}
                 </button>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {leaveSeatAction ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Seat</p>
+            <div style={buttonRowStyle}>
+              <button
+                type="button"
+                style={buttonStyle(false)}
+                onClick={() =>
+                  handleLeaveSeat({
+                    ownSeat,
+                    connection: connectionRef.current,
+                    dispatch,
+                  })
+                }
+              >
+                {leaveSeatAction.label}
+              </button>
             </div>
           </div>
         ) : null}
