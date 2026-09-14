@@ -139,6 +139,15 @@ function normalizeVersion(value) {
   return Number.isFinite(next) ? next : 0;
 }
 
+function readGamePlayers(snapshot) {
+  const players = snapshot?.game?.players;
+  return players && typeof players === "object" ? players : null;
+}
+
+function seatLabel(seatId) {
+  return seatId === "p1" ? "Claim Blue" : "Claim Red";
+}
+
 function defaultHistory() {
   return globalThis.window?.history ?? globalThis.history ?? null;
 }
@@ -294,6 +303,18 @@ export function startWatchingBoard({
   return runtime;
 }
 
+export function getClaimableSeatActions({ snapshot, ownSeat } = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat === "p1" || seat === "p2") return [];
+
+  const players = readGamePlayers(snapshot);
+  if (!players) return [];
+
+  return ["p1", "p2"]
+    .filter((seatId) => players?.[seatId]?.status === "vacant")
+    .map((seatId) => ({ seatId, label: seatLabel(seatId) }));
+}
+
 export function initializeBoardFromUrl({
   clientId,
   dispatch,
@@ -382,6 +403,37 @@ export function handleElmBoardMoveClick({
   }
 }
 
+export function handleClaimSeat({
+  seatId,
+  currentBoardCode,
+  clientId,
+  playerName,
+  connection,
+  dispatch,
+}) {
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to claim a seat.",
+    });
+    return;
+  }
+
+  const normalizedSeatId = String(seatId || "").trim();
+  if (normalizedSeatId !== "p1" && normalizedSeatId !== "p2") {
+    dispatch?.({ type: "setToast", toast: "Invalid seat selection." });
+    return;
+  }
+
+  connection.send({
+    type: "claimSeat",
+    seatId: normalizedSeatId,
+    name: String(playerName || "").trim(),
+    roomId: normalizeBoardCode(currentBoardCode),
+    clientId: String(clientId || "").trim(),
+  });
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -423,6 +475,10 @@ export default function App({ initialState }) {
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
   const liveSnapshot = state.boardState || demoSnapshot;
   const connectionStatus = String(state.connectionStatus || "idle");
+  const claimableSeatActions = getClaimableSeatActions({
+    snapshot: liveSnapshot,
+    ownSeat,
+  });
 
   useEffect(() => {
     const runtime = initializeBoardFromUrl({
@@ -605,6 +661,33 @@ export default function App({ initialState }) {
           <div style={{ marginTop: "20px" }}>
             <p style={labelStyle}>Current Board</p>
             <p style={valueStyle}>{state.currentBoardCode}</p>
+          </div>
+        ) : null}
+
+        {claimableSeatActions.length > 0 ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Match</p>
+            <div style={buttonRowStyle}>
+              {claimableSeatActions.map((action) => (
+                <button
+                  key={action.seatId}
+                  type="button"
+                  style={buttonStyle(false)}
+                  onClick={() =>
+                    handleClaimSeat({
+                      seatId: action.seatId,
+                      currentBoardCode: state.currentBoardCode,
+                      clientId: state.clientId,
+                      playerName: state.playerName,
+                      connection: connectionRef.current,
+                      dispatch,
+                    })
+                  }
+                >
+                  {action.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
 
