@@ -144,6 +144,11 @@ function readGamePlayers(snapshot) {
   return players && typeof players === "object" ? players : null;
 }
 
+function isOccupiedSeatStatus(status) {
+  const normalized = String(status || "").trim();
+  return normalized === "active" || normalized === "disconnected";
+}
+
 function seatLabel(seatId) {
   return seatId === "p1" ? "Claim Blue" : "Claim Red";
 }
@@ -251,13 +256,25 @@ export function connectLiveBoardSnapshot({
         const seat = String(message.playerId || "").trim();
         if (seat === "p1" || seat === "p2") {
           onOwnSeat?.(seat);
+          dispatch?.({ type: "setWaitingListMembership", isMember: false });
         }
         return;
       }
 
       if (message?.type === "left") {
         onOwnSeat?.(null);
+        dispatch?.({ type: "setWaitingListMembership", isMember: false });
         dispatch?.({ type: "setToast", toast: "You left the board." });
+        return;
+      }
+
+      if (message?.type === "waitingListJoined") {
+        dispatch?.({ type: "setWaitingListMembership", isMember: true });
+        return;
+      }
+
+      if (message?.type === "waitingListLeft") {
+        dispatch?.({ type: "setWaitingListMembership", isMember: false });
         return;
       }
 
@@ -334,6 +351,30 @@ export function getLeaveSeatAction({ ownSeat, snapshot } = {}) {
   return isActiveSession(snapshot)
     ? { label: "Leave Seat (Forfeit)", danger: true }
     : { label: "Leave Seat", danger: false };
+}
+
+export function getWaitingListAction({
+  ownSeat,
+  snapshot,
+  isWaitingListMember,
+} = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat === "p1" || seat === "p2") return null;
+
+  if (Boolean(isWaitingListMember)) {
+    return { type: "leave", label: "Leave Waiting List" };
+  }
+
+  const players = readGamePlayers(snapshot);
+  if (!players) return null;
+
+  const bothSeatsOccupied = ["p1", "p2"].every((seatId) =>
+    isOccupiedSeatStatus(players?.[seatId]?.status),
+  );
+
+  return bothSeatsOccupied
+    ? { type: "join", label: "Join Waiting List" }
+    : null;
 }
 
 export function getPauseResumeActions({ ownSeat, snapshot } = {}) {
@@ -495,6 +536,50 @@ export function handleClaimSeat({
   });
 }
 
+export function handleJoinWaitingList({
+  currentBoardCode,
+  clientId,
+  playerName,
+  connection,
+  dispatch,
+}) {
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to join the waiting list.",
+    });
+    return;
+  }
+
+  connection.send({
+    type: "joinWaitingList",
+    name: String(playerName || "").trim(),
+    roomId: normalizeBoardCode(currentBoardCode),
+    clientId: String(clientId || "").trim(),
+  });
+}
+
+export function handleLeaveWaitingList({
+  currentBoardCode,
+  clientId,
+  connection,
+  dispatch,
+}) {
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to leave the waiting list.",
+    });
+    return;
+  }
+
+  connection.send({
+    type: "leaveWaitingList",
+    roomId: normalizeBoardCode(currentBoardCode),
+    clientId: String(clientId || "").trim(),
+  });
+}
+
 export function handleLeaveSeat({ ownSeat, connection, dispatch }) {
   const seat = String(ownSeat || "").trim();
   if (seat !== "p1" && seat !== "p2") {
@@ -615,6 +700,11 @@ export default function App({ initialState }) {
   const leaveSeatAction = getLeaveSeatAction({
     ownSeat,
     snapshot: liveSnapshot,
+  });
+  const waitingListAction = getWaitingListAction({
+    ownSeat,
+    snapshot: liveSnapshot,
+    isWaitingListMember: state.isWaitingListMember,
   });
   const pauseResumeActions = getPauseResumeActions({
     ownSeat,
@@ -852,6 +942,39 @@ export default function App({ initialState }) {
                 }
               >
                 {leaveSeatAction.label}
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {waitingListAction ? (
+          <div style={{ marginTop: "20px" }}>
+            <p style={labelStyle}>Waiting List</p>
+            <div style={buttonRowStyle}>
+              <button
+                type="button"
+                style={buttonStyle(false)}
+                onClick={() => {
+                  if (waitingListAction.type === "join") {
+                    handleJoinWaitingList({
+                      currentBoardCode: state.currentBoardCode,
+                      clientId: state.clientId,
+                      playerName: state.playerName,
+                      connection: connectionRef.current,
+                      dispatch,
+                    });
+                    return;
+                  }
+
+                  handleLeaveWaitingList({
+                    currentBoardCode: state.currentBoardCode,
+                    clientId: state.clientId,
+                    connection: connectionRef.current,
+                    dispatch,
+                  });
+                }}
+              >
+                {waitingListAction.label}
               </button>
             </div>
           </div>

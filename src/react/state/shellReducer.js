@@ -3,6 +3,7 @@ export function createInitialShellState({
   playerName = "",
   connectionStatus = "idle",
   currentBoardCode = "",
+  isWaitingListMember = false,
   boardState = null,
   boardList = [],
   mainTab = "home",
@@ -18,6 +19,7 @@ export function createInitialShellState({
     playerName,
     connectionStatus,
     currentBoardCode,
+    isWaitingListMember,
     boardState,
     boardList,
     mainTab,
@@ -72,7 +74,17 @@ export function shellReducer(state, action) {
       return { ...state, connectionStatus: String(action.status || "idle") };
 
     case "setCurrentBoardCode":
-      return { ...state, currentBoardCode: String(action.boardCode || "") };
+      return {
+        ...state,
+        currentBoardCode: String(action.boardCode || ""),
+        isWaitingListMember: false,
+      };
+
+    case "setWaitingListMembership":
+      return {
+        ...state,
+        isWaitingListMember: Boolean(action.isMember),
+      };
 
     case "receiveBoardState": {
       if (
