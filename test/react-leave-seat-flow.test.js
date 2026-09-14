@@ -55,7 +55,8 @@ describe("React leave seat flow", () => {
     expect(connection.send).toHaveBeenCalledWith({ type: "leave" });
     expect(setOwnSeat).not.toHaveBeenCalled();
     const clearSeatCalls = dispatch.mock.calls.filter(
-      ([action]) => action?.type === "setOwnSeat" || action?.type === "receiveBoardState",
+      ([action]) =>
+        action?.type === "setOwnSeat" || action?.type === "receiveBoardState",
     );
     expect(clearSeatCalls).toHaveLength(0);
   });
