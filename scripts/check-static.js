@@ -68,6 +68,12 @@ if (
   );
 }
 
+if (reactBundle.includes("process.env.NODE_ENV")) {
+  throw new Error(
+    "Built React bundle must not depend on process.env in the browser.",
+  );
+}
+
 if (
   !elmBundle.includes("mountElmRuntime") ||
   !elmBundle.includes("outgoingClientCommand") ||
