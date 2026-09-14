@@ -101,7 +101,15 @@ describe("React seat claim controls", () => {
     const onOwnSeat = vi.fn();
     const connect = vi.fn(({ onStatus, onMessage }) => {
       onStatus("connected");
-      onMessage({ type: "state", boardCode: "ROOM123", version: 1, game: { roomId: "ROOM123", players: { p1: { status: "vacant" }, p2: { status: "vacant" } } } });
+      onMessage({
+        type: "state",
+        boardCode: "ROOM123",
+        version: 1,
+        game: {
+          roomId: "ROOM123",
+          players: { p1: { status: "vacant" }, p2: { status: "vacant" } },
+        },
+      });
       onMessage({ type: "joined", playerId: "p2", rejoined: false });
       return { close: vi.fn(), send: vi.fn() };
     });
