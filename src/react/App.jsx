@@ -147,6 +147,29 @@ function defaultLocation() {
   return globalThis.window?.location ?? globalThis.location ?? null;
 }
 
+function readLocationHref(locationLike) {
+  if (!locationLike) return "";
+  if (typeof locationLike.href === "string" && locationLike.href) {
+    return locationLike.href;
+  }
+  return `${locationLike.origin || "http://localhost"}${locationLike.pathname || "/react"}${locationLike.search || ""}${locationLike.hash || ""}`;
+}
+
+export function getInitialReactBoardCode({
+  locationLike = defaultLocation(),
+} = {}) {
+  const href = readLocationHref(locationLike);
+  if (!href) return "";
+
+  const url = new URL(href);
+  return normalizeBoardCode(
+    url.searchParams.get("board") ||
+      url.searchParams.get("room") ||
+      url.searchParams.get("code") ||
+      "",
+  );
+}
+
 export function buildElmSnapshotFromServerMessage(message) {
   if (!message || typeof message !== "object") return null;
   if (String(message.type || "") !== "state") return null;
@@ -194,6 +217,7 @@ export function connectLiveBoardSnapshot({
   clientId,
   dispatch,
   onOwnSeat,
+  onMessage,
   connect = connectBoardSocket,
 }) {
   const roomId = normalizeBoardCode(currentBoardCode);
@@ -206,11 +230,21 @@ export function connectLiveBoardSnapshot({
       dispatch?.({ type: "setConnectionStatus", status });
     },
     onMessage(message) {
+      onMessage?.(message);
+
       if (message?.type === "joined") {
         const seat = String(message.playerId || "").trim();
         if (seat === "p1" || seat === "p2") {
           onOwnSeat?.(seat);
         }
+        return;
+      }
+
+      if (
+        message?.type === "BoardNotFound" &&
+        typeof message.message === "string"
+      ) {
+        dispatch?.({ type: "setToast", toast: message.message });
         return;
       }
 
@@ -233,15 +267,13 @@ export function startWatchingBoard({
   setOwnSeat,
   connectionRef,
   activeBoardRef,
+  onMessage,
   connect = connectLiveBoardSnapshot,
 }) {
   const nextRoomId = normalizeBoardCode(roomId);
   if (!nextRoomId || typeof connect !== "function") return null;
 
-  if (
-    activeBoardRef?.current === nextRoomId &&
-    connectionRef?.current
-  ) {
+  if (activeBoardRef?.current === nextRoomId && connectionRef?.current) {
     return connectionRef.current;
   }
 
@@ -255,10 +287,39 @@ export function startWatchingBoard({
     clientId,
     dispatch,
     onOwnSeat: setOwnSeat,
+    onMessage,
   });
 
   if (connectionRef) connectionRef.current = runtime;
   return runtime;
+}
+
+export function initializeBoardFromUrl({
+  clientId,
+  dispatch,
+  startWatching,
+  locationLike = defaultLocation(),
+}) {
+  const roomId = getInitialReactBoardCode({ locationLike });
+  if (!roomId) return null;
+
+  dispatch?.({ type: "setCurrentBoardCode", boardCode: roomId });
+
+  return startWatching?.({
+    roomId,
+    clientId,
+    onMessage(message) {
+      if (
+        message?.type === "BoardNotFound" &&
+        typeof message.message === "string"
+      ) {
+        dispatch?.({ type: "setToast", toast: message.message });
+      }
+      if (message?.type === "error" && typeof message.error === "string") {
+        dispatch?.({ type: "setToast", toast: message.error });
+      }
+    },
+  });
 }
 
 export function handlePendingBoardMoveClick({ dispatch }) {
@@ -364,6 +425,33 @@ export default function App({ initialState }) {
   const connectionStatus = String(state.connectionStatus || "idle");
 
   useEffect(() => {
+    const runtime = initializeBoardFromUrl({
+      clientId: state.clientId,
+      dispatch,
+      startWatching: ({ roomId, clientId, onMessage }) =>
+        startWatchingBoard({
+          roomId,
+          clientId,
+          dispatch,
+          setOwnSeat,
+          connectionRef,
+          activeBoardRef,
+          onMessage,
+        }),
+    });
+
+    return () => {
+      if (connectionRef.current === runtime && runtime) {
+        activeBoardRef.current = "";
+        connectionRef.current = null;
+        runtime.close?.();
+      }
+    };
+    // URL-driven startup should run once; later board switches are state-driven.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     const roomId = normalizeBoardCode(state.currentBoardCode);
     if (!roomId) {
       connectionRef.current = null;
@@ -381,6 +469,7 @@ export default function App({ initialState }) {
         setOwnSeat,
         connectionRef,
         activeBoardRef,
+        onMessage: null,
       });
     } catch {
       activeBoardRef.current = "";
