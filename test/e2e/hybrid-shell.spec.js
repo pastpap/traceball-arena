@@ -19,9 +19,7 @@ async function openReactBoard(page, boardCode, name = "P2") {
 }
 
 async function fetchRoomSummary(page, baseURL, boardCode, clientId = "") {
-  const suffix = clientId
-    ? `?clientId=${encodeURIComponent(clientId)}`
-    : "";
+  const suffix = clientId ? `?clientId=${encodeURIComponent(clientId)}` : "";
   const response = await page.request.get(`${baseURL}/api/rooms${suffix}`);
   expect(response.ok()).toBe(true);
   const payload = await response.json();
@@ -49,7 +47,12 @@ test.describe("React hybrid playable smoke", () => {
 
       await expect
         .poll(async () => {
-          const room = await fetchRoomSummary(p1, baseURL, boardCode, "p1-owner");
+          const room = await fetchRoomSummary(
+            p1,
+            baseURL,
+            boardCode,
+            "p1-owner",
+          );
           return room
             ? {
                 state: room.state,
@@ -66,7 +69,9 @@ test.describe("React hybrid playable smoke", () => {
           moveCount: 0,
         });
 
-      await expect(p1.getByRole("button", { name: "Claim Blue" })).toBeVisible();
+      await expect(
+        p1.getByRole("button", { name: "Claim Blue" }),
+      ).toBeVisible();
       await expect(p1.getByRole("button", { name: "Claim Red" })).toBeVisible();
       await p1.getByRole("button", { name: "Claim Blue" }).click();
 
@@ -91,7 +96,9 @@ test.describe("React hybrid playable smoke", () => {
 
       await openReactBoard(p2, boardCode, "P2");
       await expect(p2.getByRole("button", { name: "Claim Red" })).toBeVisible();
-      await expect(p2.getByRole("button", { name: "Claim Blue" })).toHaveCount(0);
+      await expect(p2.getByRole("button", { name: "Claim Blue" })).toHaveCount(
+        0,
+      );
 
       await p2.getByRole("button", { name: "Claim Red" }).click();
 
@@ -114,7 +121,9 @@ test.describe("React hybrid playable smoke", () => {
           moveCount: 0,
         });
 
-      const firstMove = p1.locator('[data-elm-legal-context="own-turn"]').first();
+      const firstMove = p1
+        .locator('[data-elm-legal-context="own-turn"]')
+        .first();
       await expect(firstMove).toBeVisible();
       const moveKey = await firstMove.getAttribute("data-elm-legal-move");
       expect(moveKey).toBeTruthy();
@@ -129,10 +138,14 @@ test.describe("React hybrid playable smoke", () => {
         .toBe(1);
 
       await expect(
-        p1.locator(`[data-elm-legal-context="own-turn"][data-elm-legal-move="${moveKey}"]`),
+        p1.locator(
+          `[data-elm-legal-context="own-turn"][data-elm-legal-move="${moveKey}"]`,
+        ),
       ).toHaveCount(0);
       await expect
-        .poll(async () => p2.locator('[data-elm-legal-context="own-turn"]').count())
+        .poll(async () =>
+          p2.locator('[data-elm-legal-context="own-turn"]').count(),
+        )
         .toBeGreaterThan(0);
     } finally {
       await safeClose(p1Context);
