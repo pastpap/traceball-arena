@@ -57,5 +57,21 @@ const runtimeBuild = spawnSync(
 if (runtimeBuild.status !== 0) {
   throw new Error("Elm runtime bundle build failed.");
 }
+
+const islandRuntimeBuild = spawnSync(
+  compiler,
+  [
+    "make",
+    "src/elm/BoardIsland.elm",
+    "--output=public/board-island-runtime.js",
+  ],
+  { stdio: "inherit" },
+);
+if (islandRuntimeBuild.status !== 0) {
+  throw new Error("Elm BoardIsland runtime bundle build failed.");
+}
 console.log("Elm source compile check passed.");
 console.log("Elm runtime bundle generated at public/elm-runtime.js.");
+console.log(
+  "Elm BoardIsland runtime bundle generated at public/board-island-runtime.js.",
+);

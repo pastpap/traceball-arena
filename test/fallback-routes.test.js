@@ -129,6 +129,7 @@ describe("frontend routes", () => {
       const reactHtml = await react.text();
       expect(react.status).toBe(200);
       expect(reactHtml).toContain('id="react-root"');
+      expect(reactHtml).toContain('src="/board-island-runtime.js"');
       expect(reactHtml).toContain('type="module"');
       expect(reactHtml).toContain('src="/react-build/main.js"');
       expect(reactHtml).not.toContain('id="elm-root"');

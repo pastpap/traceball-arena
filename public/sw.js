@@ -1,11 +1,12 @@
-const CACHE_NAME = "traceball-arena-v41";
+const CACHE_NAME = "traceball-arena-v42";
 const APP_SHELL = [
   "/",
   "/elm.html",
+  "/elm-runtime.js",
+  "/board-island-runtime.js",
   "/elm.js",
   "/index.html",
   "/styles.css",
-  "/app.js",
   "/history.js",
   "/icon.svg",
   "/manifest.webmanifest",
@@ -52,9 +53,11 @@ self.addEventListener("fetch", (event) => {
   const fallbackCandidates =
     url.pathname === "/react-build/main.js"
       ? ["/react-build/main.js"]
-      : url.pathname.startsWith("/react")
-        ? ["/react", "/react.html"]
-        : ["/"];
+      : url.pathname === "/board-island-runtime.js"
+        ? ["/board-island-runtime.js"]
+        : url.pathname.startsWith("/react")
+          ? ["/react", "/react.html"]
+          : ["/"];
 
   event.respondWith(
     fetch(request)

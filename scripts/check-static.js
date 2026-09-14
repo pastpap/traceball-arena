@@ -7,6 +7,7 @@ const required = [
   "public/sw.js",
   "public/elm.html",
   "public/elm.js",
+  "public/board-island-runtime.js",
   "public/react.html",
   "public/react-build/main.js",
   "src/server.js",
@@ -26,6 +27,10 @@ for (const file of required) {
 
 const elmHtml = readFileSync("public/elm.html", "utf8");
 const elmBundle = readFileSync("public/elm.js", "utf8");
+const boardIslandRuntime = readFileSync(
+  "public/board-island-runtime.js",
+  "utf8",
+);
 const reactHtml = readFileSync("public/react.html", "utf8");
 const reactBundle = readFileSync("public/react-build/main.js", "utf8");
 const elmMain = readFileSync("src/elm/Main.elm", "utf8");
@@ -49,13 +54,14 @@ if (
 
 if (
   !reactHtml.includes('id="react-root"') ||
+  !reactHtml.includes("/board-island-runtime.js") ||
   !reactHtml.includes('type="module"') ||
   !reactHtml.includes("/react-build/main.js") ||
   reactHtml.includes('id="elm-root"') ||
   reactHtml.includes("/elm.js")
 ) {
   throw new Error(
-    "React shell must mount #react-root and load the built /react-build/main.js bundle.",
+    "React shell must mount #react-root and load BoardIsland plus the built /react-build/main.js bundle.",
   );
 }
 
@@ -80,6 +86,15 @@ if (
   !elmBundle.includes("incomingBoardCreated")
 ) {
   throw new Error("public/elm.js must provide the Elm runtime bridge.");
+}
+
+if (
+  !boardIslandRuntime.includes("'BoardIsland':{'init':") &&
+  !boardIslandRuntime.includes('"BoardIsland":{"init":')
+) {
+  throw new Error(
+    "public/board-island-runtime.js must expose Elm.BoardIsland for the React shell.",
+  );
 }
 
 if (
@@ -204,6 +219,8 @@ if (!icon.includes("<svg")) {
 const sw = readFileSync("public/sw.js", "utf8");
 if (
   !sw.includes("CACHE_NAME") ||
+  !sw.includes("/elm-runtime.js") ||
+  !sw.includes("/board-island-runtime.js") ||
   !sw.includes("/elm.js") ||
   !sw.includes("/elm.html") ||
   !sw.includes("/react") ||
@@ -212,6 +229,10 @@ if (
   throw new Error(
     "Service worker must cache Elm shell and additive React shell assets.",
   );
+}
+
+if (sw.includes("/app.js")) {
+  throw new Error("Service worker must not precache removed app.js assets.");
 }
 
 if (
