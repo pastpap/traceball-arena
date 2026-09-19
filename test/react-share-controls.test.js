@@ -12,6 +12,24 @@ function renderShareControls(props) {
   return renderToStaticMarkup(React.createElement(ShareControls, props));
 }
 
+function collectHostElements(node, type, results = []) {
+  if (Array.isArray(node)) {
+    node.forEach((child) => collectHostElements(child, type, results));
+    return results;
+  }
+
+  if (!node || typeof node !== "object") return results;
+
+  if (node.type === type) {
+    results.push(node);
+  }
+
+  const children = node.props?.children;
+  const list = Array.isArray(children) ? children : [children];
+  list.forEach((child) => collectHostElements(child, type, results));
+  return results;
+}
+
 describe("React board sharing controls", () => {
   it("builds share URL from current location origin and React board route", () => {
     expect(
@@ -75,6 +93,30 @@ describe("React board sharing controls", () => {
     });
   });
 
+  it("returns a controlled failure when clipboard and fallback copy both fail", async () => {
+    const result = await copyBoardLink({
+      boardCode: "ROOM123",
+      locationLike: { href: "https://traceball.example/react" },
+      navigatorLike: {
+        clipboard: {
+          writeText: vi.fn(async () => {
+            throw new Error("clipboard denied");
+          }),
+        },
+      },
+      documentLike: {
+        body: null,
+        createElement: vi.fn(),
+        execCommand: vi.fn(() => false),
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Could not copy link. Copy it manually.",
+    });
+  });
+
   it("builds QR src with the encoded absolute React board URL", () => {
     expect(
       buildReactBoardQrSrc("ROOM123", {
@@ -106,5 +148,25 @@ describe("React board sharing controls", () => {
       "/api/qr?url=https%3A%2F%2Ftraceball.example%2Freact%3Fboard%3DROOM123",
     );
     expect(html).toContain("Copy Link");
+  });
+
+  it("clicks Copy Link and sends the success toast through the callback", async () => {
+    const onToast = vi.fn();
+    const writeText = vi.fn(async () => {});
+    const element = ShareControls({
+      boardCode: "ROOM123",
+      locationLike: { href: "https://traceball.example/react" },
+      navigatorLike: { clipboard: { writeText } },
+      documentLike: null,
+      onToast,
+    });
+
+    const [copyButton] = collectHostElements(element, "button");
+    await copyButton.props.onClick();
+
+    expect(writeText).toHaveBeenCalledWith(
+      "https://traceball.example/react?board=ROOM123",
+    );
+    expect(onToast).toHaveBeenCalledWith("Link copied to clipboard.");
   });
 });
