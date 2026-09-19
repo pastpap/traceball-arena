@@ -1,6 +1,7 @@
 import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
 import MatchPanel from "./components/MatchPanel.jsx";
+import ShareControls from "./components/ShareControls.jsx";
 import { createBoard as createBoardRequest } from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
@@ -870,6 +871,10 @@ export default function App({ initialState }) {
     });
   };
 
+  const handleShareToast = (toast) => {
+    dispatch({ type: "setToast", toast });
+  };
+
   return (
     <main style={pageStyle}>
       <section style={panelStyle}>
@@ -955,6 +960,13 @@ export default function App({ initialState }) {
           <p style={labelStyle}>Active Tab</p>
           <p style={valueStyle}>{state.mainTab || "home"}</p>
         </div>
+
+        {state.currentBoardCode ? (
+          <ShareControls
+            boardCode={state.currentBoardCode}
+            onToast={handleShareToast}
+          />
+        ) : null}
 
         {liveSnapshot ? (
           <MatchPanel
