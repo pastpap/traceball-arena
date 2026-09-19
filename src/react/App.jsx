@@ -1,5 +1,6 @@
 import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
+import MatchPanel from "./components/MatchPanel.jsx";
 import { createBoard as createBoardRequest } from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
@@ -806,14 +807,77 @@ export default function App({ initialState }) {
     });
   };
 
+  const handleMatchClaimSeat = (seatId) => {
+    handleClaimSeat({
+      seatId,
+      currentBoardCode: state.currentBoardCode,
+      clientId: state.clientId,
+      playerName: state.playerName,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchLeaveSeat = () => {
+    handleLeaveSeat({
+      ownSeat,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchWaitingListAction = (actionType) => {
+    if (actionType === "join") {
+      handleJoinWaitingList({
+        currentBoardCode: state.currentBoardCode,
+        clientId: state.clientId,
+        playerName: state.playerName,
+        connection: connectionRef.current,
+        dispatch,
+      });
+      return;
+    }
+
+    handleLeaveWaitingList({
+      currentBoardCode: state.currentBoardCode,
+      clientId: state.clientId,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchPause = () => {
+    handlePauseAction({
+      ownSeat,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchResume = () => {
+    handleResumeAction({
+      ownSeat,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchNewRound = () => {
+    handleNewRoundAction({
+      ownSeat,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
   return (
     <main style={pageStyle}>
       <section style={panelStyle}>
         <p style={eyebrowStyle}>React product shell</p>
         <h1 style={titleStyle}>Traceball Arena</h1>
         <p style={leadStyle}>
-          The React shell owns product state only. The Elm board island is not
-          mounted yet, and online authority remains on the server.
+          The React shell owns product state while Elm renders the board island.
+          Online authority remains on the server.
         </p>
 
         <div style={cardGridStyle}>
@@ -892,146 +956,24 @@ export default function App({ initialState }) {
           <p style={valueStyle}>{state.mainTab || "home"}</p>
         </div>
 
-        {state.currentBoardCode ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Current Board</p>
-            <p style={valueStyle}>{state.currentBoardCode}</p>
-          </div>
-        ) : null}
-
-        {claimableSeatActions.length > 0 ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Match</p>
-            <div style={buttonRowStyle}>
-              {claimableSeatActions.map((action) => (
-                <button
-                  key={action.seatId}
-                  type="button"
-                  style={buttonStyle(false)}
-                  onClick={() =>
-                    handleClaimSeat({
-                      seatId: action.seatId,
-                      currentBoardCode: state.currentBoardCode,
-                      clientId: state.clientId,
-                      playerName: state.playerName,
-                      connection: connectionRef.current,
-                      dispatch,
-                    })
-                  }
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {leaveSeatAction ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Seat</p>
-            <div style={buttonRowStyle}>
-              <button
-                type="button"
-                style={buttonStyle(false)}
-                onClick={() =>
-                  handleLeaveSeat({
-                    ownSeat,
-                    connection: connectionRef.current,
-                    dispatch,
-                  })
-                }
-              >
-                {leaveSeatAction.label}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {waitingListAction ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Waiting List</p>
-            <div style={buttonRowStyle}>
-              <button
-                type="button"
-                style={buttonStyle(false)}
-                onClick={() => {
-                  if (waitingListAction.type === "join") {
-                    handleJoinWaitingList({
-                      currentBoardCode: state.currentBoardCode,
-                      clientId: state.clientId,
-                      playerName: state.playerName,
-                      connection: connectionRef.current,
-                      dispatch,
-                    });
-                    return;
-                  }
-
-                  handleLeaveWaitingList({
-                    currentBoardCode: state.currentBoardCode,
-                    clientId: state.clientId,
-                    connection: connectionRef.current,
-                    dispatch,
-                  });
-                }}
-              >
-                {waitingListAction.label}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        {pauseResumeActions.length > 0 ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Session</p>
-            <div style={buttonRowStyle}>
-              {pauseResumeActions.map((action) => (
-                <button
-                  key={action.type}
-                  type="button"
-                  style={buttonStyle(false)}
-                  onClick={() => {
-                    if (action.type === "pause") {
-                      handlePauseAction({
-                        ownSeat,
-                        connection: connectionRef.current,
-                        dispatch,
-                      });
-                      return;
-                    }
-
-                    handleResumeAction({
-                      ownSeat,
-                      connection: connectionRef.current,
-                      dispatch,
-                    });
-                  }}
-                >
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-
-        {newRoundAction ? (
-          <div style={{ marginTop: "20px" }}>
-            <p style={labelStyle}>Round</p>
-            <div style={buttonRowStyle}>
-              <button
-                type="button"
-                style={buttonStyle(false)}
-                onClick={() =>
-                  handleNewRoundAction({
-                    ownSeat,
-                    connection: connectionRef.current,
-                    dispatch,
-                  })
-                }
-              >
-                {newRoundAction.label}
-              </button>
-            </div>
-          </div>
+        {liveSnapshot ? (
+          <MatchPanel
+            snapshot={liveSnapshot}
+            ownSeat={ownSeat}
+            connectionStatus={connectionStatus}
+            isWaitingListMember={state.isWaitingListMember}
+            claimableSeatActions={claimableSeatActions}
+            leaveSeatAction={leaveSeatAction}
+            waitingListAction={waitingListAction}
+            pauseResumeActions={pauseResumeActions}
+            newRoundAction={newRoundAction}
+            onClaimSeat={handleMatchClaimSeat}
+            onLeaveSeat={handleMatchLeaveSeat}
+            onWaitingListAction={handleMatchWaitingListAction}
+            onPauseAction={handleMatchPause}
+            onResumeAction={handleMatchResume}
+            onNewRoundAction={handleMatchNewRound}
+          />
         ) : null}
 
         {liveSnapshot ? (
