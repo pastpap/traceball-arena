@@ -167,6 +167,15 @@ function formatMoveTimerSummary(game, nowMs) {
   return relative ? `${base} • deadline ${relative}` : base;
 }
 
+function publicWatcherCount(game) {
+  const explicitCount = Number(game?.watcherCount);
+  if (Number.isFinite(explicitCount) && explicitCount >= 0) {
+    return explicitCount;
+  }
+
+  return null;
+}
+
 function seatModel(players, seatId) {
   const seat = players?.[seatId] || {};
   const status = toSeatStatus(seat.status);
@@ -197,7 +206,6 @@ export function buildMatchPanelModel({
   const players =
     game.players && typeof game.players === "object" ? game.players : {};
   const waitingList = Array.isArray(game.waitingList) ? game.waitingList : [];
-  const watchers = Array.isArray(game.watchers) ? game.watchers : [];
   const boardCode = String(snapshot.boardCode || game.roomId || "").trim();
   const currentTurn = String(game.turn || "").trim();
 
@@ -215,7 +223,7 @@ export function buildMatchPanelModel({
     waitingListNames: waitingList
       .map((entry) => String(entry?.displayName || "").trim())
       .filter(Boolean),
-    watcherCount: watchers.length,
+    watcherCount: publicWatcherCount(game),
     lastActivity: formatRelativeTime(game.lastActivityAt, nowMs, "past"),
     expiry: formatRelativeTime(game.expiresAt, nowMs, "future"),
     actions: {
@@ -330,10 +338,12 @@ export function MatchPanel({
             </ul>
           ) : null}
         </div>
-        <div style={metaRowStyle}>
-          <p style={labelStyle}>Watchers</p>
-          <p style={valueStyle}>{model.watcherCount}</p>
-        </div>
+        {model.watcherCount !== null ? (
+          <div style={metaRowStyle}>
+            <p style={labelStyle}>Watchers</p>
+            <p style={valueStyle}>{model.watcherCount}</p>
+          </div>
+        ) : null}
         {model.lastActivity ? (
           <div style={metaRowStyle}>
             <p style={labelStyle}>Last Activity</p>

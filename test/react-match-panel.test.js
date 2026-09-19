@@ -134,6 +134,110 @@ describe("React MatchPanel", () => {
     expect(html).toContain(">3<");
   });
 
+  it("renders waiting-list metadata and timer/activity summaries", () => {
+    const html = renderPanel({
+      snapshot: {
+        boardCode: "ROOM123",
+        game: {
+          status: "playing",
+          turn: "p1",
+          moveTimeLimitMs: 15000,
+          turnStartedAt: 185000,
+          lastActivityAt: 180000,
+          expiresAt: 900000,
+          players: {
+            p1: { status: "active", name: "Blue One" },
+            p2: { status: "active", name: "Red Two" },
+          },
+          waitingList: [
+            { displayName: "Stefan", joinedAt: 1000 },
+            { displayName: "Mara", joinedAt: 2000 },
+          ],
+          score: { p1: 2, p2: 1 },
+          moves: [{}, {}],
+        },
+      },
+      ownSeat: null,
+      connectionStatus: "connected",
+      isWaitingListMember: false,
+      claimableSeatActions: [],
+      leaveSeatAction: null,
+      waitingListAction: null,
+      pauseResumeActions: [],
+      newRoundAction: null,
+      nowMs: 190000,
+    });
+
+    expect(html).toContain("Waiting List");
+    expect(html).toContain(">2<");
+    expect(html).toContain("Stefan");
+    expect(html).toContain("Mara");
+    expect(html).toContain("Move Timer");
+    expect(html).toContain("15s per move");
+    expect(html).toContain("deadline in 10s");
+    expect(html).toContain("Last Activity");
+    expect(html).toContain("10s ago");
+    expect(html).toContain("Expires");
+    expect(html).toContain("in 12m");
+  });
+
+  it("omits watcher count when the server has not published a public watcher total", () => {
+    const html = renderPanel({
+      snapshot: {
+        boardCode: "ROOM123",
+        game: {
+          status: "waiting",
+          players: {
+            p1: { status: "vacant", name: "Blue" },
+            p2: { status: "vacant", name: "Red" },
+          },
+          watchers: [],
+          score: { p1: 0, p2: 0 },
+          moves: [],
+        },
+      },
+      ownSeat: null,
+      connectionStatus: "connected",
+      isWaitingListMember: false,
+      claimableSeatActions: [],
+      leaveSeatAction: null,
+      waitingListAction: null,
+      pauseResumeActions: [],
+      newRoundAction: null,
+    });
+
+    expect(html).not.toContain("Watchers");
+  });
+
+  it("renders watcher count only when the server publishes an explicit public total", () => {
+    const html = renderPanel({
+      snapshot: {
+        boardCode: "ROOM123",
+        game: {
+          status: "waiting",
+          watcherCount: 3,
+          players: {
+            p1: { status: "vacant", name: "Blue" },
+            p2: { status: "vacant", name: "Red" },
+          },
+          score: { p1: 0, p2: 0 },
+          moves: [],
+        },
+      },
+      ownSeat: null,
+      connectionStatus: "connected",
+      isWaitingListMember: false,
+      claimableSeatActions: [],
+      leaveSeatAction: null,
+      waitingListAction: null,
+      pauseResumeActions: [],
+      newRoundAction: null,
+    });
+
+    expect(html).toContain("Watchers");
+    expect(html).toContain(">3<");
+  });
+
   it("renders the existing action controls and keeps callbacks separate", () => {
     const onClaimSeat = vi.fn();
     const onLeaveSeat = vi.fn();
