@@ -3,6 +3,7 @@ import ElmBoard from "./components/ElmBoard.jsx";
 import MatchPanel from "./components/MatchPanel.jsx";
 import ShareControls from "./components/ShareControls.jsx";
 import { AppMenu } from "./components/AppMenu.jsx";
+import { MobileNav } from "./components/MobileNav.jsx";
 import { RulesPanel } from "./components/RulesPanel.jsx";
 import { HistoryPanel } from "./components/HistoryPanel.jsx";
 import { createBoard as createBoardRequest } from "./lib/api.js";
@@ -124,6 +125,30 @@ const noteStyle = {
   background: "#102a1a",
   color: "#f6fbf4",
   lineHeight: 1.55,
+};
+
+const sectionStackStyle = {
+  marginTop: "18px",
+  display: "grid",
+  gap: "14px",
+};
+
+const sectionCardStyle = {
+  padding: "18px",
+  borderRadius: "18px",
+  background: "#f7fbf7",
+  border: "1px solid rgba(16, 42, 26, 0.08)",
+};
+
+const sectionHeadingStyle = {
+  margin: "0 0 10px",
+  fontSize: "1.2rem",
+};
+
+const microGridStyle = {
+  display: "grid",
+  gap: "10px",
+  gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
 };
 
 const connectionDotStyle = {
@@ -903,6 +928,22 @@ export default function App({ initialState }) {
     dispatch({ type: "setHistoryPanelOpen", open: false });
   };
 
+  const navTabs = [
+    { id: "home", label: "Home" },
+    { id: "play", label: "Play" },
+    { id: "match", label: "Match" },
+    state.currentBoardCode
+      ? { id: "share", label: "Share" }
+      : { id: "menu", label: "Menu" },
+  ];
+  const allowedTabs = new Set(navTabs.map((tab) => tab.id));
+  const activeMainTab = allowedTabs.has(state.mainTab) ? state.mainTab : "home";
+  const isHomeTab = activeMainTab === "home";
+  const isPlayTab = activeMainTab === "play";
+  const isMatchTab = activeMainTab === "match";
+  const isShareTab = activeMainTab === "share";
+  const isMenuTab = activeMainTab === "menu";
+
   return (
     <main style={pageStyle}>
       <section style={panelStyle}>
@@ -932,130 +973,228 @@ export default function App({ initialState }) {
           />
         </div>
 
-        <div style={cardGridStyle}>
-          <article style={cardStyle}>
-            <p style={labelStyle}>Player Name</p>
-            <input
-              aria-label="Player name"
-              value={state.playerName || ""}
-              onChange={handleNameChange}
-              style={fieldStyle}
-              placeholder="Enter your name"
-            />
-          </article>
-          <article style={cardStyle}>
-            <p style={labelStyle}>Client Identity</p>
-            <p style={valueStyle}>{playerIdentity}</p>
-          </article>
-          <article style={cardStyle}>
-            <p style={labelStyle}>Online Move Timer</p>
-            <p style={valueStyle}>{state.onlineSetup.moveTimeLimitSeconds}s</p>
-          </article>
-          <article style={cardStyle}>
-            <p style={labelStyle}>Connection</p>
-            <p style={valueStyle}>
-              <span
-                style={{
-                  ...connectionDotStyle,
-                  background:
-                    connectionStatus === "connected"
-                      ? "#0a8f28"
-                      : connectionStatus === "error"
-                        ? "#d64545"
-                        : "#9aa79e",
-                }}
-              />
-              {connectionStatus}
-            </p>
-          </article>
-        </div>
+        <MobileNav
+          tabs={navTabs}
+          activeTab={activeMainTab}
+          onChangeTab={(mainTab) => dispatch({ type: "setMainTab", mainTab })}
+        />
 
-        <div style={{ marginTop: "20px" }}>
-          <p style={labelStyle}>Selected Mode</p>
-          <div style={buttonRowStyle}>
-            <button
-              type="button"
-              style={buttonStyle(state.mode === "online")}
-              onClick={() => dispatch({ type: "setMode", mode: "online" })}
-            >
-              Online
-            </button>
-            <button
-              type="button"
-              style={buttonStyle(state.mode === "local")}
-              onClick={() => dispatch({ type: "setMode", mode: "local" })}
-            >
-              Local
-            </button>
-          </div>
-        </div>
-
-        <div style={{ marginTop: "20px" }}>
-          <p style={labelStyle}>Online Actions</p>
-          <div style={buttonRowStyle}>
-            <button
-              type="button"
-              style={buttonStyle(false)}
-              onClick={handleCreateBoard}
-            >
-              Create Board
-            </button>
-          </div>
-        </div>
-
-        <div style={{ marginTop: "20px" }}>
+        <div style={{ marginTop: "16px" }}>
           <p style={labelStyle}>Active Tab</p>
-          <p style={valueStyle}>{state.mainTab || "home"}</p>
+          <p style={valueStyle}>{activeMainTab}</p>
         </div>
 
-        {state.currentBoardCode ? (
-          <ShareControls
-            boardCode={state.currentBoardCode}
-            onToast={handleShareToast}
-          />
-        ) : null}
+        <div style={sectionStackStyle} className="shell-sections">
+          <section
+            style={sectionCardStyle}
+            className="shell-section-card"
+            data-section="home"
+            data-visible={isHomeTab ? "true" : "false"}
+          >
+            <h2 style={sectionHeadingStyle}>Home setup</h2>
+            <div style={cardGridStyle}>
+              <article style={cardStyle}>
+                <p style={labelStyle}>Player Name</p>
+                <input
+                  aria-label="Player name"
+                  value={state.playerName || ""}
+                  onChange={handleNameChange}
+                  style={fieldStyle}
+                  placeholder="Enter your name"
+                />
+              </article>
+              <article style={cardStyle}>
+                <p style={labelStyle}>Client Identity</p>
+                <p style={valueStyle}>{playerIdentity}</p>
+              </article>
+            </div>
 
-        {liveSnapshot ? (
-          <MatchPanel
-            snapshot={liveSnapshot}
-            ownSeat={ownSeat}
-            connectionStatus={connectionStatus}
-            isWaitingListMember={state.isWaitingListMember}
-            claimableSeatActions={claimableSeatActions}
-            leaveSeatAction={leaveSeatAction}
-            waitingListAction={waitingListAction}
-            pauseResumeActions={pauseResumeActions}
-            newRoundAction={newRoundAction}
-            onClaimSeat={handleMatchClaimSeat}
-            onLeaveSeat={handleMatchLeaveSeat}
-            onWaitingListAction={handleMatchWaitingListAction}
-            onPauseAction={handleMatchPause}
-            onResumeAction={handleMatchResume}
-            onNewRoundAction={handleMatchNewRound}
-          />
-        ) : null}
+            <div style={{ marginTop: "16px" }}>
+              <p style={labelStyle}>Selected Mode</p>
+              <div style={buttonRowStyle}>
+                <button
+                  type="button"
+                  style={buttonStyle(state.mode === "online")}
+                  onClick={() => dispatch({ type: "setMode", mode: "online" })}
+                >
+                  Online
+                </button>
+                <button
+                  type="button"
+                  style={buttonStyle(state.mode === "local")}
+                  onClick={() => dispatch({ type: "setMode", mode: "local" })}
+                >
+                  Local
+                </button>
+              </div>
+            </div>
 
-        {liveSnapshot ? (
-          <div style={placeholderStyle}>
-            <ElmBoard
-              snapshot={liveSnapshot}
-              ownSeat={ownSeat}
-              replayIndex={null}
-              flipVertical={false}
-              onMoveClick={(payload) => {
-                console.info("Board move click", payload);
-                handleElmBoardMoveClick({
-                  payload,
-                  ownSeat,
-                  connection: connectionRef.current,
-                  dispatch,
-                });
-              }}
-            />
-          </div>
-        ) : (
-          <div style={placeholderStyle}>Board island not mounted yet</div>
-        )}
+            {state.mode === "online" ? (
+              <article
+                style={{ ...cardStyle, marginTop: "14px" }}
+                data-setup-card="online"
+              >
+                <p style={labelStyle}>Online setup</p>
+                <p style={valueStyle}>
+                  Move timer: {state.onlineSetup.moveTimeLimitSeconds}s
+                </p>
+                <div style={buttonRowStyle}>
+                  <button
+                    type="button"
+                    style={buttonStyle(false)}
+                    onClick={handleCreateBoard}
+                  >
+                    Create Board
+                  </button>
+                </div>
+              </article>
+            ) : (
+              <article
+                style={{ ...cardStyle, marginTop: "14px" }}
+                data-setup-card="local"
+              >
+                <p style={labelStyle}>Local setup</p>
+                <p style={valueStyle}>
+                  Move timer: {state.localSetup.moveTimeLimitSeconds}s
+                </p>
+                <p style={{ ...leadStyle, marginTop: "8px" }}>
+                  Local board controls stay isolated from online room setup.
+                </p>
+              </article>
+            )}
+          </section>
+
+          <section
+            style={sectionCardStyle}
+            className="shell-section-card"
+            data-section="play"
+            data-visible={isPlayTab ? "true" : "false"}
+          >
+            <h2 style={sectionHeadingStyle}>Play</h2>
+            <div style={microGridStyle}>
+              <article style={cardStyle}>
+                <p style={labelStyle}>Board</p>
+                <p style={valueStyle}>
+                  {state.currentBoardCode || "Not selected"}
+                </p>
+              </article>
+              <article style={cardStyle}>
+                <p style={labelStyle}>Connection</p>
+                <p style={valueStyle}>
+                  <span
+                    style={{
+                      ...connectionDotStyle,
+                      background:
+                        connectionStatus === "connected"
+                          ? "#0a8f28"
+                          : connectionStatus === "error"
+                            ? "#d64545"
+                            : "#9aa79e",
+                    }}
+                  />
+                  {connectionStatus}
+                </p>
+              </article>
+            </div>
+
+            {liveSnapshot ? (
+              <div style={placeholderStyle}>
+                <ElmBoard
+                  snapshot={liveSnapshot}
+                  ownSeat={ownSeat}
+                  replayIndex={null}
+                  flipVertical={false}
+                  onMoveClick={(payload) => {
+                    console.info("Board move click", payload);
+                    handleElmBoardMoveClick({
+                      payload,
+                      ownSeat,
+                      connection: connectionRef.current,
+                      dispatch,
+                    });
+                  }}
+                />
+              </div>
+            ) : (
+              <div style={placeholderStyle}>Board island not mounted yet</div>
+            )}
+          </section>
+
+          <section
+            style={sectionCardStyle}
+            className="shell-section-card"
+            data-section="match"
+            data-visible={isMatchTab ? "true" : "false"}
+          >
+            <h2 style={sectionHeadingStyle}>Match</h2>
+            {liveSnapshot ? (
+              <MatchPanel
+                snapshot={liveSnapshot}
+                ownSeat={ownSeat}
+                connectionStatus={connectionStatus}
+                isWaitingListMember={state.isWaitingListMember}
+                claimableSeatActions={claimableSeatActions}
+                leaveSeatAction={leaveSeatAction}
+                waitingListAction={waitingListAction}
+                pauseResumeActions={pauseResumeActions}
+                newRoundAction={newRoundAction}
+                onClaimSeat={handleMatchClaimSeat}
+                onLeaveSeat={handleMatchLeaveSeat}
+                onWaitingListAction={handleMatchWaitingListAction}
+                onPauseAction={handleMatchPause}
+                onResumeAction={handleMatchResume}
+                onNewRoundAction={handleMatchNewRound}
+              />
+            ) : (
+              <div style={placeholderStyle}>
+                Open or create a board to view match details.
+              </div>
+            )}
+          </section>
+
+          {state.currentBoardCode ? (
+            <section
+              style={sectionCardStyle}
+              className="shell-section-card"
+              data-section="share"
+              data-visible={isShareTab ? "true" : "false"}
+            >
+              <h2 style={sectionHeadingStyle}>Share</h2>
+              {isShareTab ? (
+                <ShareControls
+                  boardCode={state.currentBoardCode}
+                  onToast={handleShareToast}
+                />
+              ) : null}
+            </section>
+          ) : (
+            <section
+              style={sectionCardStyle}
+              className="shell-section-card"
+              data-section="menu"
+              data-visible={isMenuTab ? "true" : "false"}
+            >
+              <h2 style={sectionHeadingStyle}>Menu</h2>
+              <p style={leadStyle}>Open lightweight product panels.</p>
+              <div style={buttonRowStyle}>
+                <button
+                  type="button"
+                  style={buttonStyle(false)}
+                  onClick={handleSelectRules}
+                >
+                  Rules
+                </button>
+                <button
+                  type="button"
+                  style={buttonStyle(false)}
+                  onClick={handleSelectHistory}
+                >
+                  History
+                </button>
+              </div>
+            </section>
+          )}
+        </div>
 
         {state.toast ? (
           <div style={{ ...placeholderStyle, marginTop: "10px" }}>

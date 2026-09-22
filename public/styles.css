@@ -152,6 +152,21 @@ h2 {
 .mobile-nav {
   display: none;
 }
+
+.shell-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.shell-section-card[data-visible="false"] {
+  display: none;
+}
+
+@media (min-width: 980px) {
+  .shell-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .mobile-tab {
   min-width: 0;
   white-space: nowrap;
@@ -3285,17 +3300,13 @@ details.match-info-details[open] .match-info-toggle {
 .elm-board-turn-chip.at-top {
   top: var(--turn-gate-top-y);
 }
-.elm-board-turn-chip.at-bottom,
+animation: none;
 .elm-board-turn-clock.slot-bottom {
   top: var(--turn-gate-bottom-y);
-}
-.elm-board-turn-clock.slot-top {
-  top: var(--turn-gate-top-y);
+  animation: turn-chip-arc-to-top 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
 }
 .elm-board-turn-clock {
-  left: var(--turn-clock-x);
-  display: inline-flex;
-  align-items: center;
+  animation: turn-chip-arc-to-bottom 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
   justify-content: center;
   width: min(78px, 11%);
   min-width: 52px;
@@ -3361,18 +3372,34 @@ details.match-info-details[open] .match-info-toggle {
     box-shadow 180ms ease,
     border-color 180ms ease,
     background 180ms ease;
-  animation: turn-chip-pulse 1.5s ease-in-out infinite;
+  animation: none;
 }
 .elm-board-turn-chip.arch-hop.to-top {
-  animation:
-    turn-chip-pulse 1.5s ease-in-out infinite,
-    turn-chip-arc-to-top 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
+  animation: turn-chip-arc-to-top 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
 }
 .elm-board-turn-chip.arch-hop.to-bottom {
-  animation:
-    turn-chip-pulse 1.5s ease-in-out infinite,
-    turn-chip-arc-to-bottom 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
+  animation: turn-chip-arc-to-bottom 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  body[data-enable-legacy-motion="true"] .elm-board-turn-chip {
+    animation: turn-chip-pulse 1.5s ease-in-out infinite;
+  }
+
+  body[data-enable-legacy-motion="true"] .elm-board-turn-chip.arch-hop.to-top {
+    animation:
+      turn-chip-pulse 1.5s ease-in-out infinite,
+      turn-chip-arc-to-top 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
+  }
+
+  body[data-enable-legacy-motion="true"]
+    .elm-board-turn-chip.arch-hop.to-bottom {
+    animation:
+      turn-chip-pulse 1.5s ease-in-out infinite,
+      turn-chip-arc-to-bottom 900ms cubic-bezier(0.22, 0.78, 0.2, 1);
+  }
+}
+
 .elm-board-turn-chip.blue {
   background: #0b7cff;
   box-shadow: 0 0 18px rgba(11, 124, 255, 0.4);

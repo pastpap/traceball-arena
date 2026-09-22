@@ -6,6 +6,7 @@ async function createBoardFromReact(page, name = "P1") {
   await page.getByRole("textbox", { name: "Player name" }).fill(name);
   await page.getByRole("button", { name: "Create Board" }).click();
   await expect(page).toHaveURL(/\/react\?board=/);
+  await page.getByRole("button", { name: "Play" }).click();
   const boardCode = new URL(page.url()).searchParams.get("board");
   expect(boardCode).toBeTruthy();
   await expect(page.locator("svg#board")).toBeVisible();
@@ -69,6 +70,7 @@ test.describe("React hybrid playable smoke", () => {
           moveCount: 0,
         });
 
+      await p1.getByRole("button", { name: "Match" }).click();
       await expect(
         p1.getByRole("button", { name: "Claim Blue" }),
       ).toBeVisible();
@@ -95,6 +97,7 @@ test.describe("React hybrid playable smoke", () => {
         });
 
       await openReactBoard(p2, boardCode, "P2");
+      await p2.getByRole("button", { name: "Match" }).click();
       await expect(p2.getByRole("button", { name: "Claim Red" })).toBeVisible();
       await expect(p2.getByRole("button", { name: "Claim Blue" })).toHaveCount(
         0,
@@ -124,6 +127,7 @@ test.describe("React hybrid playable smoke", () => {
       const firstMove = p1
         .locator('[data-elm-legal-context="own-turn"]')
         .first();
+      await p1.getByRole("button", { name: "Play" }).click();
       await expect(firstMove).toBeVisible();
       const moveKey = await firstMove.getAttribute("data-elm-legal-move");
       expect(moveKey).toBeTruthy();
