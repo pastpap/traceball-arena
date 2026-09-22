@@ -2,6 +2,9 @@ import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
 import MatchPanel from "./components/MatchPanel.jsx";
 import ShareControls from "./components/ShareControls.jsx";
+import { AppMenu } from "./components/AppMenu.jsx";
+import { RulesPanel } from "./components/RulesPanel.jsx";
+import { HistoryPanel } from "./components/HistoryPanel.jsx";
 import { createBoard as createBoardRequest } from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
@@ -690,6 +693,7 @@ export async function createReactBoardFlow({
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
   const [ownSeat, setOwnSeat] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const connectionRef = useRef(null);
   const activeBoardRef = useRef("");
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
@@ -875,15 +879,58 @@ export default function App({ initialState }) {
     dispatch({ type: "setToast", toast });
   };
 
+  const localHistoryCount = Array.isArray(liveSnapshot?.game?.moves)
+    ? liveSnapshot.game.moves.length
+    : 0;
+
+  const handleSelectRules = () => {
+    setMenuOpen(false);
+    dispatch({ type: "setHistoryPanelOpen", open: false });
+    dispatch({ type: "setRulesPanelOpen", open: true });
+  };
+
+  const handleSelectHistory = () => {
+    setMenuOpen(false);
+    dispatch({ type: "setRulesPanelOpen", open: false });
+    dispatch({ type: "setHistoryPanelOpen", open: true });
+  };
+
+  const closeRulesPanel = () => {
+    dispatch({ type: "setRulesPanelOpen", open: false });
+  };
+
+  const closeHistoryPanel = () => {
+    dispatch({ type: "setHistoryPanelOpen", open: false });
+  };
+
   return (
     <main style={pageStyle}>
       <section style={panelStyle}>
-        <p style={eyebrowStyle}>React product shell</p>
-        <h1 style={titleStyle}>Traceball Arena</h1>
-        <p style={leadStyle}>
-          The React shell owns product state while Elm renders the board island.
-          Online authority remains on the server.
-        </p>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: "14px",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ flex: "1 1 420px", minWidth: 0 }}>
+            <p style={eyebrowStyle}>React product shell</p>
+            <h1 style={titleStyle}>Traceball Arena</h1>
+            <p style={leadStyle}>
+              The React shell owns product state while Elm renders the board
+              island. Online authority remains on the server.
+            </p>
+          </div>
+
+          <AppMenu
+            menuOpen={menuOpen}
+            onToggle={setMenuOpen}
+            onSelectRules={handleSelectRules}
+            onSelectHistory={handleSelectHistory}
+          />
+        </div>
 
         <div style={cardGridStyle}>
           <article style={cardStyle}>
@@ -1015,6 +1062,13 @@ export default function App({ initialState }) {
             {state.toast}
           </div>
         ) : null}
+
+        <RulesPanel open={state.rulesPanelOpen} onClose={closeRulesPanel} />
+        <HistoryPanel
+          open={state.historyPanelOpen}
+          localHistoryCount={localHistoryCount}
+          onClose={closeHistoryPanel}
+        />
 
         <div style={noteStyle}>
           Elm remains the board and replay correctness surface. The server

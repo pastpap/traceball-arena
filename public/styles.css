@@ -2523,6 +2523,69 @@ details.match-info-details[open] .match-info-toggle {
   }
 }
 
+.react-shell-modal {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  width: min(560px, calc(100vw - 24px));
+  max-height: min(72vh, 520px);
+  overflow: auto;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(3, 24, 9, 0.97);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.42);
+}
+
+.react-shell-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.react-shell-modal-header h2 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.react-shell-modal-close {
+  width: auto;
+  margin: 0;
+  padding: 6px 10px;
+}
+
+.react-shell-modal-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.react-shell-modal-list li {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.react-shell-modal-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 640px) {
+  .react-shell-modal {
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    width: calc(100vw - 16px);
+    max-height: min(74vh, 500px);
+    padding: 14px;
+    border-radius: 14px;
+  }
+}
+
 /* Elm shell route */
 .elm-shell-page {
   min-height: 100dvh;
