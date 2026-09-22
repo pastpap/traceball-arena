@@ -12,7 +12,11 @@ export function RulesPanel({ open, onClose }) {
     >
       <header className="react-shell-modal-header">
         <h2>Rules</h2>
-        <button type="button" className="react-shell-modal-close" onClick={onClose}>
+        <button
+          type="button"
+          className="react-shell-modal-close"
+          onClick={onClose}
+        >
           Close
         </button>
       </header>

@@ -19,7 +19,11 @@ export function HistoryPanel({ open, localHistoryCount = 0, onClose }) {
     >
       <header className="react-shell-modal-header">
         <h2>History</h2>
-        <button type="button" className="react-shell-modal-close" onClick={onClose}>
+        <button
+          type="button"
+          className="react-shell-modal-close"
+          onClick={onClose}
+        >
           Close
         </button>
       </header>
