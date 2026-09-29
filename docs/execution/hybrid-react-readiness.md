@@ -8,16 +8,16 @@ Purpose: give explicit, run-and-recorded evidence that (a) the React shell is sa
 
 Verified by `test/fallback-routes.test.js` (spawns a real `node src/server.js` process and hits it with `fetch`, no mocks):
 
-| Route | Expected | Verified by |
-| --- | --- | --- |
-| `/` | React shell (`#react-root`, `/react-build/main.js`) | "serves React hybrid shell on /" |
-| `/react` | Same React shell, byte-identical to `/` | "serves the same React hybrid shell on /react" + "keeps / and /react on the same React shell contract" |
-| `/?board=ROOM123` | Still React shell (board param preserved for default route) | "serves the React shell contract on /?board=ROOM123" |
-| `/elm` | Full Elm shell (`#elm-root`, `/elm-runtime.js`, `/elm.js`) | "serves Elm rollback shell on /elm" |
-| `/elm?board=ROOM123` | Full Elm shell, board query preserved | "serves the same Elm rollback shell contract on /elm?board=ROOM123" |
-| `/room/:roomId` | 302 → `/?board=<code>` (old invite links land in React default) | "redirects /room/:roomId to the React default shell board query" |
-| `/elm/room/:roomId` | 302 → `/elm?board=<code>` (rollback invite links stay in Elm) | "redirects /elm/room/:roomId to the Elm rollback board query" |
-| `/legacy`, `/legacy/room/:roomId` | 404 | "does not expose removed /legacy routes" |
+| Route                             | Expected                                                        | Verified by                                                                                            |
+| --------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `/`                               | React shell (`#react-root`, `/react-build/main.js`)             | "serves React hybrid shell on /"                                                                       |
+| `/react`                          | Same React shell, byte-identical to `/`                         | "serves the same React hybrid shell on /react" + "keeps / and /react on the same React shell contract" |
+| `/?board=ROOM123`                 | Still React shell (board param preserved for default route)     | "serves the React shell contract on /?board=ROOM123"                                                   |
+| `/elm`                            | Full Elm shell (`#elm-root`, `/elm-runtime.js`, `/elm.js`)      | "serves Elm rollback shell on /elm"                                                                    |
+| `/elm?board=ROOM123`              | Full Elm shell, board query preserved                           | "serves the same Elm rollback shell contract on /elm?board=ROOM123"                                    |
+| `/room/:roomId`                   | 302 → `/?board=<code>` (old invite links land in React default) | "redirects /room/:roomId to the React default shell board query"                                       |
+| `/elm/room/:roomId`               | 302 → `/elm?board=<code>` (rollback invite links stay in Elm)   | "redirects /elm/room/:roomId to the Elm rollback board query"                                          |
+| `/legacy`, `/legacy/room/:roomId` | 404                                                             | "does not expose removed /legacy routes"                                                               |
 
 Result: **11/11 passed** (see command output below). `/elm` rollback is explicitly protected by its own dedicated assertions, independent of the `/` and `/react` assertions.
 
