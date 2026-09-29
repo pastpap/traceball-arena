@@ -114,7 +114,9 @@ export function LocalSetupPanel({
             key={seconds}
             type="button"
             aria-label={
-              seconds === 0 ? "No local move timer" : `${seconds}s local move timer`
+              seconds === 0
+                ? "No local move timer"
+                : `${seconds}s local move timer`
             }
             style={timerButtonStyle(Number(moveTimeLimitSeconds) === seconds)}
             onClick={() => onChangeMoveTimer?.(seconds)}
@@ -123,6 +125,7 @@ export function LocalSetupPanel({
           </button>
         ))}
       </div>
+      <p style={noteStyle}>Timer selection is not enforced yet.</p>
 
       <button
         type="button"
@@ -133,8 +136,8 @@ export function LocalSetupPanel({
       </button>
 
       <p style={noteStyle}>
-        Local same-screen play stays on this device. No room code, invite
-        link, or server connection is used.
+        Local same-screen play stays on this device. No room code, invite link,
+        or server connection is used.
       </p>
     </article>
   );

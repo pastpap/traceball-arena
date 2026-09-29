@@ -24,7 +24,6 @@ vi.mock("../src/react/lib/socket.js", () => ({
   websocketUrl: vi.fn(() => "ws://example.test/ws"),
 }));
 
-
 function renderShell(overrides = {}) {
   return renderToStaticMarkup(
     React.createElement(App, {
@@ -75,7 +74,11 @@ describe("React local same-screen mode", () => {
     });
 
     const target = snapshot.game.legalMoves[0];
-    const { ok, bounce, snapshot: nextSnapshot } = applyLocalMoveClick({
+    const {
+      ok,
+      bounce,
+      snapshot: nextSnapshot,
+    } = applyLocalMoveClick({
       game,
       payload: { point: target },
     });
@@ -264,6 +267,66 @@ describe("React local mode shell rendering", () => {
     expect(localHtml).toContain("Blue player name");
     expect(localHtml).toContain("Red player name");
     expect(localHtml).not.toContain("Create Board");
+  });
+
+  it("discloses that the local move timer is not enforced yet", () => {
+    const localHtml = renderShell({ mode: "local" });
+
+    expect(localHtml).toContain("Timer selection is not enforced yet.");
+  });
+
+  it("does not render any online seat/pause/waiting-list actions in the local Match tab", () => {
+    const { snapshot } = createLocalMatch({
+      blueName: "Ada",
+      redName: "Grace",
+      moveTimeLimitSeconds: 15,
+    });
+
+    const html = renderShell({
+      mode: "local",
+      mainTab: "match",
+      localSnapshot: snapshot,
+    });
+
+    expect(html).toContain("Ada");
+    expect(html).toContain("Grace");
+    expect(html).not.toContain("Claim Blue");
+    expect(html).not.toContain("Claim Red");
+    expect(html).not.toContain("Leave Seat");
+    expect(html).not.toContain("Pause Game");
+    expect(html).not.toContain("Resume Game");
+    expect(html).not.toContain("Join Waiting List");
+    expect(html).not.toContain("Leave Waiting List");
+  });
+
+  it("shows a round-over placeholder in Play and Match once a local match finishes", () => {
+    const { snapshot } = createLocalMatch({
+      blueName: "Ada",
+      redName: "Grace",
+      moveTimeLimitSeconds: 15,
+    });
+    const finishedSnapshot = {
+      ...snapshot,
+      game: { ...snapshot.game, status: "finished", legalMoves: [] },
+    };
+
+    const playHtml = renderShell({
+      mode: "local",
+      mainTab: "play",
+      localSnapshot: finishedSnapshot,
+    });
+    const matchHtml = renderShell({
+      mode: "local",
+      mainTab: "match",
+      localSnapshot: finishedSnapshot,
+    });
+
+    expect(playHtml).toContain(
+      "Round over. Start a new local match from Home to play again.",
+    );
+    expect(matchHtml).toContain(
+      "Round over. Start a new local match from Home to play again.",
+    );
   });
 
   it("renders the ElmBoard host in Play for an active local match", () => {

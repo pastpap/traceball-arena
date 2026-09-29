@@ -1,9 +1,4 @@
-import {
-  createGame,
-  claimSeat,
-  makeMove,
-  publicGame,
-} from "../../game.js";
+import { createGame, claimSeat, makeMove, publicGame } from "../../game.js";
 
 export const LOCAL_BOARD_CODE = "LOCAL";
 const LOCAL_BLUE_CLIENT_ID = "local-blue";

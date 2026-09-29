@@ -756,7 +756,6 @@ export function handleLocalBoardMoveClick({
   }
 }
 
-
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
   const [ownSeat, setOwnSeat] = useState(null);
@@ -769,6 +768,7 @@ export default function App({ initialState }) {
   const connectionStatus = String(state.connectionStatus || "idle");
   const isLocalMode = state.mode === "local";
   const localOwnSeat = getLocalOwnSeat(state.localSnapshot);
+  const localMatchFinished = state.localSnapshot?.game?.status === "finished";
   const claimableSeatActions = getClaimableSeatActions({
     snapshot: liveSnapshot,
     ownSeat,
@@ -790,7 +790,6 @@ export default function App({ initialState }) {
     ownSeat,
     snapshot: liveSnapshot,
   });
-
 
   useEffect(() => {
     const runtime = initializeBoardFromUrl({
@@ -1206,6 +1205,12 @@ export default function App({ initialState }) {
             ) : (
               <div style={placeholderStyle}>Board island not mounted yet</div>
             )}
+
+            {isLocalMode && localMatchFinished ? (
+              <div style={placeholderStyle}>
+                Round over. Start a new local match from Home to play again.
+              </div>
+            ) : null}
           </section>
 
           <section
@@ -1217,35 +1222,43 @@ export default function App({ initialState }) {
             <h2 style={sectionHeadingStyle}>Match</h2>
             {isLocalMode ? (
               state.localSnapshot ? (
-                <div style={microGridStyle}>
-                  <article style={cardStyle}>
-                    <p style={labelStyle}>Blue</p>
-                    <p style={valueStyle}>
-                      {state.localSnapshot.game?.players?.p1?.name || "Blue"}
-                    </p>
-                  </article>
-                  <article style={cardStyle}>
-                    <p style={labelStyle}>Red</p>
-                    <p style={valueStyle}>
-                      {state.localSnapshot.game?.players?.p2?.name || "Red"}
-                    </p>
-                  </article>
-                  <article style={cardStyle}>
-                    <p style={labelStyle}>Score</p>
-                    <p style={valueStyle}>
-                      {Number(state.localSnapshot.game?.score?.p1 || 0)} -{" "}
-                      {Number(state.localSnapshot.game?.score?.p2 || 0)}
-                    </p>
-                  </article>
-                  <article style={cardStyle}>
-                    <p style={labelStyle}>Turn</p>
-                    <p style={valueStyle}>
-                      {state.localSnapshot.game?.turn === "p2"
-                        ? "Red"
-                        : "Blue"}
-                    </p>
-                  </article>
-                </div>
+                <>
+                  <div style={microGridStyle}>
+                    <article style={cardStyle}>
+                      <p style={labelStyle}>Blue</p>
+                      <p style={valueStyle}>
+                        {state.localSnapshot.game?.players?.p1?.name || "Blue"}
+                      </p>
+                    </article>
+                    <article style={cardStyle}>
+                      <p style={labelStyle}>Red</p>
+                      <p style={valueStyle}>
+                        {state.localSnapshot.game?.players?.p2?.name || "Red"}
+                      </p>
+                    </article>
+                    <article style={cardStyle}>
+                      <p style={labelStyle}>Score</p>
+                      <p style={valueStyle}>
+                        {Number(state.localSnapshot.game?.score?.p1 || 0)} -{" "}
+                        {Number(state.localSnapshot.game?.score?.p2 || 0)}
+                      </p>
+                    </article>
+                    <article style={cardStyle}>
+                      <p style={labelStyle}>Turn</p>
+                      <p style={valueStyle}>
+                        {state.localSnapshot.game?.turn === "p2"
+                          ? "Red"
+                          : "Blue"}
+                      </p>
+                    </article>
+                  </div>
+                  {localMatchFinished ? (
+                    <div style={placeholderStyle}>
+                      Round over. Start a new local match from Home to play
+                      again.
+                    </div>
+                  ) : null}
+                </>
               ) : (
                 <div style={placeholderStyle}>
                   Start a local match from Home to see match details.
