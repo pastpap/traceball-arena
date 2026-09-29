@@ -4,11 +4,17 @@ import MatchPanel from "./components/MatchPanel.jsx";
 import ShareControls from "./components/ShareControls.jsx";
 import { AppMenu } from "./components/AppMenu.jsx";
 import { MobileNav } from "./components/MobileNav.jsx";
+import { LocalSetupPanel } from "./components/LocalSetupPanel.jsx";
 import { RulesPanel } from "./components/RulesPanel.jsx";
 import { HistoryPanel } from "./components/HistoryPanel.jsx";
 import { createBoard as createBoardRequest } from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
+import {
+  createLocalMatch,
+  applyLocalMoveClick,
+  getLocalOwnSeat,
+} from "./lib/localGame.js";
 import { shellReducer } from "./state/shellReducer.js";
 
 const pageStyle = {
@@ -715,15 +721,54 @@ export async function createReactBoardFlow({
   }
 }
 
+export function createLocalMatchFlow({
+  blueName,
+  redName,
+  moveTimeLimitSeconds,
+  dispatch,
+  localGameRef,
+  createMatch = createLocalMatch,
+}) {
+  const { game, snapshot } = createMatch({
+    blueName,
+    redName,
+    moveTimeLimitSeconds,
+  });
+  if (localGameRef) localGameRef.current = game;
+  dispatch?.({ type: "startLocalMatch", snapshot });
+  return snapshot;
+}
+
+export function handleLocalBoardMoveClick({
+  payload,
+  localGameRef,
+  dispatch,
+  applyMove = applyLocalMoveClick,
+}) {
+  const game = localGameRef?.current;
+  const { error, snapshot } = applyMove({ game, payload });
+
+  if (snapshot) {
+    dispatch?.({ type: "receiveLocalGameState", snapshot });
+  }
+  if (error) {
+    dispatch?.({ type: "setToast", toast: error });
+  }
+}
+
+
 export default function App({ initialState }) {
   const [state, dispatch] = useReducer(shellReducer, initialState);
   const [ownSeat, setOwnSeat] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const connectionRef = useRef(null);
   const activeBoardRef = useRef("");
+  const localGameRef = useRef(null);
   const demoSnapshot = initialState?.demoBoardSnapshot || null;
   const liveSnapshot = state.boardState || demoSnapshot;
   const connectionStatus = String(state.connectionStatus || "idle");
+  const isLocalMode = state.mode === "local";
+  const localOwnSeat = getLocalOwnSeat(state.localSnapshot);
   const claimableSeatActions = getClaimableSeatActions({
     snapshot: liveSnapshot,
     ownSeat,
@@ -745,6 +790,7 @@ export default function App({ initialState }) {
     ownSeat,
     snapshot: liveSnapshot,
   });
+
 
   useEffect(() => {
     const runtime = initializeBoardFromUrl({
@@ -835,6 +881,32 @@ export default function App({ initialState }) {
           activeBoardRef,
         }),
     });
+  };
+
+  const handleLocalBlueNameChange = (event) => {
+    dispatch({ type: "setLocalBlueName", name: event.target.value });
+  };
+
+  const handleLocalRedNameChange = (event) => {
+    dispatch({ type: "setLocalRedName", name: event.target.value });
+  };
+
+  const handleLocalMoveTimerChange = (seconds) => {
+    dispatch({ type: "setLocalMoveTimer", seconds });
+  };
+
+  const handleStartLocalMatch = () => {
+    createLocalMatchFlow({
+      blueName: state.localSetup.blueName,
+      redName: state.localSetup.redName,
+      moveTimeLimitSeconds: state.localSetup.moveTimeLimitSeconds,
+      dispatch,
+      localGameRef,
+    });
+  };
+
+  const handleLocalMoveClick = (payload) => {
+    handleLocalBoardMoveClick({ payload, localGameRef, dispatch });
   };
 
   const handleMatchClaimSeat = (seatId) => {
@@ -1049,18 +1121,16 @@ export default function App({ initialState }) {
                 </div>
               </article>
             ) : (
-              <article
-                style={{ ...cardStyle, marginTop: "14px" }}
-                data-setup-card="local"
-              >
-                <p style={labelStyle}>Local setup</p>
-                <p style={valueStyle}>
-                  Move timer: {state.localSetup.moveTimeLimitSeconds}s
-                </p>
-                <p style={{ ...leadStyle, marginTop: "8px" }}>
-                  Local board controls stay isolated from online room setup.
-                </p>
-              </article>
+              <LocalSetupPanel
+                blueName={state.localSetup.blueName}
+                redName={state.localSetup.redName}
+                moveTimeLimitSeconds={state.localSetup.moveTimeLimitSeconds}
+                onChangeBlueName={handleLocalBlueNameChange}
+                onChangeRedName={handleLocalRedNameChange}
+                onChangeMoveTimer={handleLocalMoveTimerChange}
+                onStartMatch={handleStartLocalMatch}
+                hasActiveMatch={Boolean(state.localSnapshot)}
+              />
             )}
           </section>
 
@@ -1071,33 +1141,51 @@ export default function App({ initialState }) {
             data-visible={isPlayTab ? "true" : "false"}
           >
             <h2 style={sectionHeadingStyle}>Play</h2>
-            <div style={microGridStyle}>
-              <article style={cardStyle}>
-                <p style={labelStyle}>Board</p>
-                <p style={valueStyle}>
-                  {state.currentBoardCode || "Not selected"}
-                </p>
-              </article>
-              <article style={cardStyle}>
-                <p style={labelStyle}>Connection</p>
-                <p style={valueStyle}>
-                  <span
-                    style={{
-                      ...connectionDotStyle,
-                      background:
-                        connectionStatus === "connected"
-                          ? "#0a8f28"
-                          : connectionStatus === "error"
-                            ? "#d64545"
-                            : "#9aa79e",
-                    }}
-                  />
-                  {connectionStatus}
-                </p>
-              </article>
-            </div>
+            {isLocalMode ? null : (
+              <div style={microGridStyle}>
+                <article style={cardStyle}>
+                  <p style={labelStyle}>Board</p>
+                  <p style={valueStyle}>
+                    {state.currentBoardCode || "Not selected"}
+                  </p>
+                </article>
+                <article style={cardStyle}>
+                  <p style={labelStyle}>Connection</p>
+                  <p style={valueStyle}>
+                    <span
+                      style={{
+                        ...connectionDotStyle,
+                        background:
+                          connectionStatus === "connected"
+                            ? "#0a8f28"
+                            : connectionStatus === "error"
+                              ? "#d64545"
+                              : "#9aa79e",
+                      }}
+                    />
+                    {connectionStatus}
+                  </p>
+                </article>
+              </div>
+            )}
 
-            {liveSnapshot ? (
+            {isLocalMode ? (
+              state.localSnapshot ? (
+                <div style={placeholderStyle}>
+                  <ElmBoard
+                    snapshot={state.localSnapshot}
+                    ownSeat={localOwnSeat}
+                    replayIndex={null}
+                    flipVertical={false}
+                    onMoveClick={handleLocalMoveClick}
+                  />
+                </div>
+              ) : (
+                <div style={placeholderStyle}>
+                  Start a local match from Home to play on this device.
+                </div>
+              )
+            ) : liveSnapshot ? (
               <div style={placeholderStyle}>
                 <ElmBoard
                   snapshot={liveSnapshot}
@@ -1127,7 +1215,43 @@ export default function App({ initialState }) {
             data-visible={isMatchTab ? "true" : "false"}
           >
             <h2 style={sectionHeadingStyle}>Match</h2>
-            {liveSnapshot ? (
+            {isLocalMode ? (
+              state.localSnapshot ? (
+                <div style={microGridStyle}>
+                  <article style={cardStyle}>
+                    <p style={labelStyle}>Blue</p>
+                    <p style={valueStyle}>
+                      {state.localSnapshot.game?.players?.p1?.name || "Blue"}
+                    </p>
+                  </article>
+                  <article style={cardStyle}>
+                    <p style={labelStyle}>Red</p>
+                    <p style={valueStyle}>
+                      {state.localSnapshot.game?.players?.p2?.name || "Red"}
+                    </p>
+                  </article>
+                  <article style={cardStyle}>
+                    <p style={labelStyle}>Score</p>
+                    <p style={valueStyle}>
+                      {Number(state.localSnapshot.game?.score?.p1 || 0)} -{" "}
+                      {Number(state.localSnapshot.game?.score?.p2 || 0)}
+                    </p>
+                  </article>
+                  <article style={cardStyle}>
+                    <p style={labelStyle}>Turn</p>
+                    <p style={valueStyle}>
+                      {state.localSnapshot.game?.turn === "p2"
+                        ? "Red"
+                        : "Blue"}
+                    </p>
+                  </article>
+                </div>
+              ) : (
+                <div style={placeholderStyle}>
+                  Start a local match from Home to see match details.
+                </div>
+              )
+            ) : liveSnapshot ? (
               <MatchPanel
                 snapshot={liveSnapshot}
                 ownSeat={ownSeat}

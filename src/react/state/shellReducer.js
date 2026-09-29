@@ -11,6 +11,9 @@ export function createInitialShellState({
   toast = null,
   onlineMoveTimer = 15,
   localMoveTimer = 15,
+  localBlueName = "",
+  localRedName = "",
+  localSnapshot = null,
   historyPanelOpen = false,
   rulesPanelOpen = false,
 } = {}) {
@@ -30,7 +33,10 @@ export function createInitialShellState({
     },
     localSetup: {
       moveTimeLimitSeconds: localMoveTimer,
+      blueName: localBlueName,
+      redName: localRedName,
     },
+    localSnapshot,
     historyPanelOpen,
     rulesPanelOpen,
   };
@@ -147,6 +153,32 @@ export function shellReducer(state, action) {
           moveTimeLimitSeconds: Number(action.seconds),
         },
       };
+
+    case "setLocalBlueName":
+      return {
+        ...state,
+        localSetup: {
+          ...state.localSetup,
+          blueName: String(action.name || ""),
+        },
+      };
+
+    case "setLocalRedName":
+      return {
+        ...state,
+        localSetup: {
+          ...state.localSetup,
+          redName: String(action.name || ""),
+        },
+      };
+
+    case "startLocalMatch":
+      if (!action.snapshot || typeof action.snapshot !== "object") return state;
+      return { ...state, localSnapshot: action.snapshot };
+
+    case "receiveLocalGameState":
+      if (!action.snapshot || typeof action.snapshot !== "object") return state;
+      return { ...state, localSnapshot: action.snapshot };
 
     default:
       return state;
