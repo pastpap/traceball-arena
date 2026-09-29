@@ -1,18 +1,19 @@
-const CACHE_NAME = "traceball-arena-v42";
+const CACHE_NAME = "traceball-arena-v43";
 const APP_SHELL = [
   "/",
+  "/react",
+  "/react.html",
+  "/react-build/main.js",
+  "/board-island-runtime.js",
+  "/elm",
   "/elm.html",
   "/elm-runtime.js",
-  "/board-island-runtime.js",
   "/elm.js",
   "/index.html",
   "/styles.css",
   "/history.js",
   "/icon.svg",
   "/manifest.webmanifest",
-  "/react",
-  "/react.html",
-  "/react-build/main.js",
 ];
 
 self.addEventListener("install", (event) => {
@@ -55,9 +56,11 @@ self.addEventListener("fetch", (event) => {
       ? ["/react-build/main.js"]
       : url.pathname === "/board-island-runtime.js"
         ? ["/board-island-runtime.js"]
-        : url.pathname.startsWith("/react")
-          ? ["/react", "/react.html"]
-          : ["/"];
+        : url.pathname.startsWith("/elm")
+          ? ["/elm", "/elm.html"]
+          : url.pathname.startsWith("/react")
+            ? ["/react", "/react.html"]
+            : ["/"];
 
   event.respondWith(
     fetch(request)

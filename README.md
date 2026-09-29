@@ -79,16 +79,17 @@ The `elm-rewrite` branch is the staging branch for introducing Elm into the fron
 
 Current default frontend:
 
-- `/` and `/elm` both serve the compiled Elm runtime; the pre-Elm legacy UI has been removed from shipped routes.
-- `public/elm-runtime.js` is generated from `src/elm/Main.elm`, while `public/elm.js` is now the bridge layer for WebSocket, localStorage, route updates, and service-worker/browser hooks.
+- `/` and `/react` both serve the React hybrid product shell (home, boards list, match details, menus, rules/history, sharing, mobile navigation, and local mode), embedding the Elm board island for deterministic board/replay rendering.
+- `/elm` serves the full-Elm rollback shell, kept intentionally available in case the hybrid shell needs to be rolled back.
+- `public/elm-runtime.js` is generated from `src/elm/Main.elm`, while `public/elm.js` is now the bridge layer for WebSocket, localStorage, route updates, and service-worker/browser hooks used by the `/elm` rollback shell.
 - Phase 9 parity includes intentionally improved structure: Play stays board/replay-focused, and detailed board/match metadata lives in Match instead of large always-visible play-surface cards.
 - Recent Phase 9 progress includes seated-player attack-up orientation online, fixed gate-side countdown placement, arc-based turn marker motion, compact mobile/desktop board-list cleanup, player names that preserve spaces while normalizing on persist, and turn-owner-only pause/resume with a resume-only pause overlay.
-- `/room/:roomId` redirects to `/?board=<code>` so older invite links continue into the primary board-centric frontend.
+- `/room/:roomId` redirects to `/?board=<code>` so older invite links now land in the default React hybrid shell. `/elm/room/:roomId` redirects to `/elm?board=<code>` for the rollback shell.
 - The Elm model gates incoming state by monotonically increasing `version`, reports malformed/not-found messages as controlled errors, and uses a JavaScript bridge with stable `traceballElmClientId` identity.
 - The default runtime has board-centric seating actions: create board as Blue, watch boards without claiming a seat, choose Blue/Red explicitly when seats are open, reclaim your own reserved seat on reload without silently resuming, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
 - Online pause remains server-authoritative: only the seated current-turn player can pause or resume, automatic pauses also resume through that same turn owner, and paused overlays do not expose New Round.
-- `/api/rooms` exposes live board list cards with `lastActivityAt` and `expiresAt`, while expired boards are cleaned up and direct links recover through the Elm not-found flow.
-- PWA cache version is currently `traceball-arena-v40`.
+- `/api/rooms` exposes live board list cards with `lastActivityAt` and `expiresAt`, while expired boards are cleaned up and direct links recover through the not-found flow.
+- PWA cache version is currently `traceball-arena-v43`; the service worker precaches both the React default shell and the Elm rollback shell so each stays available offline.
 
 Architecture and rewrite docs:
 
@@ -128,7 +129,7 @@ npm test
 npm run build
 ```
 
-`npm run build:elm` regenerates the runtime that is actually served at `/`. `npm run build:react` generates the additive React shell bundle that is served at `/react` from `public/react-build/main.js`. This repo serves static files directly from `public/`, so the React bundle is a build prerequisite for `/react` in local and deployment-like environments. The generated bundle is intentionally not treated as a checked-in source-of-truth; the canonical source remains `src/react/*` and the build step keeps `public/react-build/` in sync.
+`npm run build:elm` regenerates the runtime that backs the `/elm` rollback shell and the Elm board island embedded in the React shell. `npm run build:react` generates the React product shell bundle that is served at `/` and `/react` from `public/react-build/main.js`. This repo serves static files directly from `public/`, so the React bundle is a build prerequisite for `/` and `/react` in local and deployment-like environments. The generated bundle is intentionally not treated as a checked-in source-of-truth; the canonical source remains `src/react/*` and the build step keeps `public/react-build/` in sync.
 
 ## Railway
 

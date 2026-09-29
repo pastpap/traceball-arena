@@ -10,6 +10,14 @@ function expectElmShellContract(html) {
   expect(html).toContain('src="/elm.js"');
 }
 
+function expectReactShellContract(html) {
+  expect(html).toContain('id="react-root"');
+  expect(html).toContain('src="/board-island-runtime.js"');
+  expect(html).toContain('type="module"');
+  expect(html).toContain('src="/react-build/main.js"');
+  expect(html).not.toContain('id="elm-root"');
+}
+
 function randomPort() {
   return 5300 + Math.floor(Math.random() * 1200);
 }
@@ -56,19 +64,61 @@ async function stopServer(child) {
 }
 
 describe("frontend routes", () => {
-  it("serves Elm shell on /", async () => {
+  it("serves React hybrid shell on /", async () => {
     const server = await startServer(randomPort());
     try {
       const root = await fetch(`${server.baseUrl}/`);
       const rootHtml = await root.text();
       expect(root.status).toBe(200);
-      expectElmShellContract(rootHtml);
+      expectReactShellContract(rootHtml);
     } finally {
       await stopServer(server.child);
     }
   });
 
-  it("serves Elm shell on /elm", async () => {
+  it("serves the same React hybrid shell on /react", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const react = await fetch(`${server.baseUrl}/react`);
+      const reactHtml = await react.text();
+      expect(react.status).toBe(200);
+      expectReactShellContract(reactHtml);
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
+  it("keeps / and /react on the same React shell contract", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const root = await fetch(`${server.baseUrl}/`);
+      const react = await fetch(`${server.baseUrl}/react`);
+      const rootHtml = await root.text();
+      const reactHtml = await react.text();
+
+      expect(root.status).toBe(200);
+      expect(react.status).toBe(200);
+      expectReactShellContract(rootHtml);
+      expectReactShellContract(reactHtml);
+      expect(rootHtml).toBe(reactHtml);
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
+  it("serves the React shell contract on /?board=ROOM123", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const root = await fetch(`${server.baseUrl}/?board=ROOM123`);
+      const rootHtml = await root.text();
+      expect(root.status).toBe(200);
+      expectReactShellContract(rootHtml);
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
+  it("serves Elm rollback shell on /elm", async () => {
     const server = await startServer(randomPort());
     try {
       const elm = await fetch(`${server.baseUrl}/elm`);
@@ -80,59 +130,13 @@ describe("frontend routes", () => {
     }
   });
 
-  it("serves the Elm shell contract on /?board=ROOM123", async () => {
-    const server = await startServer(randomPort());
-    try {
-      const root = await fetch(`${server.baseUrl}/?board=ROOM123`);
-      const rootHtml = await root.text();
-      expect(root.status).toBe(200);
-      expectElmShellContract(rootHtml);
-    } finally {
-      await stopServer(server.child);
-    }
-  });
-
-  it("serves the same Elm shell contract on /elm?board=ROOM123", async () => {
+  it("serves the same Elm rollback shell contract on /elm?board=ROOM123", async () => {
     const server = await startServer(randomPort());
     try {
       const elm = await fetch(`${server.baseUrl}/elm?board=ROOM123`);
       const elmHtml = await elm.text();
       expect(elm.status).toBe(200);
       expectElmShellContract(elmHtml);
-    } finally {
-      await stopServer(server.child);
-    }
-  });
-
-  it("keeps / and /elm on the same Elm shell contract", async () => {
-    const server = await startServer(randomPort());
-    try {
-      const root = await fetch(`${server.baseUrl}/?board=ROOM123`);
-      const elm = await fetch(`${server.baseUrl}/elm?board=ROOM123`);
-      const rootHtml = await root.text();
-      const elmHtml = await elm.text();
-
-      expect(root.status).toBe(200);
-      expect(elm.status).toBe(200);
-      expectElmShellContract(rootHtml);
-      expectElmShellContract(elmHtml);
-      expect(rootHtml).toBe(elmHtml);
-    } finally {
-      await stopServer(server.child);
-    }
-  });
-
-  it("serves React shell on /react", async () => {
-    const server = await startServer(randomPort());
-    try {
-      const react = await fetch(`${server.baseUrl}/react`);
-      const reactHtml = await react.text();
-      expect(react.status).toBe(200);
-      expect(reactHtml).toContain('id="react-root"');
-      expect(reactHtml).toContain('src="/board-island-runtime.js"');
-      expect(reactHtml).toContain('type="module"');
-      expect(reactHtml).toContain('src="/react-build/main.js"');
-      expect(reactHtml).not.toContain('id="elm-root"');
     } finally {
       await stopServer(server.child);
     }
@@ -151,7 +155,7 @@ describe("frontend routes", () => {
     }
   });
 
-  it("redirects /room/:roomId to board query in Elm mode", async () => {
+  it("redirects /room/:roomId to the React default shell board query", async () => {
     const server = await startServer(randomPort());
     try {
       const response = await fetch(`${server.baseUrl}/room/ROOM123`, {
@@ -159,6 +163,19 @@ describe("frontend routes", () => {
       });
       expect(response.status).toBe(302);
       expect(response.headers.get("location")).toBe("/?board=ROOM123");
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
+  it("redirects /elm/room/:roomId to the Elm rollback board query", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const response = await fetch(`${server.baseUrl}/elm/room/ROOM123`, {
+        redirect: "manual",
+      });
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe("/elm?board=ROOM123");
     } finally {
       await stopServer(server.child);
     }

@@ -392,6 +392,8 @@ git commit -m "test: add hybrid shell smoke coverage"
 - old invite links still route to `/?board=<code>`.
 - Service worker cache version bumped.
 
+**Status:** Done (Slice 26) — `/` and `/react` serve the React hybrid shell, `/elm` serves the full-Elm rollback shell, `/room/:roomId` redirects to `/?board=<code>`, and `/elm/room/:roomId` redirects to `/elm?board=<code>` for the rollback shell. Service worker cache bumped to `traceball-arena-v43` and now precaches/falls back for both shells independently.
+
 **Commit:**
 
 ```bash

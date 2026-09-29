@@ -157,3 +157,32 @@ test.describe("React hybrid playable smoke", () => {
     }
   });
 });
+
+test.describe("React default route cutover", () => {
+  test("/ serves the React hybrid shell and old room links land in React default", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator("#react-root")).toBeVisible();
+    await expect(
+      page.getByRole("textbox", { name: "Player name" }),
+    ).toBeVisible();
+
+    await page.goto("/room/ROOM123");
+    await expect(page).toHaveURL(/\/\?board=ROOM123$/);
+    await expect(page.locator("#react-root")).toBeVisible();
+  });
+
+  test("/elm still serves the full-Elm rollback shell", async ({ page }) => {
+    await page.goto("/elm");
+    await expect(
+      page.getByRole("button", { name: "Watch board" }),
+    ).toBeVisible();
+    await expect(page.locator("#react-root")).toHaveCount(0);
+
+    await page.goto("/elm/room/ROOM123");
+    await expect(page).toHaveURL(/\/elm\?board=ROOM123$/);
+    await expect(page.locator("#react-root")).toHaveCount(0);
+  });
+});
+

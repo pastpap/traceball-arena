@@ -158,14 +158,16 @@ if (
 }
 
 if (
-  !/app\.get\((['\"])\/elm\1/.test(serverSource) ||
-  !/app\.get\((['\"])\/react\1/.test(serverSource) ||
+  !/app\.get\((['\"])\/\1,\s*serveReactShell\)/.test(serverSource) ||
+  !/app\.get\((['\"])\/react\1,\s*serveReactShell\)/.test(serverSource) ||
+  !/app\.get\((['\"])\/elm\1,\s*serveElmShell\)/.test(serverSource) ||
   !/app\.get\((['\"])\/room\/:roomId\1/.test(serverSource) ||
+  !/app\.get\((['\"])\/elm\/room\/:roomId\1/.test(serverSource) ||
   !serverSource.includes("statePayloadFromGame") ||
   !serverSource.includes("game: publicGame(game)")
 ) {
   throw new Error(
-    "Server must preserve Elm rollback routes, add the /react shell, and broadcast raw public game payloads.",
+    "Server must serve React as the default shell at / and /react, preserve the /elm rollback shell and /elm/room redirect, and broadcast raw public game payloads.",
   );
 }
 
@@ -219,15 +221,18 @@ if (!icon.includes("<svg")) {
 const sw = readFileSync("public/sw.js", "utf8");
 if (
   !sw.includes("CACHE_NAME") ||
-  !sw.includes("/elm-runtime.js") ||
+  !/["']\/["']/.test(sw) ||
+  !/["']\/react["']/.test(sw) ||
+  !sw.includes("/react.html") ||
+  !sw.includes("/react-build/main.js") ||
   !sw.includes("/board-island-runtime.js") ||
-  !sw.includes("/elm.js") ||
+  !/["']\/elm["']/.test(sw) ||
   !sw.includes("/elm.html") ||
-  !sw.includes("/react") ||
-  !sw.includes("/react-build/main.js")
+  !sw.includes("/elm-runtime.js") ||
+  !sw.includes("/elm.js")
 ) {
   throw new Error(
-    "Service worker must cache Elm shell and additive React shell assets.",
+    "Service worker must cache the React default shell and the Elm rollback shell assets.",
   );
 }
 
@@ -237,10 +242,11 @@ if (sw.includes("/app.js")) {
 
 if (
   !/url\.pathname\s*===\s*["']\/react-build\/main\.js["']/.test(sw) ||
-  !/url\.pathname\.startsWith\(\s*["']\/react["']\s*\)/.test(sw)
+  !/url\.pathname\.startsWith\(\s*["']\/react["']\s*\)/.test(sw) ||
+  !/url\.pathname\.startsWith\(\s*["']\/elm["']\s*\)/.test(sw)
 ) {
   throw new Error(
-    "Service worker must use React-specific fallbacks instead of defaulting JS module requests to /.",
+    "Service worker must use React and Elm-specific fallbacks instead of defaulting JS module requests to /.",
   );
 }
 

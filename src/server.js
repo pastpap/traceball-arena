@@ -44,10 +44,6 @@ const reactShellPath = fileURLToPath(
   new URL("../public/react.html", import.meta.url),
 );
 
-function servePrimaryShell(_req, res) {
-  res.type("html").send(readFileSync(elmShellPath, "utf8"));
-}
-
 function serveElmShell(_req, res) {
   res.type("html").send(readFileSync(elmShellPath, "utf8"));
 }
@@ -56,13 +52,19 @@ function serveReactShell(_req, res) {
   res.type("html").send(readFileSync(reactShellPath, "utf8"));
 }
 
-app.get("/", servePrimaryShell);
-app.get("/elm", serveElmShell);
+// React hybrid shell is the default route; /elm remains the full-Elm rollback.
+app.get("/", serveReactShell);
 app.get("/react", serveReactShell);
+app.get("/elm", serveElmShell);
 app.get("/room/:roomId", (req, res) => {
   const roomId = safeRoomId(req.params.roomId);
   if (!roomId) return res.redirect(302, "/");
   return res.redirect(302, `/?board=${encodeURIComponent(roomId)}`);
+});
+app.get("/elm/room/:roomId", (req, res) => {
+  const roomId = safeRoomId(req.params.roomId);
+  if (!roomId) return res.redirect(302, "/elm");
+  return res.redirect(302, `/elm?board=${encodeURIComponent(roomId)}`);
 });
 
 app.use(express.static("public", { extensions: ["html"], index: false }));
