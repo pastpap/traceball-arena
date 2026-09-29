@@ -115,7 +115,7 @@ export async function showPlayIfNeeded(page) {
 }
 
 export async function openBoard(page, boardCode, name = "Player") {
-  await page.goto(`/?board=${boardCode}`);
+  await page.goto(`/elm?board=${boardCode}`);
   await expect(page).toHaveURL(new RegExp(`\\?board=${boardCode}$`));
   await expect(page.locator("body")).toContainText(boardCode);
 
@@ -151,7 +151,7 @@ export async function selectMoveTimer(page, timerId, seconds) {
 }
 
 export async function createBoardAsBlue(page, name = "P1") {
-  await page.goto("/");
+  await page.goto("/elm");
   await showHomeIfNeeded(page);
   await page.getByRole("textbox", { name: "Your name" }).fill(name);
 

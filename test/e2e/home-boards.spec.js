@@ -38,7 +38,7 @@ test.describe("Home and Boards smoke", () => {
       const boardCard = page.locator(`[data-elm-board-card="${boardCode}"]`);
       await expect(boardCard).toBeVisible();
 
-      const openLink = boardCard.locator("a.elm-primary-link");
+      const openLink = boardCard.getByRole("link");
       await expect(openLink).toBeVisible();
       await expect(openLink).toHaveAttribute(
         "href",
@@ -49,6 +49,10 @@ test.describe("Home and Boards smoke", () => {
       await captureScenario(page, "qa-boards-opened-board");
       await expect(page.locator("body")).toContainText(boardCode);
 
+      // The Elm boards-list "open" link intentionally points at the React
+      // default shell (same as old /room links), so reopen /elm directly to
+      // confirm the rollback shell's own name persistence still holds.
+      await page.goto("/elm");
       await showHomeIfNeeded(page);
       await expect(
         page.getByRole("textbox", { name: "Your name" }),

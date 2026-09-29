@@ -39,7 +39,7 @@ async function playLocalSequence(page, moves) {
 }
 
 async function startLocalMatch(page) {
-  await page.goto("/");
+  await page.goto("/elm");
   await showHomeIfNeeded(page);
   await page.getByRole("button", { name: "Local" }).click();
   await page.getByRole("textbox", { name: "Blue" }).first().fill("Blue");
@@ -54,7 +54,7 @@ test.describe("main realtime playing flows", () => {
     page,
     baseURL,
   }) => {
-    await page.goto("/");
+    await page.goto("/elm");
     await showHomeIfNeeded(page);
     await page.getByRole("button", { name: "Local" }).click();
     await page.getByRole("textbox", { name: "Blue" }).first().fill("Blue");

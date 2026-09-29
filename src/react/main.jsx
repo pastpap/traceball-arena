@@ -23,3 +23,16 @@ if (rootElement) {
     </React.StrictMode>,
   );
 }
+
+// React shell is now the default route, so it must register the PWA service worker itself.
+if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/sw.js")
+    .then((registration) => {
+      registration.update?.().catch?.(() => {});
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+    })
+    .catch(() => {});
+}

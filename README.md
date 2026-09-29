@@ -89,7 +89,7 @@ Current default frontend:
 - The default runtime has board-centric seating actions: create board as Blue, watch boards without claiming a seat, choose Blue/Red explicitly when seats are open, reclaim your own reserved seat on reload without silently resuming, explicitly join/leave the waiting list when full, and leave a seat with clear forfeit wording.
 - Online pause remains server-authoritative: only the seated current-turn player can pause or resume, automatic pauses also resume through that same turn owner, and paused overlays do not expose New Round.
 - `/api/rooms` exposes live board list cards with `lastActivityAt` and `expiresAt`, while expired boards are cleaned up and direct links recover through the not-found flow.
-- PWA cache version is currently `traceball-arena-v43`; the service worker precaches both the React default shell and the Elm rollback shell so each stays available offline.
+- PWA cache version is currently `traceball-arena-v44`; the service worker precaches both the React default shell and the Elm rollback shell so each stays available offline.
 
 Architecture and rewrite docs:
 

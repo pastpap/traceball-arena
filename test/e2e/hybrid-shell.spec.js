@@ -185,4 +185,3 @@ test.describe("React default route cutover", () => {
     await expect(page.locator("#react-root")).toHaveCount(0);
   });
 });
-

@@ -8,13 +8,13 @@ async function captureScenario(page, name) {
 }
 
 async function captureHome(page) {
-  await page.goto("/");
+  await page.goto("/elm");
   await page.locator("#playerNameInput").waitFor({ state: "visible" });
   await captureScenario(page, "qa-home");
 }
 
 async function captureBoards(page) {
-  await page.goto("/");
+  await page.goto("/elm");
   await page.locator("#playerNameInput").fill("QA");
   await page.locator("#elmCreateBoard").click();
   await page.locator("#playStatus").waitFor({ state: "visible" });
@@ -22,7 +22,7 @@ async function captureBoards(page) {
 }
 
 async function captureMatch(page) {
-  await page.goto("/");
+  await page.goto("/elm");
   await page.locator("#playerNameInput").fill("QA");
   await page.locator("#elmCreateBoard").click();
   await page.locator(".mobile-tab[data-page-target='match']").click();
@@ -31,7 +31,7 @@ async function captureMatch(page) {
 }
 
 async function captureWinner(page) {
-  await page.goto("/");
+  await page.goto("/elm");
   await page.locator("#localMode").click();
   await page.locator("#localP1Name").fill("Blue");
   await page.locator("#localP2Name").fill("Red");

@@ -81,6 +81,15 @@ if (reactBundle.includes("process.env.NODE_ENV")) {
 }
 
 if (
+  !reactBundle.includes("serviceWorker") ||
+  !reactBundle.includes("/sw.js")
+) {
+  throw new Error(
+    "Built React bundle must register the PWA service worker since React is the default shell.",
+  );
+}
+
+if (
   !elmBundle.includes("mountElmRuntime") ||
   !elmBundle.includes("outgoingClientCommand") ||
   !elmBundle.includes("incomingBoardCreated")

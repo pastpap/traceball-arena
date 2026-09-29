@@ -143,7 +143,7 @@ test.describe("Reconnect regressions", () => {
 
     try {
       const boardCode = await createBoardAsBlue(blue, "P1");
-      await observer.goto("/");
+      await observer.goto("/elm");
       await showBoardsIfNeeded(observer);
 
       await blue.close();

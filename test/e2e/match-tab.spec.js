@@ -78,12 +78,19 @@ async function showMatchIfNeeded(page) {
 }
 
 async function createBoardAsBlue(page, name = "P1") {
-  await page.goto("/");
+  await page.goto("/elm");
   await showHomeIfNeeded(page);
   await page.locator("#playerNameInput").fill(name);
   await page.locator("#onlineMoveTimer").selectOption("5");
   await page.locator("#elmCreateBoard").click();
-  await expect(page.locator("#playStatus")).toContainText(/Board /);
+  await expect(page).toHaveURL(/\?board=/);
+  const openGameNow = page.getByRole("button", { name: "Open game now" });
+  if (await openGameNow.isVisible().catch(() => false)) {
+    await openGameNow.click({ force: true });
+  }
+  await expect(page.locator("#playStatus")).toContainText(
+    /Waiting for a Red player\.|Waiting for the next session\./,
+  );
   await expect(page.locator(".hero-board-role")).toContainText("You are Blue");
   const url = new URL(page.url());
   const boardCode = url.searchParams.get("board");
@@ -92,8 +99,8 @@ async function createBoardAsBlue(page, name = "P1") {
 }
 
 async function openBoard(page, boardCode, name) {
-  await page.goto(`/?board=${boardCode}`);
-  await expect(page.locator("#playStatus")).toContainText(`Board ${boardCode}`);
+  await page.goto(`/elm?board=${boardCode}`);
+  await expect(page.locator("body")).toContainText(boardCode);
   const nameInput = page.locator("#playerNameInput");
   if (await nameInput.isVisible().catch(() => false)) {
     await nameInput.fill(name);

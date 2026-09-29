@@ -14457,3 +14457,8 @@ if (um) {
     /* @__PURE__ */ h.jsx(x1.StrictMode, { children: /* @__PURE__ */ h.jsx(nb, { initialState: i }) })
   );
 }
+typeof navigator < "u" && "serviceWorker" in navigator && navigator.serviceWorker.register("/sw.js").then((i) => {
+  i.update?.().catch?.(() => {
+  }), i.waiting && i.waiting.postMessage({ type: "SKIP_WAITING" });
+}).catch(() => {
+});

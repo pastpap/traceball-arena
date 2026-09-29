@@ -1,4 +1,4 @@
-const CACHE_NAME = "traceball-arena-v43";
+const CACHE_NAME = "traceball-arena-v44";
 const APP_SHELL = [
   "/",
   "/react",
@@ -9,7 +9,6 @@ const APP_SHELL = [
   "/elm.html",
   "/elm-runtime.js",
   "/elm.js",
-  "/index.html",
   "/styles.css",
   "/history.js",
   "/icon.svg",
