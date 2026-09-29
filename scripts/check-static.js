@@ -27,6 +27,7 @@ for (const file of required) {
 
 const elmHtml = readFileSync("public/elm.html", "utf8");
 const elmBundle = readFileSync("public/elm.js", "utf8");
+const elmRuntime = readFileSync("public/elm-runtime.js", "utf8");
 const boardIslandRuntime = readFileSync(
   "public/board-island-runtime.js",
   "utf8",
@@ -92,6 +93,12 @@ if (
   !elmBundle.includes("incomingBoardCreated")
 ) {
   throw new Error("public/elm.js must provide the Elm runtime bridge.");
+}
+
+if (!elmRuntime.includes("_Platform_export")) {
+  throw new Error(
+    "public/elm-runtime.js must be a compiled Elm runtime bundle for the /elm rollback shell.",
+  );
 }
 
 if (

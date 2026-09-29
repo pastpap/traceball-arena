@@ -90,6 +90,7 @@ Current default frontend:
 - Online pause remains server-authoritative: only the seated current-turn player can pause or resume, automatic pauses also resume through that same turn owner, and paused overlays do not expose New Round.
 - `/api/rooms` exposes live board list cards with `lastActivityAt` and `expiresAt`, while expired boards are cleaned up and direct links recover through the not-found flow.
 - PWA cache version is currently `traceball-arena-v44`; the service worker precaches both the React default shell and the Elm rollback shell so each stays available offline.
+- Route/rollback readiness evidence (route + asset + protocol + hybrid smoke, plus remaining manual checks) is tracked in `docs/execution/hybrid-react-readiness.md`.
 
 Architecture and rewrite docs:
 

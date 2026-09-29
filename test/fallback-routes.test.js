@@ -155,6 +155,23 @@ describe("frontend routes", () => {
     }
   });
 
+  it("serves the generated Elm runtime and bridge assets from the running server", async () => {
+    const server = await startServer(randomPort());
+    try {
+      const runtime = await fetch(`${server.baseUrl}/elm-runtime.js`);
+      const runtimeText = await runtime.text();
+      expect(runtime.status).toBe(200);
+      expect(runtimeText).toContain("_Platform_export");
+
+      const bridge = await fetch(`${server.baseUrl}/elm.js`);
+      const bridgeText = await bridge.text();
+      expect(bridge.status).toBe(200);
+      expect(bridgeText).toContain("mountElmRuntime");
+    } finally {
+      await stopServer(server.child);
+    }
+  });
+
   it("redirects /room/:roomId to the React default shell board query", async () => {
     const server = await startServer(randomPort());
     try {
