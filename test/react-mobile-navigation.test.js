@@ -41,12 +41,27 @@ function demoSnapshot() {
 }
 
 describe("React mobile navigation", () => {
-  it("renders Home, Play, and Match tabs", () => {
+  it("renders Home, Boards, Play, and Match tabs", () => {
     const html = renderShell();
 
     expect(html).toContain("Home");
+    expect(html).toContain("Boards");
     expect(html).toContain("Play");
     expect(html).toContain("Match");
+  });
+
+  it("selecting Boards shows the boards list and hides other sections", () => {
+    const html = renderShell({ mainTab: "boards" });
+
+    expect(html).toContain('data-section="home" data-visible="false"');
+    expect(html).toContain('data-section="boards" data-visible="true"');
+    expect(html).toContain('data-section="play" data-visible="false"');
+  });
+
+  it("only one nav tab is marked active at a time", () => {
+    const html = renderShell({ mainTab: "boards" });
+    const activeCount = (html.match(/aria-current="page"/g) || []).length;
+    expect(activeCount).toBe(1);
   });
 
   it("selecting Play hides Home setup", () => {

@@ -1,13 +1,18 @@
 import React, { useEffect, useReducer, useRef, useState } from "react";
 import ElmBoard from "./components/ElmBoard.jsx";
 import MatchPanel from "./components/MatchPanel.jsx";
+import BoardsPanel from "./components/BoardsPanel.jsx";
 import ShareControls from "./components/ShareControls.jsx";
 import { AppMenu } from "./components/AppMenu.jsx";
 import { MobileNav } from "./components/MobileNav.jsx";
 import { LocalSetupPanel } from "./components/LocalSetupPanel.jsx";
 import { RulesPanel } from "./components/RulesPanel.jsx";
 import { HistoryPanel } from "./components/HistoryPanel.jsx";
-import { createBoard as createBoardRequest } from "./lib/api.js";
+import {
+  createBoard as createBoardRequest,
+  fetchBoardList,
+  deleteBoard as deleteBoardRequest,
+} from "./lib/api.js";
 import { connectBoardSocket } from "./lib/socket.js";
 import { persistPlayerName } from "./lib/storage.js";
 import {
@@ -725,6 +730,70 @@ export function handleFreeSeatAction({ ownSeat, seatId, connection, dispatch }) 
   connection.send({ type: "freeSeat", seatId: targetSeatId });
 }
 
+export function buildBoardOpenUrl(roomId) {
+  const trimmed = String(roomId || "").trim();
+  return trimmed ? `/react?board=${encodeURIComponent(trimmed)}` : null;
+}
+
+export function handleOpenBoardFromList({
+  roomId,
+  locationLike = defaultLocation(),
+} = {}) {
+  const url = buildBoardOpenUrl(roomId);
+  if (!url || !locationLike) return;
+
+  // Real full-page navigation, matching the full-Elm boards list's <a href>
+  // link exactly: avoids silently disconnecting/orphaning a seat the caller
+  // may already hold on their currently-open board via the single shared
+  // WebSocket connection.
+  if (typeof locationLike.assign === "function") {
+    locationLike.assign(url);
+    return;
+  }
+  locationLike.href = url;
+}
+
+export async function handleRefreshBoardList({
+  clientId,
+  dispatch,
+  fetchList = fetchBoardList,
+} = {}) {
+  try {
+    const result = await fetchList(clientId);
+    dispatch?.({ type: "receiveBoardList", boardList: result });
+  } catch {
+    dispatch?.({
+      type: "setToast",
+      toast: "Could not refresh the boards list.",
+    });
+  }
+}
+
+export async function handleDeleteBoardFromList({
+  roomId,
+  clientId,
+  dispatch,
+  deleteRequest = deleteBoardRequest,
+  refreshList,
+} = {}) {
+  const trimmed = String(roomId || "").trim();
+  if (!trimmed) return;
+
+  try {
+    await deleteRequest({ roomId: trimmed, clientId });
+    dispatch?.({ type: "setToast", toast: `Board ${trimmed} deleted.` });
+    await refreshList?.();
+  } catch (error) {
+    dispatch?.({
+      type: "setToast",
+      toast:
+        error instanceof Error && error.message
+          ? error.message
+          : "Board delete failed.",
+    });
+  }
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -920,6 +989,8 @@ export default function App({ initialState }) {
           connectionRef,
           activeBoardRef,
         }),
+      refreshBoardList: () =>
+        handleRefreshBoardList({ clientId: state.clientId, dispatch }),
     });
   };
 
@@ -1021,6 +1092,23 @@ export default function App({ initialState }) {
     });
   };
 
+  const handleRefreshBoards = () => {
+    handleRefreshBoardList({ clientId: state.clientId, dispatch });
+  };
+
+  const handleOpenBoard = (roomId) => {
+    handleOpenBoardFromList({ roomId });
+  };
+
+  const handleDeleteBoard = (roomId) => {
+    handleDeleteBoardFromList({
+      roomId,
+      clientId: state.clientId,
+      dispatch,
+      refreshList: handleRefreshBoards,
+    });
+  };
+
   const handleShareToast = (toast) => {
     dispatch({ type: "setToast", toast });
   };
@@ -1051,6 +1139,7 @@ export default function App({ initialState }) {
 
   const navTabs = [
     { id: "home", label: "Home" },
+    { id: "boards", label: "Boards" },
     { id: "play", label: "Play" },
     { id: "match", label: "Match" },
     state.currentBoardCode
@@ -1060,10 +1149,20 @@ export default function App({ initialState }) {
   const allowedTabs = new Set(navTabs.map((tab) => tab.id));
   const activeMainTab = allowedTabs.has(state.mainTab) ? state.mainTab : "home";
   const isHomeTab = activeMainTab === "home";
+  const isBoardsTab = activeMainTab === "boards";
   const isPlayTab = activeMainTab === "play";
   const isMatchTab = activeMainTab === "match";
   const isShareTab = activeMainTab === "share";
   const isMenuTab = activeMainTab === "menu";
+
+  useEffect(() => {
+    if (!isBoardsTab) return;
+    handleRefreshBoardList({ clientId: state.clientId, dispatch });
+    // Refresh once per Boards-tab visit only; the explicit Refresh button
+    // covers everything after that, matching the Elm boards list's manual
+    // refresh-only behavior (no background polling).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isBoardsTab]);
 
   return (
     <main style={pageStyle}>
@@ -1181,6 +1280,21 @@ export default function App({ initialState }) {
                 hasActiveMatch={Boolean(state.localSnapshot)}
               />
             )}
+          </section>
+
+          <section
+            style={sectionCardStyle}
+            className="shell-section-card"
+            data-section="boards"
+            data-visible={isBoardsTab ? "true" : "false"}
+          >
+            <h2 style={sectionHeadingStyle}>Boards</h2>
+            <BoardsPanel
+              boards={state.boardList}
+              onRefresh={handleRefreshBoards}
+              onOpen={handleOpenBoard}
+              onDelete={handleDeleteBoard}
+            />
           </section>
 
           <section

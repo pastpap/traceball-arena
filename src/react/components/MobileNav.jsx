@@ -4,11 +4,13 @@ const navWrapStyle = {
   marginTop: "18px",
 };
 
-const navListStyle = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: "8px",
-};
+function navListStyle(tabCount) {
+  return {
+    display: "grid",
+    gridTemplateColumns: `repeat(${Math.max(1, tabCount)}, minmax(0, 1fr))`,
+    gap: "8px",
+  };
+}
 
 const navButtonStyle = (active) => ({
   border: "1px solid rgba(16, 42, 26, 0.12)",
@@ -27,7 +29,7 @@ export function MobileNav({ tabs = [], activeTab = "home", onChangeTab }) {
 
   return (
     <nav style={navWrapStyle} aria-label="Shell navigation">
-      <div style={navListStyle}>
+      <div style={navListStyle(safeTabs.length)}>
         {safeTabs.map((tab) => {
           const id = String(tab.id || "").trim();
           const label = String(tab.label || id || "Tab");
