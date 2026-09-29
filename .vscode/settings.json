@@ -1,3 +1,10 @@
 {
-    "sarif-viewer.connectToGithubCodeScanning": "off"
+    "sarif-viewer.connectToGithubCodeScanning": "off",
+    "chat.tools.terminal.autoApprove": {
+        "npm run test": true,
+        "npm run build": true,
+        "git check-ignore": true,
+        "git add": true,
+        "git commit": true
+    }
 }
