@@ -197,6 +197,7 @@ export function buildMatchPanelModel({
   waitingListAction = null,
   pauseResumeActions = [],
   newRoundAction = null,
+  freeSeatAction = null,
   nowMs = Date.now(),
 } = {}) {
   if (!snapshot || typeof snapshot !== "object") return null;
@@ -236,6 +237,7 @@ export function buildMatchPanelModel({
         ? pauseResumeActions
         : [],
       newRoundAction,
+      freeSeatAction,
     },
   };
 }
@@ -260,12 +262,14 @@ export function MatchPanel({
   waitingListAction,
   pauseResumeActions,
   newRoundAction,
+  freeSeatAction,
   onClaimSeat,
   onLeaveSeat,
   onWaitingListAction,
   onPauseAction,
   onResumeAction,
   onNewRoundAction,
+  onFreeSeatAction,
   nowMs,
 }) {
   const model = buildMatchPanelModel({
@@ -278,6 +282,7 @@ export function MatchPanel({
     waitingListAction,
     pauseResumeActions,
     newRoundAction,
+    freeSeatAction,
     nowMs,
   });
 
@@ -412,6 +417,15 @@ export function MatchPanel({
             onClick={() => onNewRoundAction?.()}
           >
             {model.actions.newRoundAction.label}
+          </button>
+        ) : null}
+        {model.actions.freeSeatAction ? (
+          <button
+            type="button"
+            style={buttonStyle(false)}
+            onClick={() => onFreeSeatAction?.(model.actions.freeSeatAction.seatId)}
+          >
+            {model.actions.freeSeatAction.label}
           </button>
         ) : null}
       </div>

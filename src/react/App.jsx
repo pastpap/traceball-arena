@@ -453,6 +453,19 @@ export function getNewRoundAction({ ownSeat, snapshot } = {}) {
   return null;
 }
 
+export function getFreeSeatAction({ ownSeat, snapshot } = {}) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") return null;
+
+  const opponentSeatId = seat === "p1" ? "p2" : "p1";
+  const players = readGamePlayers(snapshot);
+  const opponent = players?.[opponentSeatId];
+  if (!opponent || opponent.status !== "disconnected") return null;
+  if (!opponent.canBeFreed) return null;
+
+  return { seatId: opponentSeatId, label: "Make Seat Available" };
+}
+
 export function initializeBoardFromUrl({
   clientId,
   dispatch,
@@ -688,6 +701,30 @@ export function handleNewRoundAction({ ownSeat, connection, dispatch }) {
   connection.send({ type: "reset" });
 }
 
+export function handleFreeSeatAction({ ownSeat, seatId, connection, dispatch }) {
+  const seat = String(ownSeat || "").trim();
+  if (seat !== "p1" && seat !== "p2") {
+    dispatch?.({ type: "setToast", toast: "You are not occupying a seat." });
+    return;
+  }
+
+  const targetSeatId = String(seatId || "").trim();
+  if (targetSeatId !== "p1" && targetSeatId !== "p2") {
+    dispatch?.({ type: "setToast", toast: "Invalid seat." });
+    return;
+  }
+
+  if (!isSocketOpen(connection)) {
+    dispatch?.({
+      type: "setToast",
+      toast: "Connection unavailable. Reconnect to free the seat.",
+    });
+    return;
+  }
+
+  connection.send({ type: "freeSeat", seatId: targetSeatId });
+}
+
 export async function createReactBoardFlow({
   clientId,
   moveTimeLimitSeconds,
@@ -787,6 +824,10 @@ export default function App({ initialState }) {
     snapshot: liveSnapshot,
   });
   const newRoundAction = getNewRoundAction({
+    ownSeat,
+    snapshot: liveSnapshot,
+  });
+  const freeSeatAction = getFreeSeatAction({
     ownSeat,
     snapshot: liveSnapshot,
   });
@@ -966,6 +1007,15 @@ export default function App({ initialState }) {
   const handleMatchNewRound = () => {
     handleNewRoundAction({
       ownSeat,
+      connection: connectionRef.current,
+      dispatch,
+    });
+  };
+
+  const handleMatchFreeSeat = (seatId) => {
+    handleFreeSeatAction({
+      ownSeat,
+      seatId,
       connection: connectionRef.current,
       dispatch,
     });
@@ -1275,12 +1325,14 @@ export default function App({ initialState }) {
                 waitingListAction={waitingListAction}
                 pauseResumeActions={pauseResumeActions}
                 newRoundAction={newRoundAction}
+                freeSeatAction={freeSeatAction}
                 onClaimSeat={handleMatchClaimSeat}
                 onLeaveSeat={handleMatchLeaveSeat}
                 onWaitingListAction={handleMatchWaitingListAction}
                 onPauseAction={handleMatchPause}
                 onResumeAction={handleMatchResume}
                 onNewRoundAction={handleMatchNewRound}
+                onFreeSeatAction={handleMatchFreeSeat}
               />
             ) : (
               <div style={placeholderStyle}>

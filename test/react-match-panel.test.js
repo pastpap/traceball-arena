@@ -297,6 +297,72 @@ describe("React MatchPanel", () => {
     expect(onNewRoundAction).toHaveBeenCalledTimes(1);
   });
 
+  it("renders the free-seat action and forwards the disconnected seat id to the callback", () => {
+    const onFreeSeatAction = vi.fn();
+
+    const element = MatchPanel({
+      snapshot: {
+        boardCode: "ROOM123",
+        game: {
+          status: "waiting",
+          players: {
+            p1: { status: "active", name: "Stefan" },
+            p2: { status: "disconnected", name: "Red", canBeFreed: true },
+          },
+          score: { p1: 0, p2: 0 },
+          moves: [],
+        },
+      },
+      ownSeat: "p1",
+      connectionStatus: "connected",
+      isWaitingListMember: false,
+      claimableSeatActions: [],
+      leaveSeatAction: { label: "Leave Seat", danger: false },
+      waitingListAction: null,
+      pauseResumeActions: [],
+      newRoundAction: null,
+      freeSeatAction: { seatId: "p2", label: "Make Seat Available" },
+      onLeaveSeat: vi.fn(),
+      onFreeSeatAction,
+    });
+
+    expect(buttonLabels(element)).toEqual([
+      "Leave Seat",
+      "Make Seat Available",
+    ]);
+
+    collectHostElements(element, "button")[1].props.onClick();
+    expect(onFreeSeatAction).toHaveBeenCalledWith("p2");
+  });
+
+  it("does not render the free-seat action when the disconnect grace has not expired", () => {
+    const element = MatchPanel({
+      snapshot: {
+        boardCode: "ROOM123",
+        game: {
+          status: "waiting",
+          players: {
+            p1: { status: "active", name: "Stefan" },
+            p2: { status: "disconnected", name: "Red", canBeFreed: true },
+          },
+          score: { p1: 0, p2: 0 },
+          moves: [],
+        },
+      },
+      ownSeat: "p1",
+      connectionStatus: "connected",
+      isWaitingListMember: false,
+      claimableSeatActions: [],
+      leaveSeatAction: null,
+      waitingListAction: null,
+      pauseResumeActions: [],
+      newRoundAction: null,
+      freeSeatAction: null,
+    });
+
+    expect(buttonLabels(element)).toEqual([]);
+  });
+
   it("returns no match controls when there is no board snapshot", () => {
     expect(
       MatchPanel({
