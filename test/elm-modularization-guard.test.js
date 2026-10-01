@@ -273,4 +273,21 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewOnlineLobbyContent : Model -> Element Msg");
     expect(mainSource).not.toContain("viewInviteCard : String -> String -> Element Msg");
   });
+
+  it("extracts local lobby setup views", () => {
+    expect(existsSync("src/elm/Lobby/View.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Lobby/View.elm", "utf8");
+    for (const marker of [
+      "viewLocalLobbyContent",
+      "LocalLobbyConfig",
+      "Paused local game",
+      "Start local match",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Local.Types exposing (LocalGame)");
+    expect(mainSource).toContain("LobbyView.viewLocalLobbyContent");
+    expect(mainSource).not.toContain("viewLocalLobbyContent : Model -> Element Msg");
+  });
 });

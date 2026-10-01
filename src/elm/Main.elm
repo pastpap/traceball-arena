@@ -1487,7 +1487,20 @@ viewLobbyCard model =
 
         -- Form content
         , if model.localLobbyTab then
-            viewLocalLobbyContent model
+            LobbyView.viewLocalLobbyContent
+                { localGame = model.localGame
+                , viewportWidth = model.viewportWidth
+                , localBlueName = model.localBlueName
+                , localRedName = model.localRedName
+                , timerControl = viewTimerControl LocalTimer model.localMoveTimer model
+                , hasOnlineBoard = model.board /= Nothing
+                , confirmLeaveOnlineForLocal = model.confirmLeaveOnlineForLocal
+                , onResumeSavedGame = ToggleLobby
+                , onDiscardSavedGame = LeaveLocalGame
+                , onBlueName = UpdateLocalBlueName
+                , onRedName = UpdateLocalRedName
+                , onStartLocalMatch = StartLocalMatch
+                }
 
           else
             LobbyView.viewOnlineLobbyContent
@@ -3121,156 +3134,6 @@ winnerKeyForBoard board =
                     ++ ":"
                     ++ String.fromInt (session |> Maybe.map (.score >> .red) |> Maybe.withDefault 0)
             )
-
-
-viewLocalLobbyContent : Model -> Element Msg
-viewLocalLobbyContent model =
-    column [ width fill, spacing 14 ]
-        [ -- Paused game card (when a local game is active)
-          case model.localGame of
-            Just lg ->
-                if model.viewportWidth <= 640 then
-                    column
-                        [ width fill
-                        , Bg.color (rgb255 14 44 22)
-                        , Border.rounded 18
-                        , Border.width 1
-                        , Border.color (rgb255 72 106 82)
-                        , padding 14
-                        , spacing 12
-                        ]
-                        [ column [ width fill, spacing 4 ]
-                            [ el [ Font.bold, Font.size 15, Font.color (rgb255 244 255 246) ] (text "Paused local game")
-                            , el [ Font.size 13, Font.color (rgb255 199 220 204) ]
-                                (text (lg.blueName ++ " vs " ++ lg.redName))
-                            ]
-                        , Input.button
-                            [ width fill
-                            , Element.htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
-                            , Border.rounded 16
-                            , paddingXY 0 12
-                            , Font.bold
-                            , Font.size 14
-                            , Font.color (rgb255 10 20 10)
-                            ]
-                            { onPress = Just ToggleLobby, label = el [ centerX ] (text "Resume saved game") }
-                        , Input.button
-                            [ width fill
-                            , Bg.color (rgb255 56 70 57)
-                            , Border.rounded 16
-                            , paddingXY 0 12
-                            , Font.size 14
-                            , Font.color (rgb255 240 245 241)
-                            ]
-                            { onPress = Just LeaveLocalGame, label = el [ centerX ] (text "Discard") }
-                        ]
-
-                else
-                    row
-                        [ width fill
-                        , Bg.color (rgba255 0 0 0 28)
-                        , Border.rounded 10
-                        , padding 14
-                        , spacing 10
-                        ]
-                        [ column [ width fill, spacing 4 ]
-                            [ el [ Font.bold, Font.size 14 ] (text "Paused local game")
-                            , el [ Font.size 13, Font.color (rgba255 255 255 255 100) ]
-                                (text (lg.blueName ++ " vs " ++ lg.redName))
-                            ]
-                        , column [ spacing 8, Element.alignRight ]
-                            [ Input.button
-                                [ Element.htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
-                                , Border.rounded 20
-                                , paddingXY 16 9
-                                , Font.bold
-                                , Font.size 13
-                                , Font.color (rgb255 10 20 10)
-                                ]
-                                { onPress = Just ToggleLobby, label = text "Resume saved game" }
-                            , Input.button
-                                [ Bg.color (rgba255 50 70 50 180)
-                                , Border.rounded 20
-                                , paddingXY 16 9
-                                , Font.size 13
-                                ]
-                                { onPress = Just LeaveLocalGame, label = text "Discard" }
-                            ]
-                        ]
-
-            Nothing ->
-                none
-
-        -- Player name inputs (stacked, full width)
-        , Input.text
-            formFieldAttrs
-            { onChange = UpdateLocalBlueName
-            , text = model.localBlueName
-            , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Blue"))
-            , label = Input.labelHidden "Blue"
-            }
-        , Input.text
-            formFieldAttrs
-            { onChange = UpdateLocalRedName
-            , text = model.localRedName
-            , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Red"))
-            , label = Input.labelHidden "Red"
-            }
-
-        -- Move timer
-        , column [ width fill, spacing 6 ]
-            [ el [ Font.size 13, Font.bold ] (text "Move timer")
-            , el [ width fill ] (viewTimerControl LocalTimer model.localMoveTimer model)
-            ]
-        , if model.board /= Nothing then
-            column
-                [ width fill
-                , spacing 6
-                , Bg.color (rgba255 255 193 7 26)
-                , Border.rounded 10
-                , Border.width 1
-                , Border.color (rgba255 255 193 7 120)
-                , padding 12
-                ]
-                [ el [ Font.bold, Font.size 13, Font.color (rgb255 255 233 166) ]
-                    (text "Starting local play leaves the current online board")
-                , el [ Font.size 13, Font.color (rgb255 239 243 225) ]
-                    (text
-                        (if model.confirmLeaveOnlineForLocal then
-                            "Press the button again to confirm. The online board will be disconnected and the URL will be cleared."
-
-                         else
-                            "Your online seat and board route stay active until local play starts."
-                        )
-                    )
-                ]
-
-          else
-            none
-
-        -- Start local match (gradient button, full width)
-        , Input.button
-            [ width fill
-            , padding 15
-            , Border.rounded 10
-            , Font.bold
-            , Font.size 15
-            , Font.color (rgb255 10 20 10)
-            , Element.htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
-            ]
-            { onPress = Just StartLocalMatch
-            , label =
-                el [ centerX ]
-                    (text
-                        (if model.board /= Nothing && model.confirmLeaveOnlineForLocal then
-                            "Leave online board and start local match"
-
-                         else
-                            "Start local match"
-                        )
-                    )
-            }
-        ]
 
 
 viewTimerControl : TimerTarget -> Int -> Model -> Element Msg

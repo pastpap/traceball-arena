@@ -1,4 +1,4 @@
-module Lobby.View exposing (OnlineLobbyConfig, viewInviteCard, viewOnlineLobbyContent)
+module Lobby.View exposing (LocalLobbyConfig, OnlineLobbyConfig, viewInviteCard, viewLocalLobbyContent, viewOnlineLobbyContent)
 
 import Element exposing (..)
 import Element.Background as Bg
@@ -8,6 +8,7 @@ import Element.Input as Input
 import Html
 import Html.Attributes
 import Html.Events
+import Local.Types exposing (LocalGame)
 
 
 type alias OnlineLobbyConfig msg =
@@ -140,6 +141,170 @@ viewInviteCard config =
                         ]
                         [ Html.text "Open game now" ]
                     ]
+                ]
+            ]
+
+
+type alias LocalLobbyConfig msg =
+    { localGame : Maybe LocalGame
+    , viewportWidth : Int
+    , localBlueName : String
+    , localRedName : String
+    , timerControl : Element msg
+    , hasOnlineBoard : Bool
+    , confirmLeaveOnlineForLocal : Bool
+    , onResumeSavedGame : msg
+    , onDiscardSavedGame : msg
+    , onBlueName : String -> msg
+    , onRedName : String -> msg
+    , onStartLocalMatch : msg
+    }
+
+
+viewLocalLobbyContent : LocalLobbyConfig msg -> Element msg
+viewLocalLobbyContent config =
+    column [ width fill, spacing 14 ]
+        [ case config.localGame of
+            Just localGame ->
+                viewPausedLocalGameCard config localGame
+
+            Nothing ->
+                none
+        , Input.text
+            formFieldAttrs
+            { onChange = config.onBlueName
+            , text = config.localBlueName
+            , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Blue"))
+            , label = Input.labelHidden "Blue"
+            }
+        , Input.text
+            formFieldAttrs
+            { onChange = config.onRedName
+            , text = config.localRedName
+            , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Red"))
+            , label = Input.labelHidden "Red"
+            }
+        , column [ width fill, spacing 6 ]
+            [ el [ Font.size 13, Font.bold ] (text "Move timer")
+            , el [ width fill ] config.timerControl
+            ]
+        , if config.hasOnlineBoard then
+            column
+                [ width fill
+                , spacing 6
+                , Bg.color (rgba255 255 193 7 26)
+                , Border.rounded 10
+                , Border.width 1
+                , Border.color (rgba255 255 193 7 120)
+                , padding 12
+                ]
+                [ el [ Font.bold, Font.size 13, Font.color (rgb255 255 233 166) ]
+                    (text "Starting local play leaves the current online board")
+                , el [ Font.size 13, Font.color (rgb255 239 243 225) ]
+                    (text
+                        (if config.confirmLeaveOnlineForLocal then
+                            "Press the button again to confirm. The online board will be disconnected and the URL will be cleared."
+
+                         else
+                            "Your online seat and board route stay active until local play starts."
+                        )
+                    )
+                ]
+
+          else
+            none
+        , Input.button
+            [ width fill
+            , padding 15
+            , Border.rounded 10
+            , Font.bold
+            , Font.size 15
+            , Font.color (rgb255 10 20 10)
+            , htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
+            ]
+            { onPress = Just config.onStartLocalMatch
+            , label =
+                el [ centerX ]
+                    (text
+                        (if config.hasOnlineBoard && config.confirmLeaveOnlineForLocal then
+                            "Leave online board and start local match"
+
+                         else
+                            "Start local match"
+                        )
+                    )
+            }
+        ]
+
+
+viewPausedLocalGameCard : LocalLobbyConfig msg -> LocalGame -> Element msg
+viewPausedLocalGameCard config localGame =
+    if config.viewportWidth <= 640 then
+        column
+            [ width fill
+            , Bg.color (rgb255 14 44 22)
+            , Border.rounded 18
+            , Border.width 1
+            , Border.color (rgb255 72 106 82)
+            , padding 14
+            , spacing 12
+            ]
+            [ column [ width fill, spacing 4 ]
+                [ el [ Font.bold, Font.size 15, Font.color (rgb255 244 255 246) ] (text "Paused local game")
+                , el [ Font.size 13, Font.color (rgb255 199 220 204) ]
+                    (text (localGame.blueName ++ " vs " ++ localGame.redName))
+                ]
+            , Input.button
+                [ width fill
+                , htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
+                , Border.rounded 16
+                , paddingXY 0 12
+                , Font.bold
+                , Font.size 14
+                , Font.color (rgb255 10 20 10)
+                ]
+                { onPress = Just config.onResumeSavedGame, label = el [ centerX ] (text "Resume saved game") }
+            , Input.button
+                [ width fill
+                , Bg.color (rgb255 56 70 57)
+                , Border.rounded 16
+                , paddingXY 0 12
+                , Font.size 14
+                , Font.color (rgb255 240 245 241)
+                ]
+                { onPress = Just config.onDiscardSavedGame, label = el [ centerX ] (text "Discard") }
+            ]
+
+    else
+        row
+            [ width fill
+            , Bg.color (rgba255 0 0 0 28)
+            , Border.rounded 10
+            , padding 14
+            , spacing 10
+            ]
+            [ column [ width fill, spacing 4 ]
+                [ el [ Font.bold, Font.size 14 ] (text "Paused local game")
+                , el [ Font.size 13, Font.color (rgba255 255 255 255 100) ]
+                    (text (localGame.blueName ++ " vs " ++ localGame.redName))
+                ]
+            , column [ spacing 8, alignRight ]
+                [ Input.button
+                    [ htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)")
+                    , Border.rounded 20
+                    , paddingXY 16 9
+                    , Font.bold
+                    , Font.size 13
+                    , Font.color (rgb255 10 20 10)
+                    ]
+                    { onPress = Just config.onResumeSavedGame, label = text "Resume saved game" }
+                , Input.button
+                    [ Bg.color (rgba255 50 70 50 180)
+                    , Border.rounded 20
+                    , paddingXY 16 9
+                    , Font.size 13
+                    ]
+                    { onPress = Just config.onDiscardSavedGame, label = text "Discard" }
                 ]
             ]
 
