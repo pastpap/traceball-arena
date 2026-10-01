@@ -233,4 +233,25 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("boardSummaryDecoder : Decode.Decoder BoardSummary");
     expect(mainSource).not.toContain("createdBoardInfoDecoder : Decode.Decoder CreatedBoardInfo");
   });
+
+  it("extracts boards list and card views", () => {
+    expect(existsSync("src/elm/Boards/View.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Boards/View.elm", "utf8");
+    for (const marker of [
+      "module Boards.View exposing",
+      "viewBoardListSection",
+      "viewBoardCard",
+      "boardSummaryStateLabel",
+      "BoardSummary",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Boards.View as BoardsView");
+    expect(mainSource).toContain("BoardsView.viewBoardListSection");
+    expect(mainSource).not.toContain("viewBoardListSection : Model -> Element Msg");
+    expect(mainSource).not.toContain("viewBoardCard : BoardSummary -> Element Msg");
+    expect(mainSource).not.toContain("boardSummaryStateLabel : String -> String");
+  });
 });
