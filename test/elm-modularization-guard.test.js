@@ -65,4 +65,27 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("sanitizePlayerName : String -> String");
     expect(mainSource).not.toContain("normalizeMoveTimerSeconds : Int -> Int");
   });
+
+  it("extracts port command payload constructors without moving Elm ports out of Main", () => {
+    expect(existsSync("src/elm/Port/Commands.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Port/Commands.elm", "utf8");
+    for (const marker of [
+      "module Port.Commands exposing",
+      "fetchBoardListCommand",
+      "fetchGameHistoryCommand",
+      "watchCommand",
+      "updateUrlCommand",
+      "persistPlayerNameCommand",
+      "persistLocalRuntimeCommand",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toMatch(/^port\s+/m);
+    expect(source).not.toContain("Cmd ");
+    expect(mainSource).toContain("import Port.Commands as Commands");
+    expect(mainSource).toContain("outgoingClientCommand Commands.fetchBoardListCommand");
+    expect(mainSource).toContain("Commands.watchCommand boardCode clientId");
+    expect(mainSource).toContain("Commands.persistLocalRuntimeCommand localGameEncoder localGame paused");
+  });
 });

@@ -16,6 +16,7 @@ import Html.Attributes
 import Html.Events
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Port.Commands as Commands
 import Protocol exposing (ServerMessage(..), StateMessage, boardNotFoundCode)
 import Svg
 import Svg.Attributes as SvgA
@@ -294,7 +295,7 @@ init flags =
         initialCommands =
             Task.perform ViewportMeasured Dom.getViewport
                 :: Task.perform Tick Time.now
-                :: outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchBoardList" ) ])
+                :: outgoingClientCommand Commands.fetchBoardListCommand
                 :: (if isValidBoardCode model.boardCode then
                         [ watchBoardCommand model.boardCode model.clientId ]
 
@@ -567,7 +568,7 @@ update msg model =
 
         ShowHistoryPanel ->
             ( { model | menuPanel = Just "history" }
-            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "fetchGameHistory" ) ])
+            , outgoingClientCommand Commands.fetchGameHistoryCommand
             )
 
         ShowRulesPanel ->
@@ -641,12 +642,7 @@ update msg model =
                   }
                 , Cmd.batch
                     [ watchBoardCommand boardCode model.clientId
-                    , outgoingClientCommand
-                        (Encode.object
-                            [ ( "type", Encode.string "updateUrl" )
-                            , ( "url", Encode.string ("/?board=" ++ boardCode) )
-                            ]
-                        )
+                    , outgoingClientCommand (Commands.updateUrlCommand ("/?board=" ++ boardCode))
                     ]
                 )
 
@@ -659,23 +655,13 @@ update msg model =
                     limitNameInput raw
             in
             ( { model | playerName = name, error = Nothing }
-            , outgoingClientCommand
-                (Encode.object
-                    [ ( "type", Encode.string "persistPlayerName" )
-                    , ( "name", Encode.string (sanitizePlayerName name) )
-                    ]
-                )
+            , outgoingClientCommand (Commands.persistPlayerNameCommand (sanitizePlayerName name))
             )
 
         CopyBoardLink roomId ->
             if isValidBoardCode roomId then
                 ( model
-                , outgoingClientCommand
-                    (Encode.object
-                        [ ( "type", Encode.string "copyBoardLink" )
-                        , ( "roomId", Encode.string roomId )
-                        ]
-                    )
+                , outgoingClientCommand (Commands.copyBoardLinkCommand roomId)
                 )
 
             else
@@ -684,12 +670,7 @@ update msg model =
         DeleteBoard roomId ->
             if isValidBoardCode roomId then
                 ( model
-                , outgoingClientCommand
-                    (Encode.object
-                        [ ( "type", Encode.string "deleteBoard" )
-                        , ( "roomId", Encode.string roomId )
-                        ]
-                    )
+                , outgoingClientCommand (Commands.deleteBoardCommand roomId)
                 )
 
             else
@@ -706,7 +687,7 @@ update msg model =
 
         PauseOnlineGame ->
             ( model
-            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "pause" ) ])
+            , outgoingClientCommand Commands.pauseCommand
             )
 
         ClaimSeat seatId ->
@@ -763,7 +744,7 @@ update msg model =
 
         ResumeOnlinePause ->
             ( model
-            , outgoingClientCommand (Encode.object [ ( "type", Encode.string "resume" ) ])
+            , outgoingClientCommand Commands.resumeCommand
             )
 
         ClickLegalMove point ->
@@ -4375,13 +4356,7 @@ activeLocalGame model =
 watchBoardCommand : String -> String -> Cmd Msg
 watchBoardCommand boardCode clientId =
     if isValidBoardCode boardCode then
-        outgoingClientCommand
-            (Encode.object
-                [ ( "type", Encode.string "watch" )
-                , ( "roomId", Encode.string boardCode )
-                , ( "clientId", Encode.string clientId )
-                ]
-            )
+        outgoingClientCommand (Commands.watchCommand boardCode clientId)
 
     else
         Cmd.none
@@ -4389,20 +4364,7 @@ watchBoardCommand boardCode clientId =
 
 persistLocalCmd : Maybe LocalGame -> Bool -> Cmd Msg
 persistLocalCmd localGame paused =
-    outgoingClientCommand
-        (Encode.object
-            [ ( "type", Encode.string "persistLocalRuntime" )
-            , ( "localGame"
-              , case localGame of
-                    Just g ->
-                        localGameEncoder g
-
-                    Nothing ->
-                        Encode.null
-              )
-            , ( "localPaused", Encode.bool paused )
-            ]
-        )
+    outgoingClientCommand (Commands.persistLocalRuntimeCommand localGameEncoder localGame paused)
 
 
 
