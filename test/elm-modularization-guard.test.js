@@ -187,4 +187,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("historyEntryDecoder : Decode.Decoder HistoryEntry");
     expect(mainSource).not.toContain("historyLocalGameDecoder : Decode.Decoder LocalGame");
   });
+
+  it("extracts history list view helpers", () => {
+    expect(existsSync("src/elm/History/View.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/History/View.elm", "utf8");
+    for (const marker of [
+      "module History.View exposing",
+      "relativeDateLabel",
+      "viewHistoryEntry",
+      "HistoryEntry",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import History.View as HistoryView");
+    expect(mainSource).toContain("HistoryView.viewHistoryEntry");
+    expect(mainSource).not.toContain("viewHistoryEntry : Int -> Int -> HistoryEntry -> Html Msg");
+    expect(mainSource).not.toContain("relativeDateLabel : Int -> Int -> String");
+  });
 });
