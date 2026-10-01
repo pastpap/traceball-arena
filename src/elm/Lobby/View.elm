@@ -1,4 +1,4 @@
-module Lobby.View exposing (LocalLobbyConfig, OnlineLobbyConfig, viewInviteCard, viewLocalLobbyContent, viewOnlineLobbyContent)
+module Lobby.View exposing (LobbyCardConfig, LocalLobbyConfig, OnlineLobbyConfig, viewInviteCard, viewLobbyCard, viewLocalLobbyContent, viewOnlineLobbyContent)
 
 import Element exposing (..)
 import Element.Background as Bg
@@ -9,6 +9,90 @@ import Html
 import Html.Attributes
 import Html.Events
 import Local.Types exposing (LocalGame)
+
+
+type alias LobbyCardConfig msg =
+    { localTabActive : Bool
+    , onOnlineTab : msg
+    , onLocalTab : msg
+    , localContent : Element msg
+    , onlineContent : Element msg
+    }
+
+
+viewLobbyCard : LobbyCardConfig msg -> Element msg
+viewLobbyCard config =
+    column
+        [ width fill
+        , Bg.color (rgb255 14 44 22)
+        , Border.width 1
+        , Border.color (rgb255 72 106 82)
+        , Border.rounded 24
+        , padding 20
+        , spacing 16
+        ]
+        [ el [ Font.bold, Font.size 20 ]
+            (text
+                (if config.localTabActive then
+                    "Local same-screen PvP"
+
+                 else
+                    "Online game"
+                )
+            )
+        , paragraph [ width fill, Font.size 13, Font.color (rgba255 255 255 255 100), spacing 4 ]
+            [ text
+                (if config.localTabActive then
+                    "Players face each other and play on this device. The pitch stays fixed for local play."
+
+                 else
+                    "Open a board as watcher, then choose an open seat when you are ready to play."
+                )
+            ]
+        , row
+            [ width fill
+            , Bg.color (rgb255 14 44 22)
+            , Border.width 1
+            , Border.color (rgb255 72 106 82)
+            , Border.rounded 28
+            , padding 4
+            , spacing 0
+            ]
+            [ gradientTabButton "Online" (not config.localTabActive) config.onOnlineTab
+            , gradientTabButton "Local" config.localTabActive config.onLocalTab
+            ]
+        , if config.localTabActive then
+            config.localContent
+
+          else
+            config.onlineContent
+        ]
+
+
+gradientTabButton : String -> Bool -> msg -> Element msg
+gradientTabButton label active onPress =
+    Input.button
+        ([ width fill
+         , paddingXY 0 11
+         , Border.rounded 24
+         , Font.bold
+         , Font.size 15
+         , Font.color
+            (if active then
+                rgb255 10 20 10
+
+             else
+                rgba255 255 255 255 140
+            )
+         ]
+            ++ (if active then
+                    [ htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)") ]
+
+                else
+                    []
+               )
+        )
+        { onPress = Just onPress, label = el [ centerX ] (text label) }
 
 
 type alias OnlineLobbyConfig msg =

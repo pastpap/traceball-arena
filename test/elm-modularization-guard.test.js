@@ -290,4 +290,21 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("LobbyView.viewLocalLobbyContent");
     expect(mainSource).not.toContain("viewLocalLobbyContent : Model -> Element Msg");
   });
+
+  it("extracts lobby card and online/local tab shell", () => {
+    expect(existsSync("src/elm/Lobby/View.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Lobby/View.elm", "utf8");
+    for (const marker of [
+      "viewLobbyCard",
+      "LobbyCardConfig",
+      "Local same-screen PvP",
+      "Online game",
+      "gradientTabButton",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("LobbyView.viewLobbyCard");
+    expect(mainSource).not.toContain("viewLobbyCard : Model -> Element Msg");
+  });
 });

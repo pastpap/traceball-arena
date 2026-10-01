@@ -1125,7 +1125,42 @@ viewApp model =
                             model.boardList
 
                       else
-                        viewLobbyCard model
+                        LobbyView.viewLobbyCard
+                            { localTabActive = model.localLobbyTab
+                            , onOnlineTab = SetLobbyTab False
+                            , onLocalTab = SetLobbyTab True
+                            , localContent =
+                                LobbyView.viewLocalLobbyContent
+                                    { localGame = model.localGame
+                                    , viewportWidth = model.viewportWidth
+                                    , localBlueName = model.localBlueName
+                                    , localRedName = model.localRedName
+                                    , timerControl = viewTimerControl LocalTimer model.localMoveTimer model
+                                    , hasOnlineBoard = model.board /= Nothing
+                                    , confirmLeaveOnlineForLocal = model.confirmLeaveOnlineForLocal
+                                    , onResumeSavedGame = ToggleLobby
+                                    , onDiscardSavedGame = LeaveLocalGame
+                                    , onBlueName = UpdateLocalBlueName
+                                    , onRedName = UpdateLocalRedName
+                                    , onStartLocalMatch = StartLocalMatch
+                                    }
+                            , onlineContent =
+                                LobbyView.viewOnlineLobbyContent
+                                    { playerName = model.playerName
+                                    , draftBoardCode = model.draftBoardCode
+                                    , boardCode = model.boardCode
+                                    , inviteUrl = model.inviteUrl
+                                    , timerControl = viewTimerControl OnlineTimer model.onlineMoveTimer model
+                                    , connectionStatus = model.connectionStatus
+                                    , error = model.error
+                                    , onPlayerName = UpdatePlayerName
+                                    , onBoardCode = UpdateBoardCodeInput
+                                    , onWatchBoard = SubmitWatchBoard
+                                    , onCreateBoard = CreateBoard
+                                    , onCopyBoardLink = CopyBoardLink
+                                    , onOpenCreatedBoard = ToggleLobby
+                                    }
+                            }
                     ]
 
         gameView =
@@ -1438,87 +1473,6 @@ gradientTabButton label active onPress =
                )
         )
         { onPress = Just onPress, label = el [ centerX ] (text label) }
-
-
-viewLobbyCard : Model -> Element Msg
-viewLobbyCard model =
-    column
-        [ width fill
-        , Bg.color (rgb255 14 44 22)
-        , Border.width 1
-        , Border.color (rgb255 72 106 82)
-        , Border.rounded 24
-        , padding 20
-        , spacing 16
-        ]
-        [ -- Title and description change based on active subtab
-          el [ Font.bold, Font.size 20 ]
-            (text
-                (if model.localLobbyTab then
-                    "Local same-screen PvP"
-
-                 else
-                    "Online game"
-                )
-            )
-        , paragraph [ width fill, Font.size 13, Font.color (rgba255 255 255 255 100), spacing 4 ]
-            [ text
-                (if model.localLobbyTab then
-                    "Players face each other and play on this device. The pitch stays fixed for local play."
-
-                 else
-                    "Open a board as watcher, then choose an open seat when you are ready to play."
-                )
-            ]
-
-        -- Online/Local subtab toggle (same pill style as main tabs)
-        , row
-            [ width fill
-            , Bg.color (rgb255 14 44 22)
-            , Border.width 1
-            , Border.color (rgb255 72 106 82)
-            , Border.rounded 28
-            , padding 4
-            , spacing 0
-            ]
-            [ gradientTabButton "Online" (not model.localLobbyTab) (SetLobbyTab False)
-            , gradientTabButton "Local" model.localLobbyTab (SetLobbyTab True)
-            ]
-
-        -- Form content
-        , if model.localLobbyTab then
-            LobbyView.viewLocalLobbyContent
-                { localGame = model.localGame
-                , viewportWidth = model.viewportWidth
-                , localBlueName = model.localBlueName
-                , localRedName = model.localRedName
-                , timerControl = viewTimerControl LocalTimer model.localMoveTimer model
-                , hasOnlineBoard = model.board /= Nothing
-                , confirmLeaveOnlineForLocal = model.confirmLeaveOnlineForLocal
-                , onResumeSavedGame = ToggleLobby
-                , onDiscardSavedGame = LeaveLocalGame
-                , onBlueName = UpdateLocalBlueName
-                , onRedName = UpdateLocalRedName
-                , onStartLocalMatch = StartLocalMatch
-                }
-
-          else
-            LobbyView.viewOnlineLobbyContent
-                { playerName = model.playerName
-                , draftBoardCode = model.draftBoardCode
-                , boardCode = model.boardCode
-                , inviteUrl = model.inviteUrl
-                , timerControl = viewTimerControl OnlineTimer model.onlineMoveTimer model
-                , connectionStatus = model.connectionStatus
-                , error = model.error
-                , onPlayerName = UpdatePlayerName
-                , onBoardCode = UpdateBoardCodeInput
-                , onWatchBoard = SubmitWatchBoard
-                , onCreateBoard = CreateBoard
-                , onCopyBoardLink = CopyBoardLink
-                , onOpenCreatedBoard = ToggleLobby
-                }
-        ]
 
 
 type alias PauseOverlayConfig =
