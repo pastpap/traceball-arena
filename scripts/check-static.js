@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 const required = [
   "public/styles.css",
@@ -30,6 +30,53 @@ const elmTypes = readFileSync("src/elm/Board/Types.elm", "utf8");
 const elmProtocol = readFileSync("src/elm/Protocol.elm", "utf8");
 const gameSource = readFileSync("src/game.js", "utf8");
 const serverSource = readFileSync("src/server.js", "utf8");
+
+const MAX_MAIN_ELM_LINES = 5086;
+const PLANNED_MODULAR_ELM_ROOTS = [
+  "src/elm/App",
+  "src/elm/Port",
+  "src/elm/Page",
+  "src/elm/View",
+  "src/elm/Online",
+  "src/elm/Local",
+  "src/elm/History",
+  "src/elm/Boards",
+  "src/elm/Shared",
+];
+
+function lineCount(source) {
+  const withoutFinalNewline = source.replace(/\r?\n$/, "");
+  return withoutFinalNewline ? withoutFinalNewline.split(/\r?\n/).length : 0;
+}
+
+function elmFilesUnder(path) {
+  if (!existsSync(path)) return [];
+  const info = statSync(path);
+  if (info.isFile()) return path.endsWith(".elm") ? [path] : [];
+  return readdirSync(path).flatMap((entry) => elmFilesUnder(`${path}/${entry}`));
+}
+
+const mainElmLines = lineCount(elmMain);
+if (mainElmLines > MAX_MAIN_ELM_LINES) {
+  throw new Error(
+    `Main.elm has grown past ${MAX_MAIN_ELM_LINES} lines (${mainElmLines}). Modularization slices must reduce or preserve Main.elm size.`,
+  );
+}
+
+if (!elmMain.includes("port module Main exposing (main)")) {
+  throw new Error("Main.elm must remain the only Elm entrypoint exposing main.");
+}
+
+for (const root of PLANNED_MODULAR_ELM_ROOTS) {
+  for (const elmFile of elmFilesUnder(root)) {
+    const source = readFileSync(elmFile, "utf8");
+    if (/\bmodule\s+[^\n]+\bexposing\s*\([^)]*\bmain\b/.test(source)) {
+      throw new Error(
+        `${elmFile} exposes main; keep Browser.element entrypoint isolated in src/elm/Main.elm.`,
+      );
+    }
+  }
+}
 
 if (
   !elmHtml.includes('id="elm-root"') ||
