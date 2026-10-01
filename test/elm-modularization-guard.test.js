@@ -40,7 +40,7 @@ describe("Elm modularization static guard", () => {
     expect(flagsSource).toContain("defaultOnlineMoveTimer");
     expect(flagsSource).not.toContain("main : Program");
     expect(mainSource).toContain("import App.Flags as Flags");
-    expect(mainSource).toContain("Flags.decodeFlags localGameDecoder flags");
+    expect(mainSource).toContain("Flags.decodeFlags LocalCodec.localGameDecoder flags");
     expect(mainSource).not.toContain("flagsDecoder : Decode.Decoder Flags");
   });
 
@@ -86,7 +86,7 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("import Port.Commands as Commands");
     expect(mainSource).toContain("outgoingClientCommand Commands.fetchBoardListCommand");
     expect(mainSource).toContain("Commands.watchCommand boardCode clientId");
-    expect(mainSource).toContain("Commands.persistLocalRuntimeCommand localGameEncoder localGame paused");
+    expect(mainSource).toContain("Commands.persistLocalRuntimeCommand LocalCodec.localGameEncoder localGame paused");
   });
 
   it("extracts local game type aliases before moving local behavior", () => {
@@ -106,5 +106,28 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("type alias LocalGame =");
     expect(mainSource).not.toContain("type alias LocalMove =");
     expect(mainSource).not.toContain("type alias LocalPoint =");
+  });
+
+  it("extracts local game JSON codecs before moving local behavior", () => {
+    expect(existsSync("src/elm/Local/Codec.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Local/Codec.elm", "utf8");
+    for (const marker of [
+      "module Local.Codec exposing",
+      "localGameDecoder",
+      "localGameEncoder",
+      "localMoveDecoder",
+      "localMoveEncoder",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Local.Types exposing");
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Local.Codec as LocalCodec");
+    expect(mainSource).toContain("Flags.decodeFlags LocalCodec.localGameDecoder flags");
+    expect(mainSource).toContain("Commands.persistLocalRuntimeCommand LocalCodec.localGameEncoder localGame paused");
+    expect(mainSource).not.toContain("localGameEncoder : LocalGame -> Encode.Value");
+    expect(mainSource).not.toContain("localGameDecoder : Decode.Decoder LocalGame");
+    expect(mainSource).not.toContain("localMoveDecoderHelper : Decode.Decoder LocalMove");
   });
 });

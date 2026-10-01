@@ -16,6 +16,7 @@ import Html.Attributes
 import Html.Events
 import Json.Decode as Decode
 import Json.Encode as Encode
+import Local.Codec as LocalCodec
 import Local.Types exposing (LocalGame, LocalMove, LocalPoint)
 import Port.Commands as Commands
 import Protocol exposing (ServerMessage(..), StateMessage, boardNotFoundCode)
@@ -299,7 +300,7 @@ subscriptions _ =
 
 applyFlags : Decode.Value -> Model -> Model
 applyFlags flags model =
-    case Flags.decodeFlags localGameDecoder flags of
+    case Flags.decodeFlags LocalCodec.localGameDecoder flags of
         Ok parsed ->
             let
                 sanitized =
@@ -4064,7 +4065,7 @@ historyLocalGameDecoder =
         )
         (Decode.oneOf [ Decode.field "visited" (Decode.list Decode.string), Decode.succeed [ "4,6" ] ])
         (Decode.oneOf [ Decode.field "segments" (Decode.list Decode.string), Decode.succeed [] ])
-        (Decode.oneOf [ Decode.field "moves" (Decode.list localMoveDecoderHelper), Decode.succeed [] ])
+        (Decode.oneOf [ Decode.field "moves" (Decode.list LocalCodec.localMoveDecoder), Decode.succeed [] ])
         (Decode.oneOf [ Decode.at [ "score", "p1" ] Decode.int, Decode.succeed 0 ])
         |> Decode.andThen
             (\base ->
@@ -4331,7 +4332,7 @@ watchBoardCommand boardCode clientId =
 
 persistLocalCmd : Maybe LocalGame -> Bool -> Cmd Msg
 persistLocalCmd localGame paused =
-    outgoingClientCommand (Commands.persistLocalRuntimeCommand localGameEncoder localGame paused)
+    outgoingClientCommand (Commands.persistLocalRuntimeCommand LocalCodec.localGameEncoder localGame paused)
 
 
 
@@ -4393,107 +4394,6 @@ startLocalGame nowMs blueName_ redName_ moveTimerSeconds =
             Nothing
     , consecutiveTimeouts = 0
     }
-
-
-localGameEncoder : LocalGame -> Encode.Value
-localGameEncoder g =
-    Encode.object
-        [ ( "blueName", Encode.string g.blueName )
-        , ( "redName", Encode.string g.redName )
-        , ( "turn", Encode.string g.turn )
-        , ( "ball", Encode.object [ ( "x", Encode.int g.ball.x ), ( "y", Encode.int g.ball.y ) ] )
-        , ( "visited", Encode.list Encode.string g.visited )
-        , ( "segments", Encode.list Encode.string g.segments )
-        , ( "moves", Encode.list localMoveEncoder g.moves )
-        , ( "scoreBlue", Encode.int g.scoreBlue )
-        , ( "scoreRed", Encode.int g.scoreRed )
-        , ( "winner", g.winner |> Maybe.map Encode.string |> Maybe.withDefault Encode.null )
-        , ( "endReason", g.endReason |> Maybe.map Encode.string |> Maybe.withDefault Encode.null )
-        , ( "moveTimerSeconds", Encode.int g.moveTimerSeconds )
-        , ( "turnStartedAtMs", g.turnStartedAtMs |> Maybe.map Encode.int |> Maybe.withDefault Encode.null )
-        , ( "consecutiveTimeouts", Encode.int g.consecutiveTimeouts )
-        ]
-
-
-localMoveEncoder : LocalMove -> Encode.Value
-localMoveEncoder m =
-    Encode.object
-        [ ( "playerId", Encode.string m.playerId )
-        , ( "from", Encode.object [ ( "x", Encode.int m.from.x ), ( "y", Encode.int m.from.y ) ] )
-        , ( "to", Encode.object [ ( "x", Encode.int m.to.x ), ( "y", Encode.int m.to.y ) ] )
-        , ( "segment", Encode.string m.segment )
-        , ( "bounce", Encode.bool m.bounce )
-        ]
-
-
-localGameDecoder : Decode.Decoder LocalGame
-localGameDecoder =
-    Decode.map8
-        (\blueName_ redName_ turn ball visited segments moves scoreBlue ->
-            { blueName = blueName_
-            , redName = redName_
-            , turn = turn
-            , ball = ball
-            , visited = visited
-            , segments = segments
-            , moves = moves
-            , scoreBlue = scoreBlue
-            , scoreRed = 0
-            , winner = Nothing
-            , endReason = Nothing
-            , moveTimerSeconds = 15
-            , turnStartedAtMs = Nothing
-            , consecutiveTimeouts = 0
-            }
-        )
-        (Decode.field "blueName" Decode.string)
-        (Decode.field "redName" Decode.string)
-        (Decode.field "turn" Decode.string)
-        (Decode.map2 (\x y -> { x = x, y = y })
-            (Decode.at [ "ball", "x" ] Decode.int)
-            (Decode.at [ "ball", "y" ] Decode.int)
-        )
-        (Decode.field "visited" (Decode.list Decode.string))
-        (Decode.field "segments" (Decode.list Decode.string))
-        (Decode.field "moves" (Decode.list localMoveDecoderHelper))
-        (Decode.field "scoreBlue" Decode.int)
-        |> Decode.andThen
-            (\base ->
-                Decode.map6
-                    (\scoreRed winner endReason moveTimerSeconds turnStartedAtMs consecutiveTimeouts ->
-                        { base
-                            | scoreRed = scoreRed
-                            , winner = winner
-                            , endReason = endReason
-                            , moveTimerSeconds = normalizeMoveTimerSeconds moveTimerSeconds
-                            , turnStartedAtMs = turnStartedAtMs
-                            , consecutiveTimeouts = consecutiveTimeouts
-                        }
-                    )
-                    (Decode.field "scoreRed" Decode.int)
-                    (Decode.field "winner" (Decode.nullable Decode.string))
-                    (Decode.field "endReason" (Decode.nullable Decode.string))
-                    (Decode.oneOf [ Decode.field "moveTimerSeconds" Decode.int, Decode.succeed 15 ])
-                    (Decode.oneOf [ Decode.field "turnStartedAtMs" (Decode.nullable Decode.int), Decode.succeed Nothing ])
-                    (Decode.oneOf [ Decode.field "consecutiveTimeouts" Decode.int, Decode.succeed 0 ])
-            )
-
-
-localMoveDecoderHelper : Decode.Decoder LocalMove
-localMoveDecoderHelper =
-    Decode.map5 LocalMove
-        (Decode.field "playerId" Decode.string)
-        (Decode.map2 (\x y -> { x = x, y = y })
-            (Decode.at [ "from", "x" ] Decode.int)
-            (Decode.at [ "from", "y" ] Decode.int)
-        )
-        (Decode.map2 (\x y -> { x = x, y = y })
-            (Decode.at [ "to", "x" ] Decode.int)
-            (Decode.at [ "to", "y" ] Decode.int)
-        )
-        (Decode.oneOf [ Decode.field "segment" Decode.string, Decode.succeed "" ])
-        (Decode.oneOf [ Decode.field "bounce" Decode.bool, Decode.succeed False ])
-
 
 
 -- ── Local game state machine ───────────────────────────────────────────────────
