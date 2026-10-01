@@ -307,4 +307,22 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("LobbyView.viewLobbyCard");
     expect(mainSource).not.toContain("viewLobbyCard : Model -> Element Msg");
   });
+
+  it("extracts game screen config types", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "module Game.Screen exposing",
+      "type alias PauseOverlayConfig",
+      "type alias BoardScreenConfig",
+      "import Board.Types exposing (Board)",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig)");
+    expect(mainSource).not.toContain("type alias PauseOverlayConfig =");
+    expect(mainSource).not.toContain("type alias BoardScreenConfig =");
+  });
 });

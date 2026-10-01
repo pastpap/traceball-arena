@@ -17,6 +17,7 @@ import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
 import History.View as HistoryView
@@ -1475,41 +1476,6 @@ gradientTabButton label active onPress =
         { onPress = Just onPress, label = el [ centerX ] (text label) }
 
 
-type alias PauseOverlayConfig =
-    { title : String
-    , message : String
-    , turnText : String
-    , resumeAction : Maybe Msg
-    }
-
-
-type alias BoardScreenConfig =
-    { board : Board
-    , ownSeat : Maybe String
-    , boardFlipped : Bool
-    , turnHopSerial : Int
-    , replayIndex : Maybe Int
-    , isCompactLayout : Bool
-    , showWinnerOverlay : Bool
-    , timerSecs : Maybe Int
-    , timerRemainingSecs : Maybe Int
-    , statusText : String
-    , turnIndicatorText : String
-    , turnIndicatorIsRed : Bool
-    , matchSubtitle : String
-    , moveCount : Int
-    , isPaused : Bool
-    , showJoinBlue : Bool
-    , showJoinRed : Bool
-    , showSeatActions : Bool
-    , shareAction : Maybe Msg
-    , leaveAction : Maybe Msg
-    , pauseAction : Maybe Msg
-    , newRoundAction : Maybe Msg
-    , pauseOverlay : Maybe PauseOverlayConfig
-    }
-
-
 viewHeaderHtml : Model -> Bool -> Html Msg
 viewHeaderHtml model hasGame =
     let
@@ -1783,7 +1749,7 @@ viewOnlineGameHtml model board =
         }
 
 
-viewBoardScreenHtml : BoardScreenConfig -> Html Msg
+viewBoardScreenHtml : BoardScreenConfig Msg -> Html Msg
 viewBoardScreenHtml config =
     if config.isCompactLayout then
         layout [ width fill ] (viewMobileBoardScreen config)
@@ -1792,7 +1758,7 @@ viewBoardScreenHtml config =
         viewDesktopBoardScreenHtml config
 
 
-viewDesktopBoardScreenHtml : BoardScreenConfig -> Html Msg
+viewDesktopBoardScreenHtml : BoardScreenConfig Msg -> Html Msg
 viewDesktopBoardScreenHtml config =
     let
         session =
@@ -1904,7 +1870,7 @@ viewDesktopBoardScreenHtml config =
         ]
 
 
-viewMobileBoardScreen : BoardScreenConfig -> Element Msg
+viewMobileBoardScreen : BoardScreenConfig Msg -> Element Msg
 viewMobileBoardScreen config =
     let
         session =
@@ -1948,7 +1914,7 @@ viewMobileBoardScreen config =
         ]
 
 
-viewBoardStageHtml : Bool -> BoardScreenConfig -> String -> String -> Int -> Int -> Maybe String -> Html Msg
+viewBoardStageHtml : Bool -> BoardScreenConfig Msg -> String -> String -> Int -> Int -> Maybe String -> Html Msg
 viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore winnerName =
     let
         topSide =
@@ -1999,7 +1965,7 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
         )
 
 
-viewBoardTurnWidgetsHtml : BoardScreenConfig -> Html Msg
+viewBoardTurnWidgetsHtml : BoardScreenConfig Msg -> Html Msg
 viewBoardTurnWidgetsHtml config =
     case boardTurnWidgetData config of
         Nothing ->
@@ -2052,7 +2018,7 @@ type alias BoardTurnWidgetData =
     }
 
 
-boardTurnWidgetData : BoardScreenConfig -> Maybe BoardTurnWidgetData
+boardTurnWidgetData : BoardScreenConfig Msg -> Maybe BoardTurnWidgetData
 boardTurnWidgetData config =
     if config.board.state /= SessionActive || config.replayIndex /= Nothing || config.isPaused then
         Nothing
@@ -2125,7 +2091,7 @@ viewBoardTurnChipHtml turnIsRed turnAtTop hopSerial =
         [ Html.span [ Html.Attributes.class "elm-board-turn-chip-ball", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "⚽" ] ]
 
 
-viewMobileTopCard : BoardScreenConfig -> String -> String -> String -> Int -> Int -> Element Msg
+viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg
 viewMobileTopCard config statusBanner blueName redName blueScore redScore =
     if config.newRoundAction /= Nothing then
         mobileCard
@@ -2552,7 +2518,7 @@ viewBoardBadgeHtml position color name score =
         ]
 
 
-viewPauseOverlayHtml : PauseOverlayConfig -> Html Msg
+viewPauseOverlayHtml : PauseOverlayConfig Msg -> Html Msg
 viewPauseOverlayHtml overlay =
     Html.div [ Html.Attributes.id "pauseOverlay", Html.Attributes.class "pause-overlay", Html.Attributes.attribute "aria-live" "polite" ]
         [ Html.div [ Html.Attributes.class "pause-card" ]
@@ -2579,7 +2545,7 @@ viewPauseOverlayHtml overlay =
         ]
 
 
-viewPausePanelHtml : PauseOverlayConfig -> Html Msg
+viewPausePanelHtml : PauseOverlayConfig Msg -> Html Msg
 viewPausePanelHtml overlay =
     Html.div
         [ Html.Attributes.class "pause-card pause-panel"
