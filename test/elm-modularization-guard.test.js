@@ -88,4 +88,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Commands.watchCommand boardCode clientId");
     expect(mainSource).toContain("Commands.persistLocalRuntimeCommand localGameEncoder localGame paused");
   });
+
+  it("extracts local game type aliases before moving local behavior", () => {
+    expect(existsSync("src/elm/Local/Types.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Local/Types.elm", "utf8");
+    for (const marker of [
+      "module Local.Types exposing",
+      "type alias LocalPoint",
+      "type alias LocalMove",
+      "type alias LocalGame",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Local.Types exposing (LocalGame, LocalMove, LocalPoint)");
+    expect(mainSource).not.toContain("type alias LocalGame =");
+    expect(mainSource).not.toContain("type alias LocalMove =");
+    expect(mainSource).not.toContain("type alias LocalPoint =");
+  });
 });
