@@ -158,4 +158,33 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("applyLocalMove : Int -> LocalGame -> LocalPoint -> Result String LocalGame");
     expect(mainSource).not.toContain("expireLocalTurnIfNeeded : Int -> LocalGame -> Maybe LocalGame");
   });
+
+  it("extracts history entry types and decoders", () => {
+    expect(existsSync("src/elm/History/Types.elm")).toBe(true);
+    expect(existsSync("src/elm/History/Codec.elm")).toBe(true);
+
+    const typesSource = readFileSync("src/elm/History/Types.elm", "utf8");
+    expect(typesSource).toContain("module History.Types exposing");
+    expect(typesSource).toContain("type alias HistoryEntry");
+    expect(typesSource).not.toContain("main : Program");
+
+    const codecSource = readFileSync("src/elm/History/Codec.elm", "utf8");
+    for (const marker of [
+      "module History.Codec exposing",
+      "decodeHistoryEntries",
+      "historyEntryDecoder",
+      "historyLocalGameDecoder",
+    ]) {
+      expect(codecSource).toContain(marker);
+    }
+    expect(codecSource).toContain("import History.Types exposing");
+    expect(codecSource).toContain("import Local.Codec as LocalCodec");
+    expect(mainSource).toContain("import History.Codec as HistoryCodec");
+    expect(mainSource).toContain("import History.Types exposing (HistoryEntry)");
+    expect(mainSource).toContain("HistoryCodec.decodeHistoryEntries value");
+    expect(mainSource).toContain("Decode.field \"game\" HistoryCodec.historyLocalGameDecoder");
+    expect(mainSource).not.toContain("type alias HistoryEntry =");
+    expect(mainSource).not.toContain("historyEntryDecoder : Decode.Decoder HistoryEntry");
+    expect(mainSource).not.toContain("historyLocalGameDecoder : Decode.Decoder LocalGame");
+  });
 });
