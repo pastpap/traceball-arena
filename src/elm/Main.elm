@@ -25,6 +25,7 @@ import Json.Encode as Encode
 import Local.Codec as LocalCodec
 import Local.Game as LocalGameLogic
 import Local.Types exposing (LocalGame, LocalMove, LocalPoint)
+import Lobby.View as LobbyView
 import Port.Commands as Commands
 import Protocol exposing (ServerMessage(..), StateMessage, boardNotFoundCode)
 import Svg
@@ -1489,7 +1490,21 @@ viewLobbyCard model =
             viewLocalLobbyContent model
 
           else
-            viewOnlineLobbyContent model
+            LobbyView.viewOnlineLobbyContent
+                { playerName = model.playerName
+                , draftBoardCode = model.draftBoardCode
+                , boardCode = model.boardCode
+                , inviteUrl = model.inviteUrl
+                , timerControl = viewTimerControl OnlineTimer model.onlineMoveTimer model
+                , connectionStatus = model.connectionStatus
+                , error = model.error
+                , onPlayerName = UpdatePlayerName
+                , onBoardCode = UpdateBoardCodeInput
+                , onWatchBoard = SubmitWatchBoard
+                , onCreateBoard = CreateBoard
+                , onCopyBoardLink = CopyBoardLink
+                , onOpenCreatedBoard = ToggleLobby
+                }
         ]
 
 
@@ -3106,117 +3121,6 @@ winnerKeyForBoard board =
                     ++ ":"
                     ++ String.fromInt (session |> Maybe.map (.score >> .red) |> Maybe.withDefault 0)
             )
-
-
-viewOnlineLobbyContent : Model -> Element Msg
-viewOnlineLobbyContent model =
-    column [ width fill, spacing 14 ]
-        [ -- Your name
-          column [ width fill, spacing 6 ]
-            [ el [ Font.size 13, Font.bold ] (text "Your name")
-            , Input.text
-                (formFieldAttrs ++ [ Element.htmlAttribute (Html.Attributes.id "playerNameInput") ])
-                { onChange = UpdatePlayerName
-                , text = model.playerName
-                , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Your name"))
-                , label = Input.labelHidden "Your name"
-                }
-            ]
-        , case model.inviteUrl of
-            Just inviteUrl ->
-                viewInviteCard model.boardCode inviteUrl
-
-            Nothing ->
-                none
-
-        -- Open board section
-        , column
-            (formSubpanelAttrs ++ [ spacing 10 ])
-            [ el [ Font.size 13, Font.bold ] (text "Open board as watcher")
-            , Input.text
-                (formFieldAttrs ++ [ Element.htmlAttribute (Html.Attributes.id "boardCodeInput") ])
-                { onChange = UpdateBoardCodeInput
-                , text = model.draftBoardCode
-                , placeholder = Just (Input.placeholder formPlaceholderAttrs (text "Board code"))
-                , label = Input.labelHidden "Board code"
-                }
-            , Input.button
-                [ width fill
-                , padding 15
-                , Border.rounded 10
-                , Font.bold
-                , Font.size 15
-                , Font.color (rgb255 8 18 8)
-                , Element.htmlAttribute (Html.Attributes.style "background" "#17d2e6")
-                ]
-                { onPress = Just SubmitWatchBoard, label = el [ centerX ] (text "Watch board") }
-            , Input.button
-                [ width fill
-                , padding 15
-                , Border.rounded 10
-                , Font.bold
-                , Font.size 15
-                , Font.color (rgb255 8 18 8)
-                , Element.htmlAttribute (Html.Attributes.style "background" "#11c2d8")
-                , Element.htmlAttribute (Html.Attributes.id "elmCreateBoard")
-                ]
-                { onPress = Just CreateBoard, label = el [ centerX ] (text "Create board as Blue") }
-            ]
-
-        -- Move timer
-        , column [ width fill, spacing 6 ]
-            [ el [ Font.size 13, Font.bold ] (text "Move timer")
-            , el [ width fill ] (viewTimerControl OnlineTimer model.onlineMoveTimer model)
-            ]
-
-        -- Connection: idle
-        , el [ Font.size 12, Font.color (rgba255 255 255 255 55) ]
-            (text ("Connection: " ++ model.connectionStatus))
-        , case model.error of
-            Just e ->
-                el [ Font.color (rgb255 255 100 80), Font.size 13 ] (text e)
-
-            Nothing ->
-                none
-        ]
-
-
-viewInviteCard : String -> String -> Element Msg
-viewInviteCard boardCode inviteUrl =
-    Element.html <|
-        Html.section [ Html.Attributes.class "invite", Html.Attributes.id "inviteCard" ]
-            [ Html.img
-                [ Html.Attributes.src ("/api/qr?room=" ++ boardCode)
-                , Html.Attributes.alt ("QR code for board " ++ boardCode)
-                ]
-                []
-            , Html.div [ Html.Attributes.class "invite-copy-panel" ]
-                [ Html.label [ Html.Attributes.for "inviteUrl" ] [ Html.text "Share this board" ]
-                , Html.input
-                    [ Html.Attributes.id "inviteUrl"
-                    , Html.Attributes.type_ "text"
-                    , Html.Attributes.readonly True
-                    , Html.Attributes.value inviteUrl
-                    ]
-                    []
-                , Html.div [ Html.Attributes.class "invite-actions" ]
-                    [ Html.button
-                        [ Html.Attributes.id "copyInviteCard"
-                        , Html.Attributes.type_ "button"
-                        , Html.Attributes.class "compact"
-                        , Html.Events.onClick (CopyBoardLink boardCode)
-                        ]
-                        [ Html.text "Copy link" ]
-                    , Html.button
-                        [ Html.Attributes.id "openCreatedBoard"
-                        , Html.Attributes.type_ "button"
-                        , Html.Attributes.class "compact primary"
-                        , Html.Events.onClick ToggleLobby
-                        ]
-                        [ Html.text "Open game now" ]
-                    ]
-                ]
-            ]
 
 
 viewLocalLobbyContent : Model -> Element Msg

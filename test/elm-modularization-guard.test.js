@@ -254,4 +254,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewBoardCard : BoardSummary -> Element Msg");
     expect(mainSource).not.toContain("boardSummaryStateLabel : String -> String");
   });
+
+  it("extracts online lobby views", () => {
+    expect(existsSync("src/elm/Lobby/View.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Lobby/View.elm", "utf8");
+    for (const marker of [
+      "module Lobby.View exposing",
+      "viewOnlineLobbyContent",
+      "viewInviteCard",
+      "OnlineLobbyConfig",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Lobby.View as LobbyView");
+    expect(mainSource).toContain("LobbyView.viewOnlineLobbyContent");
+    expect(mainSource).not.toContain("viewOnlineLobbyContent : Model -> Element Msg");
+    expect(mainSource).not.toContain("viewInviteCard : String -> String -> Element Msg");
+  });
 });
