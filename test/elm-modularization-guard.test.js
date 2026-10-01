@@ -43,4 +43,26 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Flags.decodeFlags localGameDecoder flags");
     expect(mainSource).not.toContain("flagsDecoder : Decode.Decoder Flags");
   });
+
+  it("extracts shared validation, name, and timer helpers out of Main", () => {
+    for (const [path, markers] of [
+      ["src/elm/Shared/Validation.elm", ["module Shared.Validation exposing", "sanitizeBoardCode", "isValidBoardCode"]],
+      ["src/elm/Shared/Names.elm", ["module Shared.Names exposing", "limitNameInput", "sanitizePlayerName"]],
+      ["src/elm/Shared/Timer.elm", ["module Shared.Timer exposing", "normalizeMoveTimerSeconds", "timerOptions", "moveTimerLabel"]],
+    ]) {
+      expect(existsSync(path)).toBe(true);
+      const source = readFileSync(path, "utf8");
+      for (const marker of markers) {
+        expect(source).toContain(marker);
+      }
+      expect(source).not.toContain("main : Program");
+    }
+
+    expect(mainSource).toContain("import Shared.Names exposing");
+    expect(mainSource).toContain("import Shared.Timer exposing");
+    expect(mainSource).toContain("import Shared.Validation exposing");
+    expect(mainSource).not.toContain("sanitizeBoardCode : String -> String");
+    expect(mainSource).not.toContain("sanitizePlayerName : String -> String");
+    expect(mainSource).not.toContain("normalizeMoveTimerSeconds : Int -> Int");
+  });
 });

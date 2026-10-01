@@ -21,6 +21,9 @@ import Svg
 import Svg.Attributes as SvgA
 import Task
 import Time
+import Shared.Names exposing (limitNameInput, sanitizePlayerName)
+import Shared.Timer exposing (moveTimerLabel, normalizeMoveTimerSeconds, timerOptions)
+import Shared.Validation exposing (isValidBoardCode, sanitizeBoardCode)
 
 
 
@@ -4235,20 +4238,6 @@ turnColorLabel t =
         t
 
 
-timerOptions : List Int
-timerOptions =
-    [ 0, 5, 10, 15, 20, 30 ]
-
-
-normalizeMoveTimerSeconds : Int -> Int
-normalizeMoveTimerSeconds seconds =
-    if List.member seconds timerOptions then
-        seconds
-
-    else
-        15
-
-
 timerValueFor : TimerTarget -> Model -> Int
 timerValueFor target model =
     case target of
@@ -4287,15 +4276,6 @@ timerSelectMsg target =
 
         LocalTimer ->
             SelectLocalMoveTimer
-
-
-moveTimerLabel : Int -> String
-moveTimerLabel seconds =
-    if seconds <= 0 then
-        "Off"
-
-    else
-        String.fromInt seconds ++ " seconds"
 
 
 activeTimerRemainingSeconds : Int -> Board -> Maybe Int
@@ -4390,50 +4370,6 @@ activeLocalGame model =
 
             else
                 model.localGame
-
-
-isValidBoardCode : String -> Bool
-isValidBoardCode code =
-    let
-        n =
-            String.length code
-    in
-    n >= 6 && n <= 32
-
-
-sanitizeBoardCode : String -> String
-sanitizeBoardCode raw =
-    raw
-        |> String.trim
-        |> String.filter (\c -> Char.isAlphaNum c || c == '_' || c == '-')
-        |> String.left 32
-
-
-limitNameInput : String -> String
-limitNameInput raw =
-    String.left 24 raw
-
-
-normalizeWhitespaceName : String -> String
-normalizeWhitespaceName raw =
-    raw
-        |> String.trim
-        |> String.words
-        |> String.join " "
-        |> String.left 24
-
-
-sanitizePlayerName : String -> String
-sanitizePlayerName raw =
-    let
-        normalized =
-            normalizeWhitespaceName raw
-    in
-    if String.isEmpty normalized then
-        "Player"
-
-    else
-        normalized
 
 
 watchBoardCommand : String -> String -> Cmd Msg
