@@ -1,5 +1,6 @@
 port module Main exposing (main)
 
+import App.Flags as Flags
 import Board.Types exposing (Board, BoardState(..), Point, Seat, SeatState(..), SessionState(..))
 import Board.View exposing (viewBoard)
 import Browser
@@ -63,16 +64,6 @@ type alias Model =
     , currentTimeMs : Int
     , lastOnlineTurn : Maybe String
     , turnHopSerial : Int
-    }
-
-
-type alias Flags =
-    { boardCode : String
-    , clientId : String
-    , playerName : String
-    , savedLocalGame : Maybe LocalGame
-    , savedLocalPaused : Bool
-    , onlineMoveTimer : Int
     }
 
 
@@ -332,27 +323,12 @@ subscriptions _ =
 
 
 
--- ── Flags decoder ─────────────────────────────────────────────────────────────
-
-
-flagsDecoder : Decode.Decoder Flags
-flagsDecoder =
-    Decode.map6 Flags
-        (Decode.field "boardCode" Decode.string)
-        (Decode.field "clientId" Decode.string)
-        (Decode.field "playerName" Decode.string)
-        (Decode.maybe (Decode.field "savedLocalGame" localGameDecoder))
-        (Decode.maybe (Decode.field "savedLocalPaused" Decode.bool)
-            |> Decode.map (Maybe.withDefault False)
-        )
-        (Decode.maybe (Decode.field "onlineMoveTimer" Decode.int)
-            |> Decode.map (Maybe.withDefault 15)
-        )
+-- ── Flags application ────────────────────────────────────────────────────────
 
 
 applyFlags : Decode.Value -> Model -> Model
 applyFlags flags model =
-    case Decode.decodeValue flagsDecoder flags of
+    case Flags.decodeFlags localGameDecoder flags of
         Ok parsed ->
             let
                 sanitized =

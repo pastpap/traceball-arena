@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const checkStaticSource = readFileSync("scripts/check-static.js", "utf8");
@@ -29,5 +29,18 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(checkStaticSource).toContain(`src/elm/${root}`);
     }
+  });
+
+  it("extracts flag decoding into App.Flags while Main remains the only program entrypoint", () => {
+    expect(existsSync("src/elm/App/Flags.elm")).toBe(true);
+
+    const flagsSource = readFileSync("src/elm/App/Flags.elm", "utf8");
+    expect(flagsSource).toContain("module App.Flags exposing");
+    expect(flagsSource).toContain("decodeFlags");
+    expect(flagsSource).toContain("defaultOnlineMoveTimer");
+    expect(flagsSource).not.toContain("main : Program");
+    expect(mainSource).toContain("import App.Flags as Flags");
+    expect(mainSource).toContain("Flags.decodeFlags localGameDecoder flags");
+    expect(mainSource).not.toContain("flagsDecoder : Decode.Decoder Flags");
   });
 });
