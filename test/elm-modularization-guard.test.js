@@ -130,4 +130,32 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("localGameDecoder : Decode.Decoder LocalGame");
     expect(mainSource).not.toContain("localMoveDecoderHelper : Decode.Decoder LocalMove");
   });
+
+  it("extracts pure local game rules while leaving board conversion in Main", () => {
+    expect(existsSync("src/elm/Local/Game.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Local/Game.elm", "utf8");
+    for (const marker of [
+      "module Local.Game exposing",
+      "startLocalGame",
+      "computeLocalLegalMoves",
+      "applyLocalMove",
+      "restartLocalRound",
+      "restartLocalTurnClock",
+      "localTurnDeadlineAt",
+      "expireLocalTurnIfNeeded",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Local.Types exposing");
+    expect(source).not.toContain("Board.Types");
+    expect(source).not.toContain("main : Program");
+    expect(mainSource).toContain("import Local.Game as LocalGameLogic");
+    expect(mainSource).toContain("LocalGameLogic.startLocalGame");
+    expect(mainSource).toContain("LocalGameLogic.applyLocalMove");
+    expect(mainSource).toContain("LocalGameLogic.computeLocalLegalMoves");
+    expect(mainSource).not.toContain("startLocalGame : Int -> String -> String -> Int -> LocalGame");
+    expect(mainSource).not.toContain("applyLocalMove : Int -> LocalGame -> LocalPoint -> Result String LocalGame");
+    expect(mainSource).not.toContain("expireLocalTurnIfNeeded : Int -> LocalGame -> Maybe LocalGame");
+  });
 });
