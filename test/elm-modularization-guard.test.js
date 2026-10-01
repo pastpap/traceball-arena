@@ -206,4 +206,31 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewHistoryEntry : Int -> Int -> HistoryEntry -> Html Msg");
     expect(mainSource).not.toContain("relativeDateLabel : Int -> Int -> String");
   });
+
+  it("extracts board summary types and decoders", () => {
+    expect(existsSync("src/elm/Boards/Summary.elm")).toBe(true);
+    expect(existsSync("src/elm/Boards/Decode.elm")).toBe(true);
+
+    const summarySource = readFileSync("src/elm/Boards/Summary.elm", "utf8");
+    expect(summarySource).toContain("module Boards.Summary exposing");
+    expect(summarySource).toContain("type alias BoardSummary");
+    expect(summarySource).toContain("type alias CreatedBoardInfo");
+
+    const decodeSource = readFileSync("src/elm/Boards/Decode.elm", "utf8");
+    for (const marker of [
+      "module Boards.Decode exposing",
+      "boardSummaryDecoder",
+      "createdBoardInfoDecoder",
+      "import Boards.Summary exposing",
+    ]) {
+      expect(decodeSource).toContain(marker);
+    }
+    expect(mainSource).toContain("import Boards.Decode as BoardsDecode");
+    expect(mainSource).toContain("import Boards.Summary exposing (BoardSummary, CreatedBoardInfo)");
+    expect(mainSource).toContain("BoardsDecode.boardSummaryDecoder");
+    expect(mainSource).toContain("BoardsDecode.createdBoardInfoDecoder");
+    expect(mainSource).not.toContain("type alias BoardSummary =");
+    expect(mainSource).not.toContain("boardSummaryDecoder : Decode.Decoder BoardSummary");
+    expect(mainSource).not.toContain("createdBoardInfoDecoder : Decode.Decoder CreatedBoardInfo");
+  });
 });

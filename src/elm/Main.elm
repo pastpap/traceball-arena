@@ -3,6 +3,8 @@ port module Main exposing (main)
 import App.Flags as Flags
 import Board.Types exposing (Board, BoardState(..), Point, Seat, SeatState(..), SessionState(..))
 import Board.View exposing (viewBoard)
+import Boards.Decode as BoardsDecode
+import Boards.Summary exposing (BoardSummary, CreatedBoardInfo)
 import Browser
 import Browser.Dom as Dom
 import Browser.Events
@@ -82,26 +84,6 @@ type TimerTarget
     | LocalTimer
 
 
-
-
--- ── Board summary ─────────────────────────────────────────────────────────────
-
-
-type alias BoardSummary =
-    { roomId : String
-    , state : String
-    , occupiedCount : Int
-    , activeCount : Int
-    , vacantCount : Int
-    , moveCount : Int
-    , isOwner : Bool
-    }
-
-
-type alias CreatedBoardInfo =
-    { roomId : String
-    , url : String
-    }
 
 
 
@@ -912,12 +894,12 @@ update msg model =
         ReceiveBoardList value ->
             let
                 rooms =
-                    case Decode.decodeValue (Decode.field "rooms" (Decode.list boardSummaryDecoder)) value of
+                    case Decode.decodeValue (Decode.field "rooms" (Decode.list BoardsDecode.boardSummaryDecoder)) value of
                         Ok list ->
                             list
 
                         Err _ ->
-                            case Decode.decodeValue (Decode.list boardSummaryDecoder) value of
+                            case Decode.decodeValue (Decode.list BoardsDecode.boardSummaryDecoder) value of
                                 Ok list ->
                                     list
 
@@ -927,7 +909,7 @@ update msg model =
             ( { model | boardList = rooms }, Cmd.none )
 
         ReceiveBoardCreated value ->
-            case Decode.decodeValue createdBoardInfoDecoder value of
+            case Decode.decodeValue BoardsDecode.createdBoardInfoDecoder value of
                 Ok info ->
                     let
                         sanitized =
@@ -4160,29 +4142,6 @@ watchBoardCommand boardCode clientId =
 persistLocalCmd : Maybe LocalGame -> Bool -> Cmd Msg
 persistLocalCmd localGame paused =
     outgoingClientCommand (Commands.persistLocalRuntimeCommand LocalCodec.localGameEncoder localGame paused)
-
-
-
--- ── Board summary decoder ──────────────────────────────────────────────────────
-
-
-boardSummaryDecoder : Decode.Decoder BoardSummary
-boardSummaryDecoder =
-    Decode.map7 BoardSummary
-        (Decode.field "roomId" Decode.string)
-        (Decode.oneOf [ Decode.field "state" Decode.string, Decode.succeed "unknown" ])
-        (Decode.oneOf [ Decode.at [ "occupancy", "occupiedCount" ] Decode.int, Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
-        (Decode.oneOf [ Decode.at [ "occupancy", "activeCount" ] Decode.int, Decode.succeed 0 ])
-        (Decode.oneOf [ Decode.at [ "occupancy", "vacantCount" ] Decode.int, Decode.succeed 0 ])
-        (Decode.oneOf [ Decode.field "moveCount" Decode.int, Decode.succeed 0 ])
-        (Decode.oneOf [ Decode.field "isOwner" Decode.bool, Decode.succeed False ])
-
-
-createdBoardInfoDecoder : Decode.Decoder CreatedBoardInfo
-createdBoardInfoDecoder =
-    Decode.map2 CreatedBoardInfo
-        (Decode.field "roomId" Decode.string)
-        (Decode.field "url" Decode.string)
 
 
 
