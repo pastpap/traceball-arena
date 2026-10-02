@@ -1213,25 +1213,21 @@ viewApp model =
             }
 
     else
-        column
-            [ width fill ]
-            [ if hasGame then
-                viewGameHeader model
+        Layout.viewDesktopApp
+            { hasGame = hasGame
+            , header =
+                if hasGame then
+                    viewGameHeader model
 
-              else
-                el [ width fill ] (Element.html (viewHeaderHtml model False))
-            , if hasGame then
-                column [ width fill ]
-                    (if model.showLobby then
-                        [ lobbyLayout ]
+                else
+                    el [ width fill ] (Element.html (viewHeaderHtml model False))
+            , content =
+                if hasGame && not model.showLobby then
+                    gameView
 
-                     else
-                        [ gameView ]
-                    )
-
-              else
-                lobbyLayout
-            ]
+                else
+                    lobbyLayout
+            }
 
 
 viewGameHeader : Model -> Element Msg

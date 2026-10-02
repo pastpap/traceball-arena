@@ -1,4 +1,4 @@
-module View.Layout exposing (MainTabsConfig, MobileAppConfig, viewMainTabs, viewMobileApp)
+module View.Layout exposing (DesktopAppConfig, viewDesktopApp, MainTabsConfig, MobileAppConfig, viewMainTabs, viewMobileApp)
 
 import Element exposing (Element, centerX, column, el, fill, padding, paddingXY, rgb255, rgba255, row, spacing, text, width)
 import Element.Background as Bg
@@ -79,4 +79,23 @@ viewMobileApp config =
                 [ config.openGameStrip
                 , config.lobbyContent
                 ]
+        ]
+
+
+type alias DesktopAppConfig msg =
+    { hasGame : Bool
+    , header : Element msg
+    , content : Element msg
+    }
+
+
+viewDesktopApp : DesktopAppConfig msg -> Element msg
+viewDesktopApp config =
+    column [ width fill ]
+        [ config.header
+        , if config.hasGame then
+            column [ width fill ] [ config.content ]
+
+          else
+            config.content
         ]

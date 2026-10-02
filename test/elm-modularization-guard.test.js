@@ -902,4 +902,24 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Header.viewMobileOpenGameStrip mobileHeaderActions");
   });
 
+  it("extracts desktop app layout while root selects header and content", () => {
+    const layout = readFileSync("src/elm/View/Layout.elm", "utf8");
+    expect(layout).toContain("viewDesktopApp : DesktopAppConfig msg -> Element msg");
+    const desktop = layout.split("viewDesktopApp config =")[1];
+    expect(desktop).toContain("column [ width fill ]");
+    expect(desktop).toContain("config.header");
+    expect(desktop).toContain("if config.hasGame then");
+    expect(desktop).toContain("column [ width fill ] [ config.content ]");
+    expect(desktop).not.toMatch(/Header\.|\bModel\b|\bMsg\b|showLobby/);
+    expect(mainSource).toContain("Layout.viewDesktopApp");
+    const adapter = mainSource.split("Layout.viewDesktopApp")[1].split("viewGameHeader :")[0];
+    expect(adapter).toContain("hasGame = hasGame");
+    expect(adapter).toContain("viewGameHeader model");
+    expect(adapter).toContain("viewHeaderHtml model False");
+    expect(adapter).toContain("if hasGame && not model.showLobby then");
+    expect(adapter).toContain("gameView");
+    expect(adapter).toContain("lobbyLayout");
+    expect(adapter).not.toContain("[ gameView ]");
+  });
+
 });
