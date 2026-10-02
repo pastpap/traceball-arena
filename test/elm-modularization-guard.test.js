@@ -412,7 +412,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewReplayHtml");
+    expect(source).toContain("viewReplayHtml");
     expect(source).toContain("viewRoundSummaryHtml");
     expect(mainSource).not.toContain("viewReplayHtml : Maybe Int -> Int -> Html Msg");
     expect(mainSource).not.toContain("viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg");
@@ -459,7 +459,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewTimerPillHtml");
+    expect(source).toContain("viewTimerPillHtml");
     expect(source).toContain("viewBoardBadgeHtml");
     expect(source).toContain("viewBoardTurnWidgetsHtml");
     expect(mainSource).not.toContain("viewTimerPillHtml : Maybe Int -> Maybe Int -> Html Msg");
@@ -519,7 +519,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewDesktopMatchPanelHtml");
+    expect(source).toContain("viewDesktopMatchPanelHtml");
     expect(mainSource).not.toContain("Html.Attributes.class \"card scoreboard elm-match-panel\"");
     expect(mainSource).not.toContain("Html.Attributes.class \"players score-strip\"");
   });
@@ -540,5 +540,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Screen.viewBoardStageHtml");
     expect(mainSource).not.toContain("viewBoardStageHtml : Bool -> BoardScreenConfig Msg -> String -> String -> Int -> Int -> Maybe String -> Html Msg");
     expect(mainSource).not.toContain("Html.Attributes.classList\n            [ ( \"board-stage\", True )");
+  });
+
+  it("extracts the desktop board screen shell", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewDesktopBoardScreenHtml",
+      "game-layout",
+      "board-card mobile-page active",
+      "viewDesktopMatchPanelHtml",
+      "viewReplayHtml",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewDesktopBoardScreenHtml");
+    expect(mainSource).not.toContain("Html.section [ Html.Attributes.class \"game-layout\" ]");
+    expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
   });
 });

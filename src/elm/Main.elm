@@ -1784,60 +1784,33 @@ viewDesktopBoardScreenHtml config =
         redScore =
             session |> Maybe.map (.score >> .red) |> Maybe.withDefault 0
     in
-    Html.section [ Html.Attributes.class "game-layout" ]
-        [ Html.div
-            [ Html.Attributes.class "board-card mobile-page active"
-            , Html.Attributes.attribute "data-mobile-page" "play"
-            ]
-            [ Html.div [ Html.Attributes.id "playStatus", Html.Attributes.class "play-status" ] [ Html.text config.statusText ]
-            , Screen.viewTimerPillHtml config.timerSecs config.timerRemainingSecs
-            , Html.div
-                [ Html.Attributes.classList
-                    [ ( "turn-indicator", True )
-                    , ( "red", config.turnIndicatorIsRed )
-                    ]
-                ]
-                [ Html.text config.turnIndicatorText ]
-            , Screen.viewBoardStageHtml
-                normalizeSeatId
-                True
-                config
-                (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
-                blueName
-                redName
-                blueScore
-                redScore
-                winnerName
-                DismissWinnerBanner
-            , Screen.viewReplayHtml
-                { toStart = ReplayToStart
-                , stepBack = ReplayStepBack
-                , stepForward = ReplayStepForward
-                , toLive = ReplayToLive
-                }
-                config.replayIndex
-                config.moveCount
-            ]
-        , Screen.viewDesktopMatchPanelHtml
-            config
-            (if config.showSeatActions && config.showJoinBlue then
-                Just (ClaimSeat "blue")
+    Screen.viewDesktopBoardScreenHtml
+        normalizeSeatId
+        config
+        { toStart = ReplayToStart
+        , stepBack = ReplayStepBack
+        , stepForward = ReplayStepForward
+        , toLive = ReplayToLive
+        }
+        (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
+        (if config.showSeatActions && config.showJoinBlue then
+            Just (ClaimSeat "blue")
 
-             else
-                Nothing
-            )
-            (if config.showSeatActions && config.showJoinRed then
-                Just (ClaimSeat "red")
+         else
+            Nothing
+        )
+        (if config.showSeatActions && config.showJoinRed then
+            Just (ClaimSeat "red")
 
-             else
-                Nothing
-            )
-            blueName
-            redName
-            blueScore
-            redScore
-            winnerName
-        ]
+         else
+            Nothing
+        )
+        blueName
+        redName
+        blueScore
+        redScore
+        winnerName
+        DismissWinnerBanner
 
 
 viewMobileBoardScreen : BoardScreenConfig Msg -> Element Msg
