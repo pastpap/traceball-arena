@@ -17,6 +17,7 @@ import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import View.Dialog as Dialog
 import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
@@ -2389,10 +2390,18 @@ viewMobileMenuSheet =
             ]
 
 
+dialogActions : Dialog.Actions Msg
+dialogActions =
+    { dismiss = CloseAppMenu
+    , ignoreClick = IgnoreSheetClick
+    , backToMenu = OpenAppMenu
+    }
+
+
 viewHistoryOverlay : Model -> Bool -> Element Msg
 viewHistoryOverlay model isMobile =
-    viewDialogOverlay CloseAppMenu
-        [ dialogHeader isMobile "Traceball Arena" "Game History"
+    Dialog.viewOverlay dialogActions
+        [ Dialog.viewHeader dialogActions isMobile "Traceball Arena" "Game History"
         , Html.div [ Html.Attributes.class "dialog-body" ]
             [ if List.isEmpty model.gameHistory then
                 Html.div [ Html.Attributes.class "dialog-empty" ]
@@ -2410,8 +2419,8 @@ viewHistoryOverlay model isMobile =
 
 viewRulesOverlay : Bool -> Element Msg
 viewRulesOverlay isMobile =
-    viewDialogOverlay CloseAppMenu
-        [ dialogHeader isMobile "How to play" "Game Rules"
+    Dialog.viewOverlay dialogActions
+        [ Dialog.viewHeader dialogActions isMobile "How to play" "Game Rules"
         , Html.div [ Html.Attributes.class "dialog-body" ]
             [ Html.ul [ Html.Attributes.class "rules-list" ]
                 (List.map ruleItem
@@ -2435,46 +2444,6 @@ ruleItem text =
     Html.li [ Html.Attributes.class "rules-list-item" ]
         [ Html.span [ Html.Attributes.class "rules-bullet" ] []
         , Html.span [] [ Html.text text ]
-        ]
-
-
-viewDialogOverlay : Msg -> List (Html Msg) -> Element Msg
-viewDialogOverlay dismissMsg children =
-    Element.html <|
-        Html.div
-            [ Html.Attributes.class "dialog-overlay"
-            , Html.Events.onClick dismissMsg
-            ]
-            [ Html.div
-                [ Html.Attributes.class "dialog-card"
-                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
-                ]
-                children
-            ]
-
-
-dialogHeader : Bool -> String -> String -> Html Msg
-dialogHeader isMobile eyebrow title =
-    Html.div [ Html.Attributes.class "dialog-header" ]
-        [ Html.div []
-            [ Html.p [ Html.Attributes.class "dialog-eyebrow" ] [ Html.text eyebrow ]
-            , Html.h2 [ Html.Attributes.class "dialog-title" ] [ Html.text title ]
-            ]
-        , if isMobile then
-            Html.button
-                [ Html.Attributes.type_ "button"
-                , Html.Attributes.class "dialog-back"
-                , Html.Events.onClick OpenAppMenu
-                ]
-                [ Html.text "← Menu" ]
-
-          else
-            Html.button
-                [ Html.Attributes.type_ "button"
-                , Html.Attributes.class "dialog-close"
-                , Html.Events.onClick CloseAppMenu
-                ]
-                [ Html.text "×" ]
         ]
 
 

@@ -640,4 +640,25 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("column [ width fill, spacing 12 ]");
     expect(mainSource).not.toContain("viewMobileBoardScreen : BoardScreenConfig Msg -> Element Msg");
   });
+  it("extracts generic dialog frame while preserving dismissal and navigation", () => {
+    expect(existsSync("src/elm/View/Dialog.elm")).toBe(true);
+    const dialog = readFileSync("src/elm/View/Dialog.elm", "utf8");
+    expect(dialog).toContain("viewOverlay : Actions msg -> List (Html msg) -> Element msg");
+    expect(dialog).toContain("viewHeader : Actions msg -> Bool -> String -> String -> Html msg");
+    expect(dialog).toContain('Html.Events.onClick actions.dismiss');
+    expect(dialog).toContain('Decode.succeed ( actions.ignoreClick, True )');
+    expect(dialog).toContain('Html.Events.onClick actions.backToMenu');
+    expect(dialog).toContain('if isMobile then');
+    for (const marker of ['dialog-overlay', 'dialog-card', 'dialog-back', 'dialog-close', '← Menu', '×']) {
+      expect(dialog).toContain(marker);
+    }
+    expect(dialog).not.toMatch(/import Main|\bCloseAppMenu\b|\bIgnoreSheetClick\b|\bOpenAppMenu\b/);
+    expect(mainSource).not.toMatch(/^viewDialogOverlay\s*:|^dialogHeader\s*:/m);
+    expect(mainSource).toContain('Dialog.viewOverlay dialogActions');
+    expect(mainSource).toContain('Dialog.viewHeader dialogActions isMobile');
+    expect(mainSource).toContain('dismiss = CloseAppMenu');
+    expect(mainSource).toContain('ignoreClick = IgnoreSheetClick');
+    expect(mainSource).toContain('backToMenu = OpenAppMenu');
+  });
+
 });
