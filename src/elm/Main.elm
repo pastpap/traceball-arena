@@ -1799,7 +1799,14 @@ viewDesktopBoardScreenHtml config =
                 ]
                 [ Html.text config.turnIndicatorText ]
             , viewBoardStageHtml True config blueName redName blueScore redScore winnerName
-            , viewReplayHtml config.replayIndex config.moveCount
+            , Screen.viewReplayHtml
+                { toStart = ReplayToStart
+                , stepBack = ReplayStepBack
+                , stepForward = ReplayStepForward
+                , toLive = ReplayToLive
+                }
+                config.replayIndex
+                config.moveCount
             ]
         , Html.aside
             [ Html.Attributes.class "side mobile-page active"
@@ -1849,7 +1856,7 @@ viewDesktopBoardScreenHtml config =
                        )
                     ++ (case winnerName of
                             Just name ->
-                                [ viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
+                                [ Screen.viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
 
                             Nothing ->
                                 []
@@ -2418,82 +2425,6 @@ viewToast : String -> Element Msg
 viewToast message =
     el [ Element.htmlAttribute (Html.Attributes.id "toast"), Element.htmlAttribute (Html.Attributes.class "show") ]
         (text message)
-
-
-viewReplayHtml : Maybe Int -> Int -> Html Msg
-viewReplayHtml replayIndex moveCount =
-    let
-        currentIndex =
-            Maybe.withDefault moveCount replayIndex
-
-        isLive =
-            replayIndex == Nothing
-
-        replayProgress =
-            if moveCount <= 0 then
-                "0%"
-
-            else
-                String.fromFloat (toFloat currentIndex / toFloat moveCount * 100) ++ "%"
-
-        label =
-            if moveCount == 0 then
-                "Replay appears once moves are made."
-
-            else
-                "Move "
-                    ++ String.fromInt currentIndex
-                    ++ " of "
-                    ++ String.fromInt moveCount
-                    ++ (if isLive then
-                            " - live board"
-
-                        else
-                            ""
-                       )
-    in
-    Html.div [ Html.Attributes.class "board-replay replay" ]
-        [ Html.h2 [] [ Html.text "Replay" ]
-        , Html.div [ Html.Attributes.class "replay-controls" ]
-            [ viewReplayButton (moveCount > 0) (Just ReplayToStart) "⏮" "Start"
-            , viewReplayButton (moveCount > 0) (Just ReplayStepBack) "◀" "Back"
-            , viewReplayButton (moveCount > 0) (Just ReplayStepForward) "▶" "Next"
-            , viewReplayButton (moveCount > 0) (Just ReplayToLive) "⏭" "Live"
-            ]
-        , Html.div [ Html.Attributes.class "replay-progress", Html.Attributes.attribute "aria-hidden" "true" ]
-            [ Html.div [ Html.Attributes.class "replay-progress-fill", Html.Attributes.style "width" replayProgress ] [] ]
-        , Html.p [ Html.Attributes.id "replayText" ] [ Html.text label ]
-        ]
-
-
-viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg
-viewReplayButton enabled onPress icon label =
-    Html.button
-        ([ Html.Attributes.type_ "button"
-         , Html.Attributes.disabled (not enabled)
-         , Html.Attributes.attribute "aria-label" label
-         ]
-            ++ onClickAttributes
-                (if enabled then
-                    onPress
-
-                 else
-                    Nothing
-                )
-        )
-        [ Html.span [ Html.Attributes.class "replay-btn-icon", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ]
-        , Html.span [ Html.Attributes.class "replay-btn-label" ] [ Html.text label ]
-        ]
-
-
-viewRoundSummaryHtml : String -> Int -> Int -> Maybe Msg -> Html Msg
-viewRoundSummaryHtml winnerName blueScore redScore onNewRound =
-    Html.section [ Html.Attributes.class "elm-round-result" ]
-        [ Html.p [ Html.Attributes.class "elm-match-summary-kicker" ] [ Html.text "Round complete" ]
-        , Html.h3 [] [ Html.text (winnerName ++ " wins this round") ]
-        , Html.p [ Html.Attributes.class "elm-match-meta" ] [ Html.text ("Score: Blue " ++ String.fromInt blueScore ++ " - Red " ++ String.fromInt redScore) ]
-        , Screen.viewGhostButtonHtml "elm-match-continue" True onNewRound "Continue / New Round"
-        ]
 
 
 applyToastTick : Int -> Model -> Model

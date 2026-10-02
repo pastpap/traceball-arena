@@ -397,4 +397,25 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewMobilePrimaryActionButton : Msg -> String -> String -> Element Msg");
     expect(mainSource).not.toContain("viewShareMobileButton : Msg -> Element Msg");
   });
+
+  it("extracts replay and round summary html helpers", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "type alias ReplayActions msg",
+      "viewReplayHtml",
+      "viewReplayButton",
+      "viewRoundSummaryHtml",
+      "replay-progress-fill",
+      "elm-round-result",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewReplayHtml");
+    expect(mainSource).toContain("Screen.viewRoundSummaryHtml");
+    expect(mainSource).not.toContain("viewReplayHtml : Maybe Int -> Int -> Html Msg");
+    expect(mainSource).not.toContain("viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg");
+    expect(mainSource).not.toContain("viewRoundSummaryHtml : String -> Int -> Int -> Maybe Msg -> Html Msg");
+  });
 });

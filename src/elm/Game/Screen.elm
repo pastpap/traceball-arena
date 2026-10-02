@@ -1,4 +1,4 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, shareIconSvg, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewPauseOverlayHtml, viewPausePanelHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, shareIconSvg, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board)
 import Element exposing (Element, centerX, centerY, el, fill, paddingXY, rgb255, row, spacing, text, width)
@@ -46,6 +46,90 @@ type alias BoardScreenConfig msg =
     , newRoundAction : Maybe msg
     , pauseOverlay : Maybe (PauseOverlayConfig msg)
     }
+
+
+type alias ReplayActions msg =
+    { toStart : msg
+    , stepBack : msg
+    , stepForward : msg
+    , toLive : msg
+    }
+
+
+viewReplayHtml : ReplayActions msg -> Maybe Int -> Int -> Html msg
+viewReplayHtml actions replayIndex moveCount =
+    let
+        currentIndex =
+            Maybe.withDefault moveCount replayIndex
+
+        isLive =
+            replayIndex == Nothing
+
+        replayProgress =
+            if moveCount <= 0 then
+                "0%"
+
+            else
+                String.fromFloat (toFloat currentIndex / toFloat moveCount * 100) ++ "%"
+
+        label =
+            if moveCount == 0 then
+                "Replay appears once moves are made."
+
+            else
+                "Move "
+                    ++ String.fromInt currentIndex
+                    ++ " of "
+                    ++ String.fromInt moveCount
+                    ++ (if isLive then
+                            " - live board"
+
+                        else
+                            ""
+                       )
+    in
+    Html.div [ Html.Attributes.class "board-replay replay" ]
+        [ Html.h2 [] [ Html.text "Replay" ]
+        , Html.div [ Html.Attributes.class "replay-controls" ]
+            [ viewReplayButton (moveCount > 0) (Just actions.toStart) "⏮" "Start"
+            , viewReplayButton (moveCount > 0) (Just actions.stepBack) "◀" "Back"
+            , viewReplayButton (moveCount > 0) (Just actions.stepForward) "▶" "Next"
+            , viewReplayButton (moveCount > 0) (Just actions.toLive) "⏭" "Live"
+            ]
+        , Html.div [ Html.Attributes.class "replay-progress", Html.Attributes.attribute "aria-hidden" "true" ]
+            [ Html.div [ Html.Attributes.class "replay-progress-fill", Html.Attributes.style "width" replayProgress ] [] ]
+        , Html.p [ Html.Attributes.id "replayText" ] [ Html.text label ]
+        ]
+
+
+viewReplayButton : Bool -> Maybe msg -> String -> String -> Html msg
+viewReplayButton enabled onPress icon label =
+    Html.button
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.disabled (not enabled)
+         , Html.Attributes.attribute "aria-label" label
+         ]
+            ++ onClickAttributes
+                (if enabled then
+                    onPress
+
+                 else
+                    Nothing
+                )
+        )
+        [ Html.span [ Html.Attributes.class "replay-btn-icon", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ]
+        , Html.span [ Html.Attributes.class "replay-btn-label" ] [ Html.text label ]
+        ]
+
+
+viewRoundSummaryHtml : String -> Int -> Int -> Maybe msg -> Html msg
+viewRoundSummaryHtml winnerName blueScore redScore onNewRound =
+    Html.section [ Html.Attributes.class "elm-round-result" ]
+        [ Html.p [ Html.Attributes.class "elm-match-summary-kicker" ] [ Html.text "Round complete" ]
+        , Html.h3 [] [ Html.text (winnerName ++ " wins this round") ]
+        , Html.p [ Html.Attributes.class "elm-match-meta" ] [ Html.text ("Score: Blue " ++ String.fromInt blueScore ++ " - Red " ++ String.fromInt redScore) ]
+        , viewGhostButtonHtml "elm-match-continue" True onNewRound "Continue / New Round"
+        ]
 
 
 viewPauseOverlayHtml : PauseOverlayConfig msg -> Html msg
