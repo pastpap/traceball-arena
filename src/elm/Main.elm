@@ -1786,31 +1786,33 @@ viewBoardScreenHtml config =
     Screen.viewBoardScreenHtml
         normalizeSeatId
         config
-        { toStart = ReplayToStart
-        , stepBack = ReplayStepBack
-        , stepForward = ReplayStepForward
-        , toLive = ReplayToLive
+        { replayActions =
+            { toStart = ReplayToStart
+            , stepBack = ReplayStepBack
+            , stepForward = ReplayStepForward
+            , toLive = ReplayToLive
+            }
+        , boardView = viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board
+        , joinBlueAction =
+            if config.showSeatActions && config.showJoinBlue then
+                Just (ClaimSeat "blue")
+
+            else
+                Nothing
+        , joinRedAction =
+            if config.showSeatActions && config.showJoinRed then
+                Just (ClaimSeat "red")
+
+            else
+                Nothing
+        , blueName = blueName
+        , redName = redName
+        , blueScore = blueScore
+        , redScore = redScore
+        , winnerName = winnerName
+        , statusBanner = statusBanner
+        , onDismissWinner = DismissWinnerBanner
         }
-        (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
-        (if config.showSeatActions && config.showJoinBlue then
-            Just (ClaimSeat "blue")
-
-         else
-            Nothing
-        )
-        (if config.showSeatActions && config.showJoinRed then
-            Just (ClaimSeat "red")
-
-         else
-            Nothing
-        )
-        blueName
-        redName
-        blueScore
-        redScore
-        winnerName
-        statusBanner
-        DismissWinnerBanner
 
 
 viewToast : String -> Element Msg

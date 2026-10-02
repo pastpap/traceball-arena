@@ -1,4 +1,4 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardScreenHtml, viewBoardBadgeHtml, viewBoardStageHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewDesktopBoardScreenHtml, viewDesktopMatchPanelHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileBoardScreen, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, BoardScreenRenderConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardScreenHtml, viewBoardBadgeHtml, viewBoardStageHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewDesktopBoardScreenHtml, viewDesktopMatchPanelHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileBoardScreen, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board, BoardState(..))
 import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
@@ -304,14 +304,29 @@ viewShareIconButtonHtml className onPress ariaLabel =
         [ shareIconSvg ]
 
 
-viewBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> ReplayActions msg -> Html msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> String -> msg -> Html msg
-viewBoardScreenHtml normalizeSeatId config replayActions boardView joinBlueAction joinRedAction blueName redName blueScore redScore winnerName statusBanner onDismissWinner =
+type alias BoardScreenRenderConfig msg =
+    { replayActions : ReplayActions msg
+    , boardView : Html msg
+    , joinBlueAction : Maybe msg
+    , joinRedAction : Maybe msg
+    , blueName : String
+    , redName : String
+    , blueScore : Int
+    , redScore : Int
+    , winnerName : Maybe String
+    , statusBanner : String
+    , onDismissWinner : msg
+    }
+
+
+viewBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg
+viewBoardScreenHtml normalizeSeatId config render =
     if config.isCompactLayout then
         Element.layout [ width fill ]
-            (viewMobileBoardScreen normalizeSeatId config replayActions boardView joinBlueAction joinRedAction blueName redName blueScore redScore winnerName statusBanner onDismissWinner)
+            (viewMobileBoardScreen normalizeSeatId config render.replayActions render.boardView render.joinBlueAction render.joinRedAction render.blueName render.redName render.blueScore render.redScore render.winnerName render.statusBanner render.onDismissWinner)
 
     else
-        viewDesktopBoardScreenHtml normalizeSeatId config replayActions boardView joinBlueAction joinRedAction blueName redName blueScore redScore winnerName onDismissWinner
+        viewDesktopBoardScreenHtml normalizeSeatId config render.replayActions render.boardView render.joinBlueAction render.joinRedAction render.blueName render.redName render.blueScore render.redScore render.winnerName render.onDismissWinner
 
 
 viewDesktopBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> ReplayActions msg -> Html msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> msg -> Html msg

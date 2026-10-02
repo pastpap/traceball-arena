@@ -560,6 +560,17 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
   });
 
+  it("uses a named generic contract for responsive screen rendering", () => {
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    expect(source).toContain("type alias BoardScreenRenderConfig msg =");
+    expect(source).toContain("viewBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg");
+    for (const field of ["replayActions", "boardView", "joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore", "winnerName", "statusBanner", "onDismissWinner"]) {
+      expect(source).toMatch(new RegExp(field + " :"));
+      expect(mainSource).toMatch(new RegExp(field + " ="));
+    }
+    expect(source).not.toMatch(/^import Main/m);
+  });
+
   it("consolidates the responsive board screen wrapper", () => {
     const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
     expect(source).toMatch(/^viewBoardScreenHtml :/m);
