@@ -1,6 +1,6 @@
-module View.Layout exposing (MainTabsConfig, viewMainTabs)
+module View.Layout exposing (MainTabsConfig, MobileAppConfig, viewMainTabs, viewMobileApp)
 
-import Element exposing (Element, centerX, el, fill, padding, paddingXY, rgb255, rgba255, row, spacing, text, width)
+import Element exposing (Element, centerX, column, el, fill, padding, paddingXY, rgb255, rgba255, row, spacing, text, width)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
@@ -56,3 +56,27 @@ gradientTabButton label active onPress =
                )
         )
         { onPress = Just onPress, label = el [ centerX ] (text label) }
+
+
+type alias MobileAppConfig msg =
+    { showGame : Bool
+    , header : Element msg
+    , gameContent : Element msg
+    , lobbyContent : Element msg
+    , openGameStrip : Element msg
+    }
+
+
+viewMobileApp : MobileAppConfig msg -> Element msg
+viewMobileApp config =
+    column [ width fill ]
+        [ config.header
+        , if config.showGame then
+            config.gameContent
+
+          else
+            column [ width fill, spacing 8 ]
+                [ config.openGameStrip
+                , config.lobbyContent
+                ]
+        ]

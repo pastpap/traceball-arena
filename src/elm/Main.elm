@@ -1194,7 +1194,23 @@ viewApp model =
                                             Html.text ""
     in
     if isMobile then
-        viewMobileApp model hasGame lobbyLayout gameView
+        Layout.viewMobileApp
+            { showGame = hasGame && not model.showLobby
+            , header =
+                if hasGame && not model.showLobby then
+                    Header.viewMobileGame mobileHeaderActions
+
+                else
+                    Header.viewMobileLobby mobileHeaderActions
+            , gameContent = gameView
+            , lobbyContent = lobbyLayout
+            , openGameStrip =
+                if hasGame then
+                    Header.viewMobileOpenGameStrip mobileHeaderActions
+
+                else
+                    none
+            }
 
     else
         column
@@ -1216,29 +1232,6 @@ viewApp model =
               else
                 lobbyLayout
             ]
-
-
-viewMobileApp : Model -> Bool -> Element Msg -> Element Msg -> Element Msg
-viewMobileApp model hasGame lobbyLayout gameView =
-    column [ width fill ]
-        [ if hasGame && not model.showLobby then
-            (Header.viewMobileGame mobileHeaderActions)
-
-          else
-            (Header.viewMobileLobby mobileHeaderActions)
-        , if hasGame && not model.showLobby then
-            gameView
-
-          else
-            column [ width fill, spacing 8 ]
-                [ if hasGame then
-                    (Header.viewMobileOpenGameStrip mobileHeaderActions)
-
-                  else
-                    none
-                , lobbyLayout
-                ]
-        ]
 
 
 viewGameHeader : Model -> Element Msg

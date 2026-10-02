@@ -882,4 +882,24 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain('showBoards = SetMainTab "boards"');
   });
 
+  it("extracts mobile app layout using root-selected child slots", () => {
+    const layout = readFileSync("src/elm/View/Layout.elm", "utf8");
+    expect(layout).toContain("viewMobileApp : MobileAppConfig msg -> Element msg");
+    const mobile = layout.split("viewMobileApp config =")[1];
+    expect(mobile).toContain("column [ width fill ]");
+    expect(mobile).toContain("config.header");
+    expect(mobile).toContain("if config.showGame then");
+    expect(mobile).toContain("config.gameContent");
+    expect(mobile).toContain("column [ width fill, spacing 8 ]");
+    expect(mobile).toContain("config.openGameStrip");
+    expect(mobile).toContain("config.lobbyContent");
+    expect(mobile).not.toMatch(/Header\.|\bModel\b|\bMsg\b|ToggleLobby/);
+    expect(mainSource).not.toMatch(/^viewMobileApp\s*:/m);
+    expect(mainSource).toContain("Layout.viewMobileApp");
+    expect(mainSource).toContain("showGame = hasGame && not model.showLobby");
+    expect(mainSource).toContain("gameContent = gameView");
+    expect(mainSource).toContain("lobbyContent = lobbyLayout");
+    expect(mainSource).toContain("Header.viewMobileOpenGameStrip mobileHeaderActions");
+  });
+
 });
