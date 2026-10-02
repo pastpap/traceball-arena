@@ -340,8 +340,8 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(marker);
     }
     expect(source).toContain("import Html exposing (Html)");
-    expect(mainSource).toContain("Screen.viewPauseOverlayHtml");
-    expect(mainSource).toContain("Screen.viewPausePanelHtml");
+    expect(source).toContain("viewPauseOverlayHtml");
+    expect(source).toContain("viewPausePanelHtml");
     expect(mainSource).not.toContain("viewPauseOverlayHtml : PauseOverlayConfig Msg -> Html Msg");
     expect(mainSource).not.toContain("viewPausePanelHtml : PauseOverlayConfig Msg -> Html Msg");
   });
@@ -363,9 +363,9 @@ describe("Elm modularization static guard", () => {
     }
     expect(source).toContain("import Svg");
     expect(mainSource).toContain("Screen.viewWinnerOverlayHtml");
-    expect(mainSource).toContain("Screen.viewGhostButtonHtml");
-    expect(mainSource).toContain("Screen.viewSquareIconButtonHtml");
-    expect(mainSource).toContain("Screen.viewShareIconButtonHtml");
+    expect(source).toContain("viewGhostButtonHtml");
+    expect(source).toContain("viewSquareIconButtonHtml");
+    expect(source).toContain("viewShareIconButtonHtml");
     expect(mainSource).not.toContain("viewWinnerOverlayHtml : Bool -> String -> Maybe Msg -> Html Msg");
     expect(mainSource).not.toContain("viewGhostButtonHtml : String -> Bool -> Maybe Msg -> String -> Html Msg");
     expect(mainSource).not.toContain("viewSquareIconButtonHtml : String -> Maybe Msg -> String -> String -> Html Msg");
@@ -413,7 +413,7 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(marker);
     }
     expect(mainSource).toContain("Screen.viewReplayHtml");
-    expect(mainSource).toContain("Screen.viewRoundSummaryHtml");
+    expect(source).toContain("viewRoundSummaryHtml");
     expect(mainSource).not.toContain("viewReplayHtml : Maybe Int -> Int -> Html Msg");
     expect(mainSource).not.toContain("viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg");
     expect(mainSource).not.toContain("viewRoundSummaryHtml : String -> Int -> Int -> Maybe Msg -> Html Msg");
@@ -504,5 +504,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Screen.viewMobileTopCard");
     expect(mainSource).not.toContain("viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg");
     expect(mainSource).not.toContain("ROUND COMPLETE");
+  });
+
+  it("extracts the desktop match side panel", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewDesktopMatchPanelHtml",
+      "elm-match-panel",
+      "score-strip",
+      "elm-match-actions",
+      "seat-actions",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewDesktopMatchPanelHtml");
+    expect(mainSource).not.toContain("Html.Attributes.class \"card scoreboard elm-match-panel\"");
+    expect(mainSource).not.toContain("Html.Attributes.class \"players score-strip\"");
   });
 });

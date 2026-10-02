@@ -1,4 +1,4 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewDesktopMatchPanelHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board, BoardState(..))
 import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
@@ -302,6 +302,74 @@ viewShareIconButtonHtml className onPress ariaLabel =
             ++ onClickAttributes onPress
         )
         [ shareIconSvg ]
+
+
+viewDesktopMatchPanelHtml : BoardScreenConfig msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> Html msg
+viewDesktopMatchPanelHtml config joinBlueAction joinRedAction blueName redName blueScore redScore winnerName =
+    Html.aside
+        [ Html.Attributes.class "side mobile-page active"
+        , Html.Attributes.attribute "data-mobile-page" "match"
+        ]
+        [ Html.div [ Html.Attributes.class "card scoreboard elm-match-panel" ]
+            ([ Html.div [ Html.Attributes.class "elm-match-heading" ]
+                [ Html.h2 [ Html.Attributes.class "elm-match-heading-title" ] [ Html.text "Match" ]
+                , viewShareIconButtonHtml "elm-match-icon share elm-match-share-corner" config.shareAction "Share board"
+                ]
+             , Html.p [ Html.Attributes.class "elm-match-subtitle" ] [ Html.text config.matchSubtitle ]
+             , Html.div [ Html.Attributes.id "status" ] [ Html.text config.statusText ]
+             , Html.div [ Html.Attributes.class "players score-strip", Html.Attributes.attribute "aria-label" "Room score" ]
+                [ Html.div [ Html.Attributes.class "score-name blue-name" ]
+                    [ Html.span [ Html.Attributes.class "dot blue" ] []
+                    , Html.strong [] [ Html.text blueName ]
+                    ]
+                , Html.div [ Html.Attributes.class "score-spacer", Html.Attributes.attribute "aria-hidden" "true" ] []
+                , Html.div [ Html.Attributes.class "score-name red-name" ]
+                    [ Html.strong [] [ Html.text redName ]
+                    , Html.span [ Html.Attributes.class "dot red" ] []
+                    ]
+                , Html.div [ Html.Attributes.class "score-number blue-score" ] [ Html.text (String.fromInt blueScore) ]
+                , Html.div [ Html.Attributes.class "score-dash" ] [ Html.text "-" ]
+                , Html.div [ Html.Attributes.class "score-number red-score" ] [ Html.text (String.fromInt redScore) ]
+                ]
+             , Html.div [ Html.Attributes.class "elm-match-actions" ]
+                [ viewSquareIconButtonHtml "elm-match-icon danger" config.leaveAction "✕" "Leave game"
+                , viewSquareIconButtonHtml "elm-match-icon"
+                    config.pauseAction
+                    (if config.isPaused then
+                        "▶"
+
+                     else
+                        "⏸"
+                    )
+                    "Pause game"
+                , viewSquareIconButtonHtml "elm-match-icon success" config.newRoundAction "↺" "Start new round"
+                ]
+             ]
+                ++ (case config.pauseOverlay of
+                        Just overlay ->
+                            [ viewPausePanelHtml overlay ]
+
+                        Nothing ->
+                            []
+                   )
+                ++ (case winnerName of
+                        Just name ->
+                            [ viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
+
+                        Nothing ->
+                            []
+                   )
+                ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed) then
+                        Html.div [ Html.Attributes.class "seat-actions" ]
+                            [ viewGhostButtonHtml "ghost" config.showJoinBlue joinBlueAction "Join Blue"
+                            , viewGhostButtonHtml "ghost" config.showJoinRed joinRedAction "Join Red"
+                            ]
+
+                     else
+                        Html.text ""
+                   ]
+            )
+        ]
 
 
 viewMobileActionButton : Bool -> msg -> String -> String -> Element msg

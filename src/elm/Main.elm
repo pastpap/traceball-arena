@@ -1808,70 +1808,25 @@ viewDesktopBoardScreenHtml config =
                 config.replayIndex
                 config.moveCount
             ]
-        , Html.aside
-            [ Html.Attributes.class "side mobile-page active"
-            , Html.Attributes.attribute "data-mobile-page" "match"
-            ]
-            [ Html.div [ Html.Attributes.class "card scoreboard elm-match-panel" ]
-                ([ Html.div [ Html.Attributes.class "elm-match-heading" ]
-                    [ Html.h2 [ Html.Attributes.class "elm-match-heading-title" ] [ Html.text "Match" ]
-                    , Screen.viewShareIconButtonHtml "elm-match-icon share elm-match-share-corner" config.shareAction "Share board"
-                    ]
-                 , Html.p [ Html.Attributes.class "elm-match-subtitle" ] [ Html.text config.matchSubtitle ]
-                 , Html.div [ Html.Attributes.id "status" ] [ Html.text config.statusText ]
-                 , Html.div [ Html.Attributes.class "players score-strip", Html.Attributes.attribute "aria-label" "Room score" ]
-                    [ Html.div [ Html.Attributes.class "score-name blue-name" ]
-                        [ Html.span [ Html.Attributes.class "dot blue" ] []
-                        , Html.strong [] [ Html.text blueName ]
-                        ]
-                    , Html.div [ Html.Attributes.class "score-spacer", Html.Attributes.attribute "aria-hidden" "true" ] []
-                    , Html.div [ Html.Attributes.class "score-name red-name" ]
-                        [ Html.strong [] [ Html.text redName ]
-                        , Html.span [ Html.Attributes.class "dot red" ] []
-                        ]
-                    , Html.div [ Html.Attributes.class "score-number blue-score" ] [ Html.text (String.fromInt blueScore) ]
-                    , Html.div [ Html.Attributes.class "score-dash" ] [ Html.text "-" ]
-                    , Html.div [ Html.Attributes.class "score-number red-score" ] [ Html.text (String.fromInt redScore) ]
-                    ]
-                 , Html.div [ Html.Attributes.class "elm-match-actions" ]
-                    [ Screen.viewSquareIconButtonHtml "elm-match-icon danger" config.leaveAction "✕" "Leave game"
-                    , Screen.viewSquareIconButtonHtml "elm-match-icon"
-                        config.pauseAction
-                        (if config.isPaused then
-                            "▶"
+        , Screen.viewDesktopMatchPanelHtml
+            config
+            (if config.showSeatActions && config.showJoinBlue then
+                Just (ClaimSeat "blue")
 
-                         else
-                            "⏸"
-                        )
-                        "Pause game"
-                    , Screen.viewSquareIconButtonHtml "elm-match-icon success" config.newRoundAction "↺" "Start new round"
-                    ]
-                 ]
-                    ++ (case config.pauseOverlay of
-                            Just overlay ->
-                                [ Screen.viewPausePanelHtml overlay ]
+             else
+                Nothing
+            )
+            (if config.showSeatActions && config.showJoinRed then
+                Just (ClaimSeat "red")
 
-                            Nothing ->
-                                []
-                       )
-                    ++ (case winnerName of
-                            Just name ->
-                                [ Screen.viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
-
-                            Nothing ->
-                                []
-                       )
-                    ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed) then
-                            Html.div [ Html.Attributes.class "seat-actions" ]
-                                [ Screen.viewGhostButtonHtml "ghost" config.showJoinBlue (Just (ClaimSeat "blue")) "Join Blue"
-                                , Screen.viewGhostButtonHtml "ghost" config.showJoinRed (Just (ClaimSeat "red")) "Join Red"
-                                ]
-
-                         else
-                            Html.text ""
-                       ]
-                )
-            ]
+             else
+                Nothing
+            )
+            blueName
+            redName
+            blueScore
+            redScore
+            winnerName
         ]
 
 
