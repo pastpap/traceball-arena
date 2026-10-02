@@ -345,4 +345,30 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewPauseOverlayHtml : PauseOverlayConfig Msg -> Html Msg");
     expect(mainSource).not.toContain("viewPausePanelHtml : PauseOverlayConfig Msg -> Html Msg");
   });
+
+  it("extracts winner overlay and game action button views", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewWinnerOverlayHtml",
+      "viewGhostButtonHtml",
+      "viewSquareIconButtonHtml",
+      "viewShareIconButtonHtml",
+      "shareIconSvg",
+      "winner-overlay",
+      "winner-new-round",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Svg");
+    expect(mainSource).toContain("Screen.viewWinnerOverlayHtml");
+    expect(mainSource).toContain("Screen.viewGhostButtonHtml");
+    expect(mainSource).toContain("Screen.viewSquareIconButtonHtml");
+    expect(mainSource).toContain("Screen.viewShareIconButtonHtml");
+    expect(mainSource).not.toContain("viewWinnerOverlayHtml : Bool -> String -> Maybe Msg -> Html Msg");
+    expect(mainSource).not.toContain("viewGhostButtonHtml : String -> Bool -> Maybe Msg -> String -> Html Msg");
+    expect(mainSource).not.toContain("viewSquareIconButtonHtml : String -> Maybe Msg -> String -> String -> Html Msg");
+    expect(mainSource).not.toContain("viewShareIconButtonHtml : String -> Maybe Msg -> String -> Html Msg");
+  });
 });

@@ -1,9 +1,11 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, viewPauseOverlayHtml, viewPausePanelHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, shareIconSvg, viewGhostButtonHtml, viewPauseOverlayHtml, viewPausePanelHtml, viewShareIconButtonHtml, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+import Svg
+import Svg.Attributes as SvgA
 
 
 type alias PauseOverlayConfig msg =
@@ -97,6 +99,120 @@ viewPausePanelHtml overlay =
                         []
                )
         )
+
+
+viewWinnerOverlayHtml : Bool -> String -> Maybe msg -> msg -> Html msg
+viewWinnerOverlayHtml isCompactLayout winnerName onNewRound onDismiss =
+    Html.div
+        [ Html.Attributes.classList
+            [ ( "winner-overlay", True )
+            , ( "winner-overlay-mobile", isCompactLayout )
+            ]
+        , Html.Attributes.attribute "aria-live" "polite"
+        ]
+        [ Html.div [ Html.Attributes.class "winner-card" ]
+            [ Html.button
+                [ Html.Attributes.type_ "button"
+                , Html.Attributes.classList
+                    [ ( "winner-close", True )
+                    , ( "hidden", onNewRound == Nothing && not isCompactLayout )
+                    ]
+                , Html.Attributes.attribute "aria-label" "Close winner banner"
+                , Html.Events.onClick onDismiss
+                ]
+                [ Html.text "×" ]
+            , Html.div [ Html.Attributes.class "winner-kicker" ] [ Html.text "Winner" ]
+            , Html.div [ Html.Attributes.class "winner-name" ] [ Html.text winnerName ]
+            , if isCompactLayout then
+                Html.text ""
+
+              else
+                Html.button
+                    ([ Html.Attributes.type_ "button", Html.Attributes.class "winner-new-round" ]
+                        ++ onClickAttributes onNewRound
+                    )
+                    [ Html.text "New Round" ]
+            ]
+        ]
+
+
+viewGhostButtonHtml : String -> Bool -> Maybe msg -> String -> Html msg
+viewGhostButtonHtml baseClass isVisible onPress label =
+    Html.button
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.disabled (onPress == Nothing)
+         , Html.Attributes.classList
+            [ ( baseClass, True )
+            , ( "hidden", not isVisible )
+            ]
+         ]
+            ++ onClickAttributes onPress
+        )
+        [ Html.text label ]
+
+
+viewSquareIconButtonHtml : String -> Maybe msg -> String -> String -> Html msg
+viewSquareIconButtonHtml className onPress icon ariaLabel =
+    Html.button
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.classList
+            [ ( className, True )
+            , ( "hidden", onPress == Nothing )
+            ]
+         , Html.Attributes.disabled (onPress == Nothing)
+         , Html.Attributes.attribute "aria-label" ariaLabel
+         , Html.Attributes.attribute
+            "data-elm-command"
+            (if ariaLabel == "Pause game" then
+                "pause"
+
+             else if ariaLabel == "Resume game" then
+                "resume"
+
+             else
+                ""
+            )
+         ]
+            ++ onClickAttributes onPress
+        )
+        [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ] ]
+
+
+shareIconSvg : Html msg
+shareIconSvg =
+    Svg.svg
+        [ SvgA.viewBox "0 0 24 24"
+        , SvgA.fill "none"
+        , SvgA.stroke "currentColor"
+        , SvgA.strokeWidth "2.2"
+        , SvgA.strokeLinecap "round"
+        , SvgA.strokeLinejoin "round"
+        , Html.Attributes.attribute "aria-hidden" "true"
+        , SvgA.width "18"
+        , SvgA.height "18"
+        ]
+        [ Svg.circle [ SvgA.cx "18", SvgA.cy "5", SvgA.r "3" ] []
+        , Svg.circle [ SvgA.cx "6", SvgA.cy "12", SvgA.r "3" ] []
+        , Svg.circle [ SvgA.cx "18", SvgA.cy "19", SvgA.r "3" ] []
+        , Svg.line [ SvgA.x1 "8.59", SvgA.y1 "13.51", SvgA.x2 "15.42", SvgA.y2 "17.49" ] []
+        , Svg.line [ SvgA.x1 "15.41", SvgA.y1 "6.51", SvgA.x2 "8.59", SvgA.y2 "10.49" ] []
+        ]
+
+
+viewShareIconButtonHtml : String -> Maybe msg -> String -> Html msg
+viewShareIconButtonHtml className onPress ariaLabel =
+    Html.button
+        ([ Html.Attributes.type_ "button"
+         , Html.Attributes.classList
+            [ ( className, True )
+            , ( "hidden", onPress == Nothing )
+            ]
+         , Html.Attributes.disabled (onPress == Nothing)
+         , Html.Attributes.attribute "aria-label" ariaLabel
+         ]
+            ++ onClickAttributes onPress
+        )
+        [ shareIconSvg ]
 
 
 onClickAttributes : Maybe msg -> List (Html.Attribute msg)

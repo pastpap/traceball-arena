@@ -29,8 +29,6 @@ import Local.Types exposing (LocalGame, LocalMove, LocalPoint)
 import Lobby.View as LobbyView
 import Port.Commands as Commands
 import Protocol exposing (ServerMessage(..), StateMessage, boardNotFoundCode)
-import Svg
-import Svg.Attributes as SvgA
 import Task
 import Time
 import Shared.Names exposing (limitNameInput, sanitizePlayerName)
@@ -1810,7 +1808,7 @@ viewDesktopBoardScreenHtml config =
             [ Html.div [ Html.Attributes.class "card scoreboard elm-match-panel" ]
                 ([ Html.div [ Html.Attributes.class "elm-match-heading" ]
                     [ Html.h2 [ Html.Attributes.class "elm-match-heading-title" ] [ Html.text "Match" ]
-                    , viewShareIconButtonHtml "elm-match-icon share elm-match-share-corner" config.shareAction "Share board"
+                    , Screen.viewShareIconButtonHtml "elm-match-icon share elm-match-share-corner" config.shareAction "Share board"
                     ]
                  , Html.p [ Html.Attributes.class "elm-match-subtitle" ] [ Html.text config.matchSubtitle ]
                  , Html.div [ Html.Attributes.id "status" ] [ Html.text config.statusText ]
@@ -1829,8 +1827,8 @@ viewDesktopBoardScreenHtml config =
                     , Html.div [ Html.Attributes.class "score-number red-score" ] [ Html.text (String.fromInt redScore) ]
                     ]
                  , Html.div [ Html.Attributes.class "elm-match-actions" ]
-                    [ viewSquareIconButtonHtml "elm-match-icon danger" config.leaveAction "✕" "Leave game"
-                    , viewSquareIconButtonHtml "elm-match-icon"
+                    [ Screen.viewSquareIconButtonHtml "elm-match-icon danger" config.leaveAction "✕" "Leave game"
+                    , Screen.viewSquareIconButtonHtml "elm-match-icon"
                         config.pauseAction
                         (if config.isPaused then
                             "▶"
@@ -1839,7 +1837,7 @@ viewDesktopBoardScreenHtml config =
                             "⏸"
                         )
                         "Pause game"
-                    , viewSquareIconButtonHtml "elm-match-icon success" config.newRoundAction "↺" "Start new round"
+                    , Screen.viewSquareIconButtonHtml "elm-match-icon success" config.newRoundAction "↺" "Start new round"
                     ]
                  ]
                     ++ (case config.pauseOverlay of
@@ -1858,8 +1856,8 @@ viewDesktopBoardScreenHtml config =
                        )
                     ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed) then
                             Html.div [ Html.Attributes.class "seat-actions" ]
-                                [ viewGhostButtonHtml "ghost" config.showJoinBlue (Just (ClaimSeat "blue")) "Join Blue"
-                                , viewGhostButtonHtml "ghost" config.showJoinRed (Just (ClaimSeat "red")) "Join Red"
+                                [ Screen.viewGhostButtonHtml "ghost" config.showJoinBlue (Just (ClaimSeat "blue")) "Join Blue"
+                                , Screen.viewGhostButtonHtml "ghost" config.showJoinRed (Just (ClaimSeat "red")) "Join Red"
                                 ]
 
                          else
@@ -1954,7 +1952,7 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
             ++ (if showWinnerOverlay && config.showWinnerOverlay then
                     case winnerName of
                         Just name ->
-                            [ viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction ]
+                            [ Screen.viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction DismissWinnerBanner ]
 
                         Nothing ->
                             []
@@ -2518,41 +2516,6 @@ viewBoardBadgeHtml position color name score =
         ]
 
 
-viewWinnerOverlayHtml : Bool -> String -> Maybe Msg -> Html Msg
-viewWinnerOverlayHtml isCompactLayout winnerName onNewRound =
-    Html.div
-        [ Html.Attributes.classList
-            [ ( "winner-overlay", True )
-            , ( "winner-overlay-mobile", isCompactLayout )
-            ]
-        , Html.Attributes.attribute "aria-live" "polite"
-        ]
-        [ Html.div [ Html.Attributes.class "winner-card" ]
-            [ Html.button
-                [ Html.Attributes.type_ "button"
-                , Html.Attributes.classList
-                    [ ( "winner-close", True )
-                    , ( "hidden", onNewRound == Nothing && not isCompactLayout )
-                    ]
-                , Html.Attributes.attribute "aria-label" "Close winner banner"
-                , Html.Events.onClick DismissWinnerBanner
-                ]
-                [ Html.text "×" ]
-            , Html.div [ Html.Attributes.class "winner-kicker" ] [ Html.text "Winner" ]
-            , Html.div [ Html.Attributes.class "winner-name" ] [ Html.text winnerName ]
-            , if isCompactLayout then
-                Html.text ""
-
-              else
-                Html.button
-                    ([ Html.Attributes.type_ "button", Html.Attributes.class "winner-new-round" ]
-                        ++ onClickAttributes onNewRound
-                    )
-                    [ Html.text "New Round" ]
-            ]
-        ]
-
-
 viewToast : String -> Element Msg
 viewToast message =
     el [ Element.htmlAttribute (Html.Attributes.id "toast"), Element.htmlAttribute (Html.Attributes.class "show") ]
@@ -2631,100 +2594,8 @@ viewRoundSummaryHtml winnerName blueScore redScore onNewRound =
         [ Html.p [ Html.Attributes.class "elm-match-summary-kicker" ] [ Html.text "Round complete" ]
         , Html.h3 [] [ Html.text (winnerName ++ " wins this round") ]
         , Html.p [ Html.Attributes.class "elm-match-meta" ] [ Html.text ("Score: Blue " ++ String.fromInt blueScore ++ " - Red " ++ String.fromInt redScore) ]
-        , viewGhostButtonHtml "elm-match-continue" True onNewRound "Continue / New Round"
+        , Screen.viewGhostButtonHtml "elm-match-continue" True onNewRound "Continue / New Round"
         ]
-
-
-viewGhostButtonHtml : String -> Bool -> Maybe Msg -> String -> Html Msg
-viewGhostButtonHtml baseClass isVisible onPress label =
-    Html.button
-        ([ Html.Attributes.type_ "button"
-         , Html.Attributes.disabled (onPress == Nothing)
-         , Html.Attributes.classList
-            [ ( baseClass, True )
-            , ( "hidden", not isVisible )
-            ]
-         ]
-            ++ onClickAttributes onPress
-        )
-        [ Html.text label ]
-
-
-viewPrimaryButtonHtml : Maybe Msg -> String -> Html Msg
-viewPrimaryButtonHtml onPress label =
-    Html.button
-        ([ Html.Attributes.type_ "button"
-         , Html.Attributes.class "primary"
-         , Html.Attributes.disabled (onPress == Nothing)
-         ]
-            ++ onClickAttributes onPress
-        )
-        [ Html.text label ]
-
-
-viewSquareIconButtonHtml : String -> Maybe Msg -> String -> String -> Html Msg
-viewSquareIconButtonHtml className onPress icon ariaLabel =
-    Html.button
-        ([ Html.Attributes.type_ "button"
-         , Html.Attributes.classList
-            [ ( className, True )
-            , ( "hidden", onPress == Nothing )
-            ]
-         , Html.Attributes.disabled (onPress == Nothing)
-         , Html.Attributes.attribute "aria-label" ariaLabel
-         , Html.Attributes.attribute
-            "data-elm-command"
-            (if ariaLabel == "Pause game" then
-                "pause"
-
-             else if ariaLabel == "Resume game" then
-                "resume"
-
-             else
-                ""
-            )
-         ]
-            ++ onClickAttributes onPress
-        )
-        [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text icon ] ]
-
-
-shareIconSvg : Html Msg
-shareIconSvg =
-    Svg.svg
-        [ SvgA.viewBox "0 0 24 24"
-        , SvgA.fill "none"
-        , SvgA.stroke "currentColor"
-        , SvgA.strokeWidth "2.2"
-        , SvgA.strokeLinecap "round"
-        , SvgA.strokeLinejoin "round"
-        , Html.Attributes.attribute "aria-hidden" "true"
-        , SvgA.width "18"
-        , SvgA.height "18"
-        ]
-        -- three circles connected: right-top (18,5), left-mid (6,12), right-bottom (18,19)
-        [ Svg.circle [ SvgA.cx "18", SvgA.cy "5", SvgA.r "3" ] []
-        , Svg.circle [ SvgA.cx "6", SvgA.cy "12", SvgA.r "3" ] []
-        , Svg.circle [ SvgA.cx "18", SvgA.cy "19", SvgA.r "3" ] []
-        , Svg.line [ SvgA.x1 "8.59", SvgA.y1 "13.51", SvgA.x2 "15.42", SvgA.y2 "17.49" ] []
-        , Svg.line [ SvgA.x1 "15.41", SvgA.y1 "6.51", SvgA.x2 "8.59", SvgA.y2 "10.49" ] []
-        ]
-
-
-viewShareIconButtonHtml : String -> Maybe Msg -> String -> Html Msg
-viewShareIconButtonHtml className onPress ariaLabel =
-    Html.button
-        ([ Html.Attributes.type_ "button"
-         , Html.Attributes.classList
-            [ ( className, True )
-            , ( "hidden", onPress == Nothing )
-            ]
-         , Html.Attributes.disabled (onPress == Nothing)
-         , Html.Attributes.attribute "aria-label" ariaLabel
-         ]
-            ++ onClickAttributes onPress
-        )
-        [ shareIconSvg ]
 
 
 viewShareMobileButton : Msg -> Element Msg
@@ -2744,7 +2615,7 @@ viewShareMobileButton shareMsg =
         { onPress = Just shareMsg
         , label =
             el [ centerX, centerY ]
-                (Element.html shareIconSvg)
+                (Element.html Screen.shareIconSvg)
         }
 
 
