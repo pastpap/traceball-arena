@@ -1242,63 +1242,72 @@ viewMobileApp model hasGame lobbyLayout gameView =
 
 viewGameHeader : Model -> Element Msg
 viewGameHeader model =
-    let
-        heroStatus =
-            case activeBoard model of
-                Just board ->
-                    let
-                        ownSeat =
-                            derivedOwnSeat model board
+    Header.viewDesktopGame (gameHeaderConfig model)
 
-                        turn =
-                            board.currentSession
-                                |> Maybe.andThen .round
-                                |> Maybe.map .turn
-                                |> Maybe.withDefault ""
-                    in
-                    { boardCode = board.code
-                    , roleText =
-                        case ownSeat of
-                            Just seatId ->
-                                "You are " ++ turnColorLabel seatId
 
-                            Nothing ->
-                                "Watching"
-                    , roleClass = ownSeat |> Maybe.map normalizeSeatId |> Maybe.withDefault ""
+heroStatusFor : Model -> Header.HeroStatus
+heroStatusFor model =
+    case activeBoard model of
+        Just board ->
+            let
+                ownSeat =
+                    derivedOwnSeat model board
+
+                turn =
+                    board.currentSession
+                        |> Maybe.andThen .round
+                        |> Maybe.map .turn
+                        |> Maybe.withDefault ""
+            in
+            { boardCode = board.code
+            , roleText =
+                case ownSeat of
+                    Just seatId ->
+                        "You are " ++ turnColorLabel seatId
+
+                    Nothing ->
+                        "Watching"
+            , roleClass = ownSeat |> Maybe.map normalizeSeatId |> Maybe.withDefault ""
+            , turnText =
+                if String.isEmpty turn then
+                    waitingStatusTextForBoard board
+
+                else
+                    "Turn: " ++ turnColorLabel turn
+            }
+
+        Nothing ->
+            case activeLocalGame model of
+                Just lg ->
+                    { boardCode = "LOCAL"
+                    , roleText = "You are " ++ turnColorLabel lg.turn
+                    , roleClass = normalizeSeatId lg.turn
                     , turnText =
-                        if String.isEmpty turn then
-                            waitingStatusTextForBoard board
+                        if model.localPaused then
+                            "Paused"
+
+                        else if lg.winner /= Nothing then
+                            "Round complete"
 
                         else
-                            "Turn: " ++ turnColorLabel turn
+                            "Turn: " ++ turnColorLabel lg.turn
                     }
 
                 Nothing ->
-                    case activeLocalGame model of
-                        Just lg ->
-                            { boardCode = "LOCAL"
-                            , roleText = "You are " ++ turnColorLabel lg.turn
-                            , roleClass = normalizeSeatId lg.turn
-                            , turnText =
-                                if model.localPaused then
-                                    "Paused"
+                    { boardCode = "", roleText = "", roleClass = "", turnText = "" }
 
-                                else if lg.winner /= Nothing then
-                                    "Round complete"
 
-                                else
-                                    "Turn: " ++ turnColorLabel lg.turn
-                            }
-
-                        Nothing ->
-                            { boardCode = "", roleText = "", roleClass = "", turnText = "" }
+gameHeaderConfig : Model -> Header.DesktopGameConfig Msg
+gameHeaderConfig model =
+    let
+        heroStatus =
+            heroStatusFor model
     in
-    Header.viewDesktopGame
-        { status = heroStatus
-        , roleContainerClass = heroRoleClass heroStatus.roleClass
-        , toggleLobby = ToggleLobby
-        , openMenu = OpenAppMenu
-        }
+    { status = heroStatus
+    , roleContainerClass = heroRoleClass heroStatus.roleClass
+    , toggleLobby = ToggleLobby
+    , openMenu = OpenAppMenu
+    }
 
 
 mobileHeaderActions : Header.MobileActions Msg
@@ -1352,63 +1361,7 @@ gradientTabButton label active onPress =
 
 viewHeaderHtml : Model -> Bool -> Html Msg
 viewHeaderHtml model hasGame =
-    let
-        heroStatus =
-            case activeBoard model of
-                Just board ->
-                    let
-                        ownSeat =
-                            derivedOwnSeat model board
-
-                        turn =
-                            board.currentSession
-                                |> Maybe.andThen .round
-                                |> Maybe.map .turn
-                                |> Maybe.withDefault ""
-                    in
-                    { boardCode = board.code
-                    , roleText =
-                        case ownSeat of
-                            Just seatId ->
-                                "You are " ++ turnColorLabel seatId
-
-                            Nothing ->
-                                "Watching"
-                    , roleClass = ownSeat |> Maybe.map normalizeSeatId |> Maybe.withDefault ""
-                    , turnText =
-                        if String.isEmpty turn then
-                            waitingStatusTextForBoard board
-
-                        else
-                            "Turn: " ++ turnColorLabel turn
-                    }
-
-                Nothing ->
-                    case activeLocalGame model of
-                        Just lg ->
-                            { boardCode = "LOCAL"
-                            , roleText = "You are " ++ turnColorLabel lg.turn
-                            , roleClass = normalizeSeatId lg.turn
-                            , turnText =
-                                if model.localPaused then
-                                    "Paused"
-
-                                else if lg.winner /= Nothing then
-                                    "Round complete"
-
-                                else
-                                    "Turn: " ++ turnColorLabel lg.turn
-                            }
-
-                        Nothing ->
-                            { boardCode = "", roleText = "", roleClass = "", turnText = "" }
-    in
-    Header.viewHtml hasGame
-        { status = heroStatus
-        , roleContainerClass = heroRoleClass heroStatus.roleClass
-        , toggleLobby = ToggleLobby
-        , openMenu = OpenAppMenu
-        }
+    Header.viewHtml hasGame (gameHeaderConfig model)
 
 
 heroRoleClass : String -> String

@@ -834,13 +834,33 @@ describe("Elm modularization static guard", () => {
       expect(html).toContain(marker);
     }
     expect(html).not.toMatch(/activeBoard|derivedOwnSeat|activeLocalGame|\bModel\b|\bMsg\b/);
-    const adapter = mainSource.split('viewHeaderHtml model hasGame =')[1].split('heroRoleClass :')[0];
+    const adapter = mainSource.split('viewHeaderHtml model hasGame =')[1].split('heroRoleClass :')[0]
+      + mainSource.split('heroStatusFor model =')[1].split('mobileHeaderActions :')[0];
     expect(adapter).toContain('Header.viewHtml hasGame');
     expect(adapter).toContain('status = heroStatus');
     expect(adapter).toContain('roleContainerClass = heroRoleClass heroStatus.roleClass');
     expect(adapter).toContain('derivedOwnSeat model board');
     expect(adapter).toContain('model.localPaused');
     expect(adapter).not.toContain('Html.section');
+  });
+
+  it("shares root-owned header status and config between renderers", () => {
+    expect(mainSource).toContain("heroStatusFor : Model -> Header.HeroStatus");
+    expect(mainSource).toContain("gameHeaderConfig : Model -> Header.DesktopGameConfig Msg");
+    expect(mainSource).toContain("Header.viewDesktopGame (gameHeaderConfig model)");
+    expect(mainSource).toContain("Header.viewHtml hasGame (gameHeaderConfig model)");
+    const builder = mainSource.split("gameHeaderConfig model =")[1].split("mobileHeaderActions :")[0];
+    expect(builder).toContain("heroStatusFor model");
+    expect(builder).toContain("status = heroStatus");
+    expect(builder).toContain("roleContainerClass = heroRoleClass heroStatus.roleClass");
+    const status = mainSource.split("heroStatusFor model =")[1].split("gameHeaderConfig :")[0];
+    expect(status).toContain("case activeBoard model of");
+    expect(status).toContain("derivedOwnSeat model board");
+    expect(status).toContain("case activeLocalGame model of");
+    expect(status).toContain("waitingStatusTextForBoard board");
+    expect(status.indexOf('if model.localPaused then')).toBeLessThan(status.indexOf('else if lg.winner /= Nothing then'));
+    for (const text of ['"Watching"', '"LOCAL"', '"Paused"', '"Round complete"', '"Turn: "']) expect(status).toContain(text);
+    expect(mainSource.match(/heroStatusFor model =/g)).toHaveLength(1);
   });
 
 });
