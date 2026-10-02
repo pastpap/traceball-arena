@@ -388,10 +388,10 @@ describe("Elm modularization static guard", () => {
     }
     expect(source).toContain("import Element exposing");
     expect(source).toContain("import Element.Input as Input");
-    expect(mainSource).toContain("Screen.viewMobileActionButton");
-    expect(mainSource).toContain("Screen.viewMobileJoinSeatButton");
-    expect(mainSource).toContain("Screen.viewMobilePrimaryActionButton");
-    expect(mainSource).toContain("Screen.viewShareMobileButton");
+    expect(source).toContain("viewMobileActionButton");
+    expect(source).toContain("viewMobileJoinSeatButton");
+    expect(source).toContain("viewMobilePrimaryActionButton");
+    expect(source).toContain("viewShareMobileButton");
     expect(mainSource).not.toContain("viewMobileActionButton : Bool -> Msg -> String -> String -> Element Msg");
     expect(mainSource).not.toContain("viewMobileJoinSeatButton : String -> Msg -> Element Msg");
     expect(mainSource).not.toContain("viewMobilePrimaryActionButton : Msg -> String -> String -> Element Msg");
@@ -433,9 +433,9 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.mobileCard");
-    expect(mainSource).toContain("Screen.viewMobileTimerChip");
-    expect(mainSource).toContain("Screen.viewMobileScorePill");
+    expect(source).toContain("mobileCard");
+    expect(source).toContain("viewMobileTimerChip");
+    expect(source).toContain("viewMobileScorePill");
     expect(mainSource).toContain("Screen.viewMobileReplayCard");
     expect(mainSource).not.toContain("viewMobileTimerChip : Maybe Int -> Maybe Int -> Element Msg");
     expect(mainSource).not.toContain("viewMobileScorePill : String -> String -> Int -> Element Msg");
@@ -486,5 +486,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("type alias BoardTurnWidgetData");
     expect(mainSource).not.toContain("viewBoardTurnWidgetsHtml : BoardScreenConfig Msg -> Html Msg");
     expect(mainSource).not.toContain("boardTurnWidgetData : BoardScreenConfig Msg -> Maybe BoardTurnWidgetData");
+  });
+
+  it("extracts the mobile top-card shell", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewMobileTopCard",
+      "ROUND COMPLETE",
+      "statusBanner",
+      "viewMobileScorePill",
+      "viewMobileJoinSeatButton",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewMobileTopCard");
+    expect(mainSource).not.toContain("viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg");
+    expect(mainSource).not.toContain("ROUND COMPLETE");
   });
 });

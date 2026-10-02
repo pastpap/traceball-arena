@@ -1,7 +1,7 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board, BoardState(..))
-import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width)
+import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
@@ -530,6 +530,87 @@ viewMobileEllipsisText alignEnd size label =
         , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
         ]
         (text label)
+
+
+viewMobileTopCard : BoardScreenConfig msg -> Maybe msg -> Maybe msg -> String -> String -> String -> Int -> Int -> Element msg
+viewMobileTopCard config joinBlueAction joinRedAction statusBanner blueName redName blueScore redScore =
+    if config.newRoundAction /= Nothing then
+        mobileCard
+            [ row [ width fill, centerY ]
+                [ el [ Font.color (Element.rgba255 255 255 255 170), Font.size 11, Font.semiBold ] (text config.matchSubtitle)
+                , el [ alignRight, Font.color (rgb255 141 255 174), Font.size 11, Font.bold, Font.letterSpacing 1 ] (text "ROUND COMPLETE")
+                ]
+            , row [ width fill, spacing 8, centerY ]
+                [ viewMobileScorePill "blue" blueName blueScore
+                , viewMobileScorePill "red" redName redScore
+                ]
+            , row [ width fill, spacing 10 ] <|
+                List.filterMap identity
+                    [ config.newRoundAction |> Maybe.map (\msg -> viewMobilePrimaryActionButton msg "▶" "Continue")
+                    , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
+                    ]
+            ]
+
+    else
+        mobileCard
+            [ row [ width fill, centerY ]
+                [ viewMobileTimerChip config.timerSecs config.timerRemainingSecs
+                , el [ alignRight, Font.color (Element.rgba255 255 255 255 170), Font.size 11, Font.semiBold ] (text config.matchSubtitle)
+                ]
+            , el
+                [ width fill
+                , paddingXY 12 10
+                , Border.rounded 18
+                , Bg.color
+                    (if config.turnIndicatorIsRed then
+                        rgb255 83 29 26
+
+                     else
+                        rgb255 17 54 76
+                    )
+                , Border.width 1
+                , Border.color (rgb255 76 106 118)
+                , Font.color (rgb255 245 249 244)
+                , Font.size 15
+                , Font.bold
+                ]
+                (paragraph [] [ text statusBanner ])
+            , row [ width fill, spacing 8, centerY ]
+                [ viewMobileScorePill "blue" blueName blueScore
+                , viewMobileScorePill "red" redName redScore
+                ]
+            , wrappedRow [ width fill, spacing 10 ] <|
+                List.filterMap identity
+                    [ joinBlueAction |> Maybe.map (viewMobileJoinSeatButton "blue")
+                    , joinRedAction |> Maybe.map (viewMobileJoinSeatButton "red")
+                    , config.pauseAction
+                        |> Maybe.map
+                            (\msg ->
+                                viewMobileActionButton False
+                                    msg
+                                    (if config.isPaused then
+                                        "▶"
+
+                                     else
+                                        "⏸"
+                                    )
+                                    (if config.isPaused then
+                                        "Resume"
+
+                                     else
+                                        "Pause"
+                                    )
+                            )
+                    , config.shareAction |> Maybe.map viewShareMobileButton
+                    , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
+                    ]
+            , case config.pauseOverlay of
+                Just overlay ->
+                    el [ width fill ] (Element.html (viewPausePanelHtml overlay))
+
+                Nothing ->
+                    none
+            ]
 
 
 viewMobileReplayCard : ReplayActions msg -> Maybe Int -> Int -> Element msg

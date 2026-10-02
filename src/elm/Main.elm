@@ -1912,7 +1912,25 @@ viewMobileBoardScreen config =
                     config.turnIndicatorText
     in
     column [ width fill, spacing 12 ]
-        [ viewMobileTopCard config statusBanner blueName redName blueScore redScore
+        [ Screen.viewMobileTopCard
+            config
+            (if config.showSeatActions && config.showJoinBlue then
+                Just (ClaimSeat "blue")
+
+             else
+                Nothing
+            )
+            (if config.showSeatActions && config.showJoinRed then
+                Just (ClaimSeat "red")
+
+             else
+                Nothing
+            )
+            statusBanner
+            blueName
+            redName
+            blueScore
+            redScore
         , el [ width fill, centerX ]
             (Element.html (viewBoardStageHtml True config blueName redName blueScore redScore winnerName))
         , Screen.viewMobileReplayCard
@@ -1975,95 +1993,6 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
                     []
                )
         )
-
-
-viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg
-viewMobileTopCard config statusBanner blueName redName blueScore redScore =
-    if config.newRoundAction /= Nothing then
-        Screen.mobileCard
-            [ row [ width fill, centerY ]
-                [ el [ Font.color (rgba255 255 255 255 170), Font.size 11, Font.semiBold ] (text config.matchSubtitle)
-                , el [ alignRight, Font.color (rgb255 141 255 174), Font.size 11, Font.bold, Font.letterSpacing 1 ] (text "ROUND COMPLETE")
-                ]
-            , row [ width fill, spacing 8, centerY ]
-                [ Screen.viewMobileScorePill "blue" blueName blueScore
-                , Screen.viewMobileScorePill "red" redName redScore
-                ]
-            , row [ width fill, spacing 10 ] <|
-                List.filterMap identity
-                    [ config.newRoundAction |> Maybe.map (\msg -> Screen.viewMobilePrimaryActionButton msg "▶" "Continue")
-                    , config.leaveAction |> Maybe.map (\msg -> Screen.viewMobileActionButton True msg "✕" "Leave")
-                    ]
-            ]
-
-    else
-        Screen.mobileCard
-            [ row [ width fill, centerY ]
-                [ Screen.viewMobileTimerChip config.timerSecs config.timerRemainingSecs
-                , el [ alignRight, Font.color (rgba255 255 255 255 170), Font.size 11, Font.semiBold ] (text config.matchSubtitle)
-                ]
-            , el
-                [ width fill
-                , paddingXY 12 10
-                , Border.rounded 18
-                , Bg.color
-                    (if config.turnIndicatorIsRed then
-                        rgb255 83 29 26
-
-                     else
-                        rgb255 17 54 76
-                    )
-                , Border.width 1
-                , Border.color (rgb255 76 106 118)
-                , Font.color (rgb255 245 249 244)
-                , Font.size 15
-                , Font.bold
-                ]
-                (paragraph [] [ text statusBanner ])
-            , row [ width fill, spacing 8, centerY ]
-                [ Screen.viewMobileScorePill "blue" blueName blueScore
-                , Screen.viewMobileScorePill "red" redName redScore
-                ]
-            , wrappedRow [ width fill, spacing 10 ] <|
-                List.filterMap identity
-                    [ if config.showSeatActions && config.showJoinBlue then
-                        Just (Screen.viewMobileJoinSeatButton "blue" (ClaimSeat "blue"))
-
-                      else
-                        Nothing
-                    , if config.showSeatActions && config.showJoinRed then
-                        Just (Screen.viewMobileJoinSeatButton "red" (ClaimSeat "red"))
-
-                      else
-                        Nothing
-                    , config.pauseAction
-                        |> Maybe.map
-                            (\msg ->
-                                Screen.viewMobileActionButton False
-                                    msg
-                                    (if config.isPaused then
-                                        "▶"
-
-                                     else
-                                        "⏸"
-                                    )
-                                    (if config.isPaused then
-                                        "Resume"
-
-                                     else
-                                        "Pause"
-                                    )
-                            )
-                    , config.shareAction |> Maybe.map (\msg -> Screen.viewShareMobileButton msg)
-                    , config.leaveAction |> Maybe.map (\msg -> Screen.viewMobileActionButton True msg "✕" "Leave")
-                    ]
-            , case config.pauseOverlay of
-                Just overlay ->
-                    el [ width fill ] (Element.html (Screen.viewPausePanelHtml overlay))
-
-                Nothing ->
-                    none
-            ]
 
 
 viewToast : String -> Element Msg
