@@ -316,7 +316,7 @@ describe("Elm modularization static guard", () => {
       "module Game.Screen exposing",
       "type alias PauseOverlayConfig",
       "type alias BoardScreenConfig",
-      "import Board.Types exposing (Board)",
+      "import Board.Types exposing (Board",
     ]) {
       expect(source).toContain(marker);
     }
@@ -461,11 +461,30 @@ describe("Elm modularization static guard", () => {
     }
     expect(mainSource).toContain("Screen.viewTimerPillHtml");
     expect(mainSource).toContain("Screen.viewBoardBadgeHtml");
-    expect(mainSource).toContain("Screen.viewBoardTurnChipHtml");
-    expect(mainSource).toContain("Screen.viewBoardTurnClockSlotHtml");
+    expect(mainSource).toContain("Screen.viewBoardTurnWidgetsHtml");
     expect(mainSource).not.toContain("viewTimerPillHtml : Maybe Int -> Maybe Int -> Html Msg");
     expect(mainSource).not.toContain("viewBoardBadgeHtml : String -> String -> String -> Int -> Html Msg");
     expect(mainSource).not.toContain("viewBoardTurnChipHtml : Bool -> Bool -> Int -> Html Msg");
     expect(mainSource).not.toContain("viewBoardTurnClockSlotHtml : String -> Bool -> Int -> Bool -> Bool -> Html Msg");
+  });
+
+  it("extracts board turn widget composition", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "type alias BoardTurnWidgetData",
+      "boardTurnWidgetData",
+      "viewBoardTurnWidgetsHtml",
+      "elm-board-turn-overlay",
+      "turn-blue",
+      "clockSeconds",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewBoardTurnWidgetsHtml normalizeSeatId config");
+    expect(mainSource).not.toContain("type alias BoardTurnWidgetData");
+    expect(mainSource).not.toContain("viewBoardTurnWidgetsHtml : BoardScreenConfig Msg -> Html Msg");
+    expect(mainSource).not.toContain("boardTurnWidgetData : BoardScreenConfig Msg -> Maybe BoardTurnWidgetData");
   });
 });

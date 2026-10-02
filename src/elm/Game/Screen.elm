@@ -1,6 +1,6 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
 
-import Board.Types exposing (Board)
+import Board.Types exposing (Board, BoardState(..))
 import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width)
 import Element.Background as Bg
 import Element.Border as Border
@@ -632,6 +632,97 @@ mobileCard children =
         , Font.size 13
         ]
         children
+
+
+type alias BoardTurnWidgetData =
+    { turnIsRed : Bool
+    , turnAtTop : Bool
+    , hopSerial : Int
+    , clockSeconds : Maybe Int
+    }
+
+
+viewBoardTurnWidgetsHtml : (String -> String) -> BoardScreenConfig msg -> Html msg
+viewBoardTurnWidgetsHtml normalizeSeatId config =
+    case boardTurnWidgetData normalizeSeatId config of
+        Nothing ->
+            Html.text ""
+
+        Just widget ->
+            let
+                warningThreshold =
+                    config.timerSecs
+                        |> Maybe.map (\limit -> min 5 (max 1 (round (toFloat limit * 0.34))))
+                        |> Maybe.withDefault 5
+
+                isDanger =
+                    widget.clockSeconds
+                        |> Maybe.map (\seconds -> seconds <= 3)
+                        |> Maybe.withDefault False
+
+                isWarning =
+                    not isDanger
+                        && (widget.clockSeconds
+                                |> Maybe.map (\seconds -> seconds <= warningThreshold)
+                                |> Maybe.withDefault False
+                           )
+            in
+            Html.div
+                [ Html.Attributes.classList
+                    [ ( "elm-board-turn-overlay", True )
+                    , ( "turn-red", widget.turnIsRed )
+                    , ( "turn-blue", not widget.turnIsRed )
+                    ]
+                ]
+                (viewBoardTurnChipHtml widget.turnIsRed widget.turnAtTop widget.hopSerial
+                    :: (case widget.clockSeconds of
+                            Just seconds ->
+                                [ viewBoardTurnClockSlotHtml "top" widget.turnAtTop seconds isWarning isDanger
+                                , viewBoardTurnClockSlotHtml "bottom" (not widget.turnAtTop) seconds isWarning isDanger
+                                ]
+
+                            Nothing ->
+                                []
+                       )
+                )
+
+
+boardTurnWidgetData : (String -> String) -> BoardScreenConfig msg -> Maybe BoardTurnWidgetData
+boardTurnWidgetData normalizeSeatId config =
+    if config.board.state /= SessionActive || config.replayIndex /= Nothing || config.isPaused then
+        Nothing
+
+    else
+        config.board.currentSession
+            |> Maybe.andThen .round
+            |> Maybe.map .turn
+            |> Maybe.andThen
+                (\turn ->
+                    if String.isEmpty turn then
+                        Nothing
+
+                    else
+                        let
+                            clockSeconds =
+                                case config.timerRemainingSecs of
+                                    Just seconds ->
+                                        Just (max 0 seconds)
+
+                                    Nothing ->
+                                        config.timerSecs
+                        in
+                        Just
+                            { turnIsRed = normalizeSeatId turn == "red"
+                            , turnAtTop =
+                                if config.boardFlipped then
+                                    normalizeSeatId turn /= "red"
+
+                                else
+                                    normalizeSeatId turn == "red"
+                            , hopSerial = config.turnHopSerial
+                            , clockSeconds = clockSeconds
+                            }
+                )
 
 
 viewTimerPillHtml : Maybe Int -> Maybe Int -> Html msg

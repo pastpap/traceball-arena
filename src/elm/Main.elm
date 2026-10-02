@@ -1954,7 +1954,7 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
         ([ viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board
          , Screen.viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
          , Screen.viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
-         , viewBoardTurnWidgetsHtml config
+         , Screen.viewBoardTurnWidgetsHtml normalizeSeatId config
          ]
             ++ (case config.pauseOverlay of
                     Just overlay ->
@@ -1975,97 +1975,6 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
                     []
                )
         )
-
-
-viewBoardTurnWidgetsHtml : BoardScreenConfig Msg -> Html Msg
-viewBoardTurnWidgetsHtml config =
-    case boardTurnWidgetData config of
-        Nothing ->
-            Html.text ""
-
-        Just widget ->
-            let
-                warningThreshold =
-                    config.timerSecs
-                        |> Maybe.map (\limit -> min 5 (max 1 (round (toFloat limit * 0.34))))
-                        |> Maybe.withDefault 5
-
-                isDanger =
-                    widget.clockSeconds
-                        |> Maybe.map (\seconds -> seconds <= 3)
-                        |> Maybe.withDefault False
-
-                isWarning =
-                    not isDanger
-                        && (widget.clockSeconds
-                                |> Maybe.map (\seconds -> seconds <= warningThreshold)
-                                |> Maybe.withDefault False
-                           )
-            in
-            Html.div
-                [ Html.Attributes.classList
-                    [ ( "elm-board-turn-overlay", True )
-                    , ( "turn-red", widget.turnIsRed )
-                    , ( "turn-blue", not widget.turnIsRed )
-                    ]
-                ]
-                (Screen.viewBoardTurnChipHtml widget.turnIsRed widget.turnAtTop widget.hopSerial
-                    :: (case widget.clockSeconds of
-                            Just seconds ->
-                                [ Screen.viewBoardTurnClockSlotHtml "top" widget.turnAtTop seconds isWarning isDanger
-                                , Screen.viewBoardTurnClockSlotHtml "bottom" (not widget.turnAtTop) seconds isWarning isDanger
-                                ]
-
-                            Nothing ->
-                                []
-                       )
-                )
-
-
-type alias BoardTurnWidgetData =
-    { turnIsRed : Bool
-    , turnAtTop : Bool
-    , hopSerial : Int
-    , clockSeconds : Maybe Int
-    }
-
-
-boardTurnWidgetData : BoardScreenConfig Msg -> Maybe BoardTurnWidgetData
-boardTurnWidgetData config =
-    if config.board.state /= SessionActive || config.replayIndex /= Nothing || config.isPaused then
-        Nothing
-
-    else
-        config.board.currentSession
-            |> Maybe.andThen .round
-            |> Maybe.map .turn
-            |> Maybe.andThen
-                (\turn ->
-                    if String.isEmpty turn then
-                        Nothing
-
-                    else
-                        let
-                            clockSeconds =
-                                case config.timerRemainingSecs of
-                                    Just seconds ->
-                                        Just (max 0 seconds)
-
-                                    Nothing ->
-                                        config.timerSecs
-                        in
-                        Just
-                            { turnIsRed = normalizeSeatId turn == "red"
-                            , turnAtTop =
-                                if config.boardFlipped then
-                                    normalizeSeatId turn /= "red"
-
-                                else
-                                    normalizeSeatId turn == "red"
-                            , hopSerial = config.turnHopSerial
-                            , clockSeconds = clockSeconds
-                            }
-                )
 
 
 viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg
