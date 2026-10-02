@@ -1,11 +1,11 @@
-module View.Header exposing (DesktopGameConfig, HeroStatus, viewDesktopGame, MobileActions, viewMobileGame, viewMobileLobby, viewMobileOpenGameStrip)
+module View.Header exposing (DesktopGameConfig, HeroStatus, viewDesktopGame, viewHtml, MobileActions, viewMobileGame, viewMobileLobby, viewMobileOpenGameStrip)
 
 import Element exposing (Element, alignRight, centerX, centerY, el, fill, height, inFront, none, paddingXY, px, rgb255, rgba255, row, spacing, text, width)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
-import Html
+import Html exposing (Html)
 import Html.Events
 import Html.Attributes
 
@@ -181,3 +181,59 @@ viewDesktopGame config =
                         [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
                 ]
             ]
+
+
+viewHtml : Bool -> DesktopGameConfig msg -> Html msg
+viewHtml hasGame config =
+    Html.section
+        [ Html.Attributes.class "hero" ]
+        [ Html.div
+            [ Html.Attributes.class "hero-copy" ]
+            [ Html.p [ Html.Attributes.class "eyebrow" ] [ Html.text "Realtime paper-soccer" ]
+            , Html.h1 [] [ Html.text "Traceball Arena" ]
+            , Html.p [ Html.Attributes.class "lede" ] [ Html.text "Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate." ]
+            ]
+        , Html.div
+            [ Html.Attributes.class "hero-brand" ]
+            [ Html.img [ Html.Attributes.class "hero-icon", Html.Attributes.src "/icon.svg", Html.Attributes.alt "" ] []
+            , Html.span [ Html.Attributes.class "hero-title" ] [ Html.text "Traceball Arena" ]
+            ]
+        , if hasGame then
+            Html.div
+                [ Html.Attributes.class "hero-game-status" ]
+                [ Html.span [ Html.Attributes.class "hero-board-code" ] [ Html.text config.status.boardCode ]
+                , Html.span [ Html.Attributes.class config.roleContainerClass ]
+                    (if String.isEmpty config.status.roleClass then
+                        [ Html.text config.status.roleText ]
+
+                     else
+                        [ Html.span [ Html.Attributes.class ("hero-role-dot " ++ config.status.roleClass) ] []
+                        , Html.text config.status.roleText
+                        ]
+                    )
+                , Html.span [ Html.Attributes.class "hero-turn-state" ] [ Html.text config.status.turnText ]
+                ]
+
+          else
+            Html.text ""
+        , Html.div
+            [ Html.Attributes.class "hero-actions" ]
+            [ if hasGame then
+                Html.button
+                    [ Html.Attributes.type_ "button"
+                    , Html.Attributes.class "hero-lobby-btn"
+                    , Html.Events.onClick config.toggleLobby
+                    ]
+                    [ Html.text "Lobby" ]
+
+              else
+                Html.text ""
+            , Html.button
+                [ Html.Attributes.type_ "button"
+                , Html.Attributes.class "app-menu-button"
+                , Html.Attributes.attribute "aria-label" "Open app menu"
+                , Html.Events.onClick config.openMenu
+                ]
+                [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
+            ]
+        ]

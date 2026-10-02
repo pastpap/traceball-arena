@@ -1403,58 +1403,12 @@ viewHeaderHtml model hasGame =
                         Nothing ->
                             { boardCode = "", roleText = "", roleClass = "", turnText = "" }
     in
-    Html.section
-        [ Html.Attributes.class "hero" ]
-        [ Html.div
-            [ Html.Attributes.class "hero-copy" ]
-            [ Html.p [ Html.Attributes.class "eyebrow" ] [ Html.text "Realtime paper-soccer" ]
-            , Html.h1 [] [ Html.text "Traceball Arena" ]
-            , Html.p [ Html.Attributes.class "lede" ] [ Html.text "Draw one line per move, bounce from old points and walls, and sneak the ball into the other gate." ]
-            ]
-        , Html.div
-            [ Html.Attributes.class "hero-brand" ]
-            [ Html.img [ Html.Attributes.class "hero-icon", Html.Attributes.src "/icon.svg", Html.Attributes.alt "" ] []
-            , Html.span [ Html.Attributes.class "hero-title" ] [ Html.text "Traceball Arena" ]
-            ]
-        , if hasGame then
-            Html.div
-                [ Html.Attributes.class "hero-game-status" ]
-                [ Html.span [ Html.Attributes.class "hero-board-code" ] [ Html.text heroStatus.boardCode ]
-                , Html.span [ Html.Attributes.class (heroRoleClass heroStatus.roleClass) ]
-                    (if String.isEmpty heroStatus.roleClass then
-                        [ Html.text heroStatus.roleText ]
-
-                     else
-                        [ Html.span [ Html.Attributes.class ("hero-role-dot " ++ heroStatus.roleClass) ] []
-                        , Html.text heroStatus.roleText
-                        ]
-                    )
-                , Html.span [ Html.Attributes.class "hero-turn-state" ] [ Html.text heroStatus.turnText ]
-                ]
-
-          else
-            Html.text ""
-        , Html.div
-            [ Html.Attributes.class "hero-actions" ]
-            [ if hasGame then
-                Html.button
-                    [ Html.Attributes.type_ "button"
-                    , Html.Attributes.class "hero-lobby-btn"
-                    , Html.Events.onClick ToggleLobby
-                    ]
-                    [ Html.text "Lobby" ]
-
-              else
-                Html.text ""
-            , Html.button
-                [ Html.Attributes.type_ "button"
-                , Html.Attributes.class "app-menu-button"
-                , Html.Attributes.attribute "aria-label" "Open app menu"
-                , Html.Events.onClick OpenAppMenu
-                ]
-                [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
-            ]
-        ]
+    Header.viewHtml hasGame
+        { status = heroStatus
+        , roleContainerClass = heroRoleClass heroStatus.roleClass
+        , toggleLobby = ToggleLobby
+        , openMenu = OpenAppMenu
+        }
 
 
 heroRoleClass : String -> String

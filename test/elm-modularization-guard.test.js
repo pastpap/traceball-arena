@@ -818,4 +818,29 @@ describe("Elm modularization static guard", () => {
     expect(adapter).not.toContain('hero-game-status');
   });
 
+  it("extracts HTML header while preserving game-only status and controls", () => {
+    const header = readFileSync("src/elm/View/Header.elm", "utf8");
+    expect(header).toContain("viewHtml : Bool -> DesktopGameConfig msg -> Html msg");
+    const html = header.split("viewHtml hasGame config =")[1];
+    expect(html.match(/if hasGame then/g)).toHaveLength(2);
+    expect(html).toContain("Html.Events.onClick config.toggleLobby");
+    expect(html).toContain("Html.Events.onClick config.openMenu");
+    expect(html).toContain("Html.Attributes.class config.roleContainerClass");
+    expect(html).toContain("String.isEmpty config.status.roleClass");
+    for (const field of ['boardCode', 'roleClass', 'roleText', 'turnText']) {
+      expect(html).toContain(`config.status.${field}`);
+    }
+    for (const marker of ['hero-copy','hero-brand','hero-game-status','hero-actions','Realtime paper-soccer','Open app menu']) {
+      expect(html).toContain(marker);
+    }
+    expect(html).not.toMatch(/activeBoard|derivedOwnSeat|activeLocalGame|\bModel\b|\bMsg\b/);
+    const adapter = mainSource.split('viewHeaderHtml model hasGame =')[1].split('heroRoleClass :')[0];
+    expect(adapter).toContain('Header.viewHtml hasGame');
+    expect(adapter).toContain('status = heroStatus');
+    expect(adapter).toContain('roleContainerClass = heroRoleClass heroStatus.roleClass');
+    expect(adapter).toContain('derivedOwnSeat model board');
+    expect(adapter).toContain('model.localPaused');
+    expect(adapter).not.toContain('Html.section');
+  });
+
 });
