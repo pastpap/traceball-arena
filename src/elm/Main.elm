@@ -1293,50 +1293,12 @@ viewGameHeader model =
                         Nothing ->
                             { boardCode = "", roleText = "", roleClass = "", turnText = "" }
     in
-    el
-        [ width fill
-        , Element.htmlAttribute (Html.Attributes.class "hero")
-        , inFront <|
-            el [ centerX, centerY ] <|
-                row
-                    [ spacing 9
-                    , centerX
-                    , centerY
-                    , Element.htmlAttribute (Html.Attributes.class "hero-game-status")
-                    ]
-                    [ el [ Element.htmlAttribute (Html.Attributes.class "hero-board-code"), Font.size 16, Font.color (rgb255 247 255 248), Font.bold ] (text heroStatus.boardCode)
-                    , el [ Element.htmlAttribute (Html.Attributes.class (heroRoleClass heroStatus.roleClass)) ] <|
-                        row [ spacing 6, centerY ] <|
-                            (if String.isEmpty heroStatus.roleClass then
-                                []
-
-                             else
-                                [ el [ Element.htmlAttribute (Html.Attributes.class ("hero-role-dot " ++ heroStatus.roleClass)) ] none ]
-                            )
-                                ++ [ el [ Font.size 13, Font.color (rgb255 240 248 244), Font.semiBold ] (text heroStatus.roleText) ]
-                    , el [ Element.htmlAttribute (Html.Attributes.class "hero-turn-state"), Font.size 13, Font.color (rgb255 213 230 217), Font.semiBold ] (text heroStatus.turnText)
-                    ]
-        ]
-    <|
-        row [ width fill, centerY ]
-            [ row [ spacing 9, centerY, Element.htmlAttribute (Html.Attributes.class "hero-brand") ]
-                [ Element.html <| Html.img [ Html.Attributes.class "hero-icon", Html.Attributes.src "/icon.svg", Html.Attributes.alt "" ] []
-                , el [ Element.htmlAttribute (Html.Attributes.class "hero-title"), Font.size 15, Font.color (rgb255 244 255 246), Font.bold ] (text "Traceball Arena")
-                ]
-            , row [ alignRight, spacing 7, centerY, Element.htmlAttribute (Html.Attributes.class "hero-actions") ]
-                [ Input.button
-                    [ Element.htmlAttribute (Html.Attributes.class "hero-lobby-btn"), Font.size 13, Font.color (rgb255 244 255 246), Font.semiBold ]
-                    { onPress = Just ToggleLobby, label = text "Lobby" }
-                , Element.html <|
-                    Html.button
-                        [ Html.Attributes.type_ "button"
-                        , Html.Attributes.class "app-menu-button"
-                        , Html.Attributes.attribute "aria-label" "Open app menu"
-                        , Html.Events.onClick OpenAppMenu
-                        ]
-                        [ Html.span [ Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "☰" ] ]
-                ]
-            ]
+    Header.viewDesktopGame
+        { status = heroStatus
+        , roleContainerClass = heroRoleClass heroStatus.roleClass
+        , toggleLobby = ToggleLobby
+        , openMenu = OpenAppMenu
+        }
 
 
 mobileHeaderActions : Header.MobileActions Msg

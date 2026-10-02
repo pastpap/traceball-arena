@@ -793,4 +793,29 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("viewMainTabs : Model -> Element Msg");
   });
 
+  it("extracts desktop game header while retaining app status derivation", () => {
+    const header = readFileSync("src/elm/View/Header.elm", "utf8");
+    expect(header).toContain("viewDesktopGame : DesktopGameConfig msg -> Element msg");
+    const desktop = header.split("viewDesktopGame config =")[1];
+    for (const field of ['boardCode', 'roleText', 'roleClass', 'turnText']) {
+      expect(desktop).toContain(`config.status.${field}`);
+    }
+    expect(desktop).toContain('Html.Attributes.class config.roleContainerClass');
+    expect(desktop).toContain('onPress = Just config.toggleLobby');
+    expect(desktop).toContain('Html.Events.onClick config.openMenu');
+    expect(desktop).toContain('String.isEmpty config.status.roleClass');
+    for (const marker of ['hero-game-status','hero-brand','hero-lobby-btn','Open app menu','/icon.svg']) {
+      expect(desktop).toContain(marker);
+    }
+    expect(desktop).not.toMatch(/activeBoard|derivedOwnSeat|activeLocalGame|\bModel\b|\bMsg\b/);
+    const adapter = mainSource.split('viewGameHeader model =')[1].split('mobileHeaderActions :')[0];
+    expect(adapter).toContain('derivedOwnSeat model board');
+    expect(adapter).toContain('activeLocalGame model');
+    expect(adapter).toContain('model.localPaused');
+    expect(adapter).toContain('Header.viewDesktopGame');
+    expect(adapter).toContain('status = heroStatus');
+    expect(adapter).toContain('roleContainerClass = heroRoleClass heroStatus.roleClass');
+    expect(adapter).not.toContain('hero-game-status');
+  });
+
 });
