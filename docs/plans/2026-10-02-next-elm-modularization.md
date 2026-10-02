@@ -1,5 +1,7 @@
 # Next Elm Modularization Implementation Plan
 
+> **Status (2026-10-03):** Compiler checkpoint and E9–E11 peripheral-view/layout slices are complete through `7e61491`. This document is retained as the historical execution plan. The active next-step plan is [Elm reassessment and verification-first roadmap](2026-10-03-elm-reassessment-roadmap.md): executable Elm tests first, then a pure local-to-board adapter, followed by a conditional Game.Screen review. Later-slice device smoke is not assumed confirmed.
+
 > **For Hermes:** Use subagent-driven-development skill to implement this plan task-by-task.
 
 **Goal:** Finish extracting cohesive peripheral views while preserving gameplay and establishing real compile/deployment evidence.
