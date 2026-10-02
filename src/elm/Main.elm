@@ -22,6 +22,7 @@ import View.Menu as Menu
 import View.Rules as Rules
 import View.Timer as Timer
 import View.Header as Header
+import View.Layout as Layout
 import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
@@ -1319,44 +1320,12 @@ mobileHeaderActions =
 
 viewMainTabs : Model -> Element Msg
 viewMainTabs model =
-    row
-        [ width fill
-        , Bg.color (rgb255 14 44 22)
-        , Border.width 1
-        , Border.color (rgb255 72 106 82)
-        , Border.rounded 28
-        , padding 4
-        , spacing 0
-        ]
-        [ gradientTabButton "Setup" (model.mainTab == "game") (SetMainTab "game")
-        , gradientTabButton "Boards" (model.mainTab == "boards") (SetMainTab "boards")
-        ]
-
-
-gradientTabButton : String -> Bool -> Msg -> Element Msg
-gradientTabButton label active onPress =
-    Input.button
-        ([ width fill
-         , paddingXY 0 11
-         , Border.rounded 24
-         , Font.bold
-         , Font.size 15
-         , Font.color
-            (if active then
-                rgb255 10 20 10
-
-             else
-                rgba255 255 255 255 140
-            )
-         ]
-            ++ (if active then
-                    [ Element.htmlAttribute (Html.Attributes.style "background" "linear-gradient(135deg, #27c050 0%, #1da0ea 100%)") ]
-
-                else
-                    []
-               )
-        )
-        { onPress = Just onPress, label = el [ centerX ] (text label) }
+    Layout.viewMainTabs
+        { setupActive = model.mainTab == "game"
+        , boardsActive = model.mainTab == "boards"
+        , showSetup = SetMainTab "game"
+        , showBoards = SetMainTab "boards"
+        }
 
 
 viewHeaderHtml : Model -> Bool -> Html Msg

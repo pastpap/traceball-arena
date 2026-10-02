@@ -863,4 +863,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource.match(/heroStatusFor model =/g)).toHaveLength(1);
   });
 
+  it("extracts main tabs without relocating navigation state", () => {
+    expect(existsSync("src/elm/View/Layout.elm")).toBe(true);
+    const layout = readFileSync("src/elm/View/Layout.elm", "utf8");
+    expect(layout).toContain("viewMainTabs : MainTabsConfig msg -> Element msg");
+    expect(layout).toContain('gradientTabButton "Setup" config.setupActive config.showSetup');
+    expect(layout).toContain('gradientTabButton "Boards" config.boardsActive config.showBoards');
+    expect(layout).toContain("gradientTabButton : String -> Bool -> msg -> Element msg");
+    expect(layout).toContain("onPress = Just onPress");
+    expect(layout).toContain("if active then");
+    expect(layout).toContain("linear-gradient(135deg, #27c050 0%, #1da0ea 100%)");
+    expect(layout).not.toMatch(/import Main|\bModel\b|\bMsg\b|\bSetMainTab\b/);
+    expect(mainSource).not.toMatch(/^gradientTabButton\s*:/m);
+    expect(mainSource).toContain("Layout.viewMainTabs");
+    expect(mainSource).toContain('setupActive = model.mainTab == "game"');
+    expect(mainSource).toContain('boardsActive = model.mainTab == "boards"');
+    expect(mainSource).toContain('showSetup = SetMainTab "game"');
+    expect(mainSource).toContain('showBoards = SetMainTab "boards"');
+  });
+
 });
