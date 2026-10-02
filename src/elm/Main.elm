@@ -2103,8 +2103,8 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                 ]
             , row [ width fill, spacing 10 ] <|
                 List.filterMap identity
-                    [ config.newRoundAction |> Maybe.map (\msg -> viewMobilePrimaryActionButton msg "▶" "Continue")
-                    , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
+                    [ config.newRoundAction |> Maybe.map (\msg -> Screen.viewMobilePrimaryActionButton msg "▶" "Continue")
+                    , config.leaveAction |> Maybe.map (\msg -> Screen.viewMobileActionButton True msg "✕" "Leave")
                     ]
             ]
 
@@ -2139,19 +2139,19 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
             , wrappedRow [ width fill, spacing 10 ] <|
                 List.filterMap identity
                     [ if config.showSeatActions && config.showJoinBlue then
-                        Just (viewMobileJoinSeatButton "blue" (ClaimSeat "blue"))
+                        Just (Screen.viewMobileJoinSeatButton "blue" (ClaimSeat "blue"))
 
                       else
                         Nothing
                     , if config.showSeatActions && config.showJoinRed then
-                        Just (viewMobileJoinSeatButton "red" (ClaimSeat "red"))
+                        Just (Screen.viewMobileJoinSeatButton "red" (ClaimSeat "red"))
 
                       else
                         Nothing
                     , config.pauseAction
                         |> Maybe.map
                             (\msg ->
-                                viewMobileActionButton False
+                                Screen.viewMobileActionButton False
                                     msg
                                     (if config.isPaused then
                                         "▶"
@@ -2166,8 +2166,8 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                                         "Pause"
                                     )
                             )
-                    , config.shareAction |> Maybe.map (\msg -> viewShareMobileButton msg)
-                    , config.leaveAction |> Maybe.map (\msg -> viewMobileActionButton True msg "✕" "Leave")
+                    , config.shareAction |> Maybe.map (\msg -> Screen.viewShareMobileButton msg)
+                    , config.leaveAction |> Maybe.map (\msg -> Screen.viewMobileActionButton True msg "✕" "Leave")
                     ]
             , case config.pauseOverlay of
                 Just overlay ->
@@ -2281,108 +2281,6 @@ viewMobileEllipsisText alignEnd size label =
         , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
         ]
         (text label)
-
-
-viewMobileActionButton : Bool -> Msg -> String -> String -> Element Msg
-viewMobileActionButton isDanger msg icon label =
-    Input.button
-        [ width fill
-        , paddingXY 0 10
-        , Border.rounded 16
-        , Border.width 1
-        , Border.color
-            (if isDanger then
-                rgb255 219 80 73
-
-             else
-                rgb255 70 92 74
-            )
-        , Bg.color
-            (if isDanger then
-                rgb255 86 24 20
-
-             else
-                rgb255 28 54 31
-            )
-        , Font.color (rgb255 248 241 238)
-        , Font.size 16
-        , Font.bold
-        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
-        , Element.htmlAttribute
-            (Html.Attributes.attribute
-                "data-elm-command"
-                (if label == "Pause" then
-                    "pause"
-
-                 else if label == "Resume" then
-                    "resume"
-
-                 else
-                    ""
-                )
-            )
-        ]
-        { onPress = Just msg, label = el [ centerX, centerY ] (text icon) }
-
-
-viewMobileJoinSeatButton : String -> Msg -> Element Msg
-viewMobileJoinSeatButton seat msg =
-    let
-        seatLabel =
-            if seat == "red" then
-                "Red"
-
-            else
-                "Blue"
-
-        dotColor =
-            if seat == "red" then
-                rgb255 255 88 80
-
-            else
-                rgb255 58 151 255
-
-        borderColor =
-            if seat == "red" then
-                rgb255 153 55 51
-
-            else
-                rgb255 54 106 173
-    in
-    Input.button
-        [ width fill
-        , paddingXY 10 10
-        , Border.rounded 16
-        , Border.width 1
-        , Border.color borderColor
-        , Bg.color (rgb255 28 54 31)
-        , Font.color (rgb255 248 241 238)
-        , Font.size 14
-        , Font.bold
-        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" ("Join " ++ seatLabel))
-        ]
-        { onPress = Just msg
-        , label =
-            row [ centerX, centerY, spacing 8 ]
-                [ el [ Font.color dotColor, Font.size 14 ] (text "●")
-                , text ("Join " ++ seatLabel)
-                ]
-        }
-
-
-viewMobilePrimaryActionButton : Msg -> String -> String -> Element Msg
-viewMobilePrimaryActionButton msg icon label =
-    Input.button
-        [ width fill
-        , paddingXY 0 10
-        , Border.rounded 16
-        , Bg.color (rgb255 246 185 43)
-        , Font.color (rgb255 50 29 0)
-        , Font.bold
-        , Font.size 16
-        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
-        ]
-        { onPress = Just msg, label = el [ centerX, centerY ] (text icon) }
 
 
 viewMobileReplayCard : Maybe Int -> Int -> Element Msg
@@ -2596,27 +2494,6 @@ viewRoundSummaryHtml winnerName blueScore redScore onNewRound =
         , Html.p [ Html.Attributes.class "elm-match-meta" ] [ Html.text ("Score: Blue " ++ String.fromInt blueScore ++ " - Red " ++ String.fromInt redScore) ]
         , Screen.viewGhostButtonHtml "elm-match-continue" True onNewRound "Continue / New Round"
         ]
-
-
-viewShareMobileButton : Msg -> Element Msg
-viewShareMobileButton shareMsg =
-    Input.button
-        [ width fill
-        , paddingXY 0 10
-        , Border.rounded 16
-        , Border.width 1
-        , Border.color (rgb255 98 232 248)
-        , Bg.color (rgba255 11 124 255 36)
-        , Font.color (rgb255 232 251 255)
-        , Font.size 16
-        , Font.bold
-        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" "Share")
-        ]
-        { onPress = Just shareMsg
-        , label =
-            el [ centerX, centerY ]
-                (Element.html Screen.shareIconSvg)
-        }
 
 
 applyToastTick : Int -> Model -> Model

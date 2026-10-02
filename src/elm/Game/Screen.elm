@@ -1,6 +1,11 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, shareIconSvg, viewGhostButtonHtml, viewPauseOverlayHtml, viewPausePanelHtml, viewShareIconButtonHtml, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, shareIconSvg, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewPauseOverlayHtml, viewPausePanelHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board)
+import Element exposing (Element, centerX, centerY, el, fill, paddingXY, rgb255, row, spacing, text, width)
+import Element.Background as Bg
+import Element.Border as Border
+import Element.Font as Font
+import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
@@ -213,6 +218,129 @@ viewShareIconButtonHtml className onPress ariaLabel =
             ++ onClickAttributes onPress
         )
         [ shareIconSvg ]
+
+
+viewMobileActionButton : Bool -> msg -> String -> String -> Element msg
+viewMobileActionButton isDanger msg icon label =
+    Input.button
+        [ width fill
+        , paddingXY 0 10
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color
+            (if isDanger then
+                rgb255 219 80 73
+
+             else
+                rgb255 70 92 74
+            )
+        , Bg.color
+            (if isDanger then
+                rgb255 86 24 20
+
+             else
+                rgb255 28 54 31
+            )
+        , Font.color (rgb255 248 241 238)
+        , Font.size 16
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
+        , Element.htmlAttribute
+            (Html.Attributes.attribute
+                "data-elm-command"
+                (if label == "Pause" then
+                    "pause"
+
+                 else if label == "Resume" then
+                    "resume"
+
+                 else
+                    ""
+                )
+            )
+        ]
+        { onPress = Just msg, label = el [ centerX, centerY ] (text icon) }
+
+
+viewMobileJoinSeatButton : String -> msg -> Element msg
+viewMobileJoinSeatButton seat msg =
+    let
+        seatLabel =
+            if seat == "red" then
+                "Red"
+
+            else
+                "Blue"
+
+        dotColor =
+            if seat == "red" then
+                rgb255 255 88 80
+
+            else
+                rgb255 58 151 255
+
+        borderColor =
+            if seat == "red" then
+                rgb255 153 55 51
+
+            else
+                rgb255 54 106 173
+    in
+    Input.button
+        [ width fill
+        , paddingXY 10 10
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color borderColor
+        , Bg.color (rgb255 28 54 31)
+        , Font.color (rgb255 248 241 238)
+        , Font.size 14
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" ("Join " ++ seatLabel))
+        ]
+        { onPress = Just msg
+        , label =
+            row [ centerX, centerY, spacing 8 ]
+                [ el [ Font.color dotColor, Font.size 14 ] (text "●")
+                , text ("Join " ++ seatLabel)
+                ]
+        }
+
+
+viewMobilePrimaryActionButton : msg -> String -> String -> Element msg
+viewMobilePrimaryActionButton msg icon label =
+    Input.button
+        [ width fill
+        , paddingXY 0 10
+        , Border.rounded 16
+        , Bg.color (rgb255 246 185 43)
+        , Font.color (rgb255 50 29 0)
+        , Font.bold
+        , Font.size 16
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
+        ]
+        { onPress = Just msg, label = el [ centerX, centerY ] (text icon) }
+
+
+viewShareMobileButton : msg -> Element msg
+viewShareMobileButton shareMsg =
+    Input.button
+        [ width fill
+        , paddingXY 0 10
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color (rgb255 98 232 248)
+        , Bg.color (Element.rgba255 11 124 255 36)
+        , Font.color (rgb255 232 251 255)
+        , Font.size 16
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" "Share")
+        ]
+        { onPress = Just shareMsg
+        , label =
+            el [ centerX, centerY ]
+                (Element.html shareIconSvg)
+        }
 
 
 onClickAttributes : Maybe msg -> List (Html.Attribute msg)

@@ -371,4 +371,30 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewSquareIconButtonHtml : String -> Maybe Msg -> String -> String -> Html Msg");
     expect(mainSource).not.toContain("viewShareIconButtonHtml : String -> Maybe Msg -> String -> Html Msg");
   });
+
+  it("extracts mobile game action controls", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewMobileActionButton",
+      "viewMobileJoinSeatButton",
+      "viewMobilePrimaryActionButton",
+      "viewShareMobileButton",
+      "Join ",
+      "data-elm-command",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Element exposing");
+    expect(source).toContain("import Element.Input as Input");
+    expect(mainSource).toContain("Screen.viewMobileActionButton");
+    expect(mainSource).toContain("Screen.viewMobileJoinSeatButton");
+    expect(mainSource).toContain("Screen.viewMobilePrimaryActionButton");
+    expect(mainSource).toContain("Screen.viewShareMobileButton");
+    expect(mainSource).not.toContain("viewMobileActionButton : Bool -> Msg -> String -> String -> Element Msg");
+    expect(mainSource).not.toContain("viewMobileJoinSeatButton : String -> Msg -> Element Msg");
+    expect(mainSource).not.toContain("viewMobilePrimaryActionButton : Msg -> String -> String -> Element Msg");
+    expect(mainSource).not.toContain("viewShareMobileButton : Msg -> Element Msg");
+  });
 });
