@@ -720,4 +720,29 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("viewHistoryReplayHtml : Model -> LocalGame -> Html Msg");
   });
 
+  it("extracts timer control and native select without moving target semantics", () => {
+    expect(existsSync("src/elm/View/Timer.elm")).toBe(true);
+    const timer = readFileSync("src/elm/View/Timer.elm", "utf8");
+    expect(timer).toContain("viewControl : ControlConfig msg -> Element msg");
+    expect(timer).toContain("viewSelect : ControlConfig msg -> Element msg");
+    expect(timer).toContain("import Shared.Timer exposing (moveTimerLabel, timerOptions)");
+    expect(timer).toContain("if config.isMobile then");
+    expect(timer).toContain("onPress = Just config.openSheet");
+    expect(timer).toContain("config.fieldAttrs");
+    expect(timer).toContain("Html.Attributes.id config.selectId");
+    expect(timer).toContain("Html.Events.onInput config.onInput");
+    expect(timer).toContain("Html.Attributes.selected (s == config.current)");
+    expect(timer).toContain("Html.Attributes.value (String.fromInt s)");
+    expect(timer).toContain('"Off"');
+    expect(timer).toContain('" seconds"');
+    expect(timer).not.toMatch(/import Main|\bTimerTarget\b|\bMsg\b|\bOpenTimerSheet\b/);
+    expect(mainSource).not.toMatch(/^viewTimerSelect\s*:/m);
+    expect(mainSource).toContain("Timer.viewControl");
+    expect(mainSource).toContain("openSheet = OpenTimerSheet target");
+    expect(mainSource).toContain("onInput = timerUpdateMsg target");
+    expect(mainSource).toContain("selectId = timerSelectId target");
+    expect(mainSource).toContain("fieldAttrs = formFieldAttrs");
+    expect(mainSource).toContain("viewTimerBottomSheet : TimerTarget -> Int -> Element Msg");
+  });
+
 });

@@ -20,6 +20,7 @@ import Html.Events
 import View.Dialog as Dialog
 import View.Menu as Menu
 import View.Rules as Rules
+import View.Timer as Timer
 import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
@@ -2076,62 +2077,14 @@ winnerKeyForBoard board =
 
 viewTimerControl : TimerTarget -> Int -> Model -> Element Msg
 viewTimerControl target current model =
-    if model.viewportWidth <= 640 then
-        Input.button
-            (formFieldAttrs
-                ++ [ Border.rounded 16
-                   , paddingXY 14 12
-                   , Font.size 14
-                   ]
-            )
-            { onPress = Just (OpenTimerSheet target)
-            , label =
-                row [ width fill, centerY ]
-                    [ column [ spacing 2 ]
-                        [ el [ Font.size 11, Font.color (rgb255 185 212 191), Font.semiBold ] (text "Selected timer")
-                        , el [ Font.bold ] (text (moveTimerLabel current))
-                        ]
-                    , el [ alignRight, Font.color (rgb255 141 255 174), Font.bold, Font.size 12 ] (text "Change")
-                    ]
-            }
-
-    else
-        viewTimerSelect target current
-
-
-viewTimerSelect : TimerTarget -> Int -> Element Msg
-viewTimerSelect target current =
-    Element.html
-        (Html.select
-            [ Html.Attributes.id (timerSelectId target)
-            , Html.Attributes.style "background" "rgba(0,0,0,0.5)"
-            , Html.Attributes.style "color" "#e0ffe0"
-            , Html.Attributes.style "border" "1px solid rgba(255,255,255,0.1)"
-            , Html.Attributes.style "border-radius" "10px"
-            , Html.Attributes.style "padding" "12px 14px"
-            , Html.Attributes.style "font-size" "14px"
-            , Html.Attributes.style "cursor" "pointer"
-            , Html.Attributes.style "width" "100%"
-            , Html.Events.onInput (timerUpdateMsg target)
-            ]
-            (List.map
-                (\s ->
-                    Html.option
-                        [ Html.Attributes.value (String.fromInt s)
-                        , Html.Attributes.selected (s == current)
-                        ]
-                        [ Html.text
-                            (if s == 0 then
-                                "Off"
-
-                             else
-                                String.fromInt s ++ " seconds"
-                            )
-                        ]
-                )
-                timerOptions
-            )
-        )
+    Timer.viewControl
+        { isMobile = model.viewportWidth <= 640
+        , current = current
+        , fieldAttrs = formFieldAttrs
+        , openSheet = OpenTimerSheet target
+        , selectId = timerSelectId target
+        , onInput = timerUpdateMsg target
+        }
 
 
 viewTimerBottomSheet : TimerTarget -> Int -> Element Msg
