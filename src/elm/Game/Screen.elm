@@ -349,13 +349,7 @@ viewDesktopBoardScreenHtml normalizeSeatId config render =
                 normalizeSeatId
                 True
                 config
-                render.boardView
-                render.blueName
-                render.redName
-                render.blueScore
-                render.redScore
-                render.winnerName
-                render.onDismissWinner
+                render
             , viewReplayHtml render.replayActions config.replayIndex config.moveCount
             ]
         , viewDesktopMatchPanelHtml
@@ -666,22 +660,22 @@ viewMobileEllipsisText alignEnd size label =
         (text label)
 
 
-viewBoardStageHtml : (String -> String) -> Bool -> BoardScreenConfig msg -> Html msg -> String -> String -> Int -> Int -> Maybe String -> msg -> Html msg
-viewBoardStageHtml normalizeSeatId showWinnerOverlay config boardView blueName redName blueScore redScore winnerName onDismissWinner =
+viewBoardStageHtml : (String -> String) -> Bool -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg
+viewBoardStageHtml normalizeSeatId showWinnerOverlay config render =
     let
         topSide =
             if config.boardFlipped then
-                { color = "blue", name = blueName, score = blueScore }
+                { color = "blue", name = render.blueName, score = render.blueScore }
 
             else
-                { color = "red", name = redName, score = redScore }
+                { color = "red", name = render.redName, score = render.redScore }
 
         bottomSide =
             if config.boardFlipped then
-                { color = "red", name = redName, score = redScore }
+                { color = "red", name = render.redName, score = render.redScore }
 
             else
-                { color = "blue", name = blueName, score = blueScore }
+                { color = "blue", name = render.blueName, score = render.blueScore }
     in
     Html.div
         [ Html.Attributes.classList
@@ -691,7 +685,7 @@ viewBoardStageHtml normalizeSeatId showWinnerOverlay config boardView blueName r
             , ( "board-stage-flipped", config.boardFlipped )
             ]
         ]
-        ([ boardView
+        ([ render.boardView
          , viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
          , viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
          , viewBoardTurnWidgetsHtml normalizeSeatId config
@@ -704,9 +698,9 @@ viewBoardStageHtml normalizeSeatId showWinnerOverlay config boardView blueName r
                         []
                )
             ++ (if showWinnerOverlay && config.showWinnerOverlay then
-                    case winnerName of
+                    case render.winnerName of
                         Just name ->
-                            [ viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction onDismissWinner ]
+                            [ viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction render.onDismissWinner ]
 
                         Nothing ->
                             []
@@ -735,13 +729,7 @@ viewMobileBoardScreen normalizeSeatId config render =
                     normalizeSeatId
                     True
                     config
-                    render.boardView
-                    render.blueName
-                    render.redName
-                    render.blueScore
-                    render.redScore
-                    render.winnerName
-                    render.onDismissWinner
+                    render
                 )
             )
         , viewMobileReplayCard render.replayActions config.replayIndex config.moveCount

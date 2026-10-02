@@ -560,13 +560,26 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
   });
 
+  it("uses the shared render contract for board stage chrome", () => {
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    expect(source).toContain("viewBoardStageHtml : (String -> String) -> Bool -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg");
+    const stage = source.slice(source.indexOf("viewBoardStageHtml :"), source.indexOf("viewMobileBoardScreen :"));
+    for (const field of ["boardView", "blueName", "redName", "blueScore", "redScore", "winnerName", "onDismissWinner"]) {
+      expect(stage).toContain(`render.${field}`);
+    }
+    expect(stage).toContain("showWinnerOverlay && config.showWinnerOverlay");
+    expect(stage).toContain("case config.pauseOverlay of");
+    expect(source.match(/viewBoardStageHtml\n\s+normalizeSeatId\n\s+True\n\s+config\n\s+render/g)).toHaveLength(2);
+  });
+
   it("shares the named render contract across desktop and mobile shells", () => {
     const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
     for (const [name, result] of [["viewDesktopBoardScreenHtml", "Html"], ["viewMobileBoardScreen", "Element"]]) {
       expect(source).toContain(`${name} : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> ${result} msg`);
       expect(source).toContain(`${name} normalizeSeatId config render`);
       const body = source.slice(source.indexOf(`${name} :`)).split(/\n\n(?=[a-zA-Z])/)[0];
-      for (const field of ["boardView", "replayActions", "joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore", "winnerName", "onDismissWinner"]) {
+      expect(body).toContain("viewBoardStageHtml");
+      for (const field of ["replayActions", "joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore"]) {
         expect(body).toContain(`render.${field}`);
       }
     }
