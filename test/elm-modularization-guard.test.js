@@ -742,7 +742,29 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("onInput = timerUpdateMsg target");
     expect(mainSource).toContain("selectId = timerSelectId target");
     expect(mainSource).toContain("fieldAttrs = formFieldAttrs");
-    expect(mainSource).toContain("viewTimerBottomSheet : TimerTarget -> Int -> Element Msg");
+    expect(mainSource).toContain("timerSelectMsg : TimerTarget -> Int -> Msg");
+  });
+
+  it("extracts timer sheet with selection and dismissal wiring intact", () => {
+    const timer = readFileSync("src/elm/View/Timer.elm", "utf8");
+    expect(timer).toContain("viewBottomSheet : SheetConfig msg -> Element msg");
+    expect(timer).toContain("viewSheetOption : SheetConfig msg -> Int -> Html msg");
+    const sheet = timer.split("viewBottomSheet config =")[1].split("viewSheetOption :")[0];
+    expect(sheet.match(/Html.Events.onClick config.dismiss/g)).toHaveLength(2);
+    expect(sheet).toContain("Decode.succeed ( config.ignoreClick, True )");
+    expect(sheet).toContain("List.map (viewSheetOption config) timerOptions");
+    expect(sheet).toContain("moveTimerLabel config.current");
+    expect(sheet).toContain('"Cancel"');
+    expect(sheet).toContain("safe-area-inset-bottom");
+    expect(timer).toContain("config.current == optionSeconds");
+    expect(timer).toContain("Html.Events.onClick (config.onSelect optionSeconds)");
+    expect(timer).toContain("onSelect : Int -> msg");
+    expect(mainSource).not.toMatch(/^(viewTimerBottomSheet|viewTimerSheetOption)\s*:/m);
+    expect(mainSource).toContain("Timer.viewBottomSheet");
+    expect(mainSource).toContain("current = timerValueFor target model");
+    expect(mainSource).toContain("onSelect = timerSelectMsg target");
+    expect(mainSource).toContain("dismiss = CloseTimerSheet");
+    expect(mainSource).toContain("ignoreClick = IgnoreSheetClick");
   });
 
 });
