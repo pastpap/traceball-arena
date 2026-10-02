@@ -1790,7 +1790,7 @@ viewDesktopBoardScreenHtml config =
             , Html.Attributes.attribute "data-mobile-page" "play"
             ]
             [ Html.div [ Html.Attributes.id "playStatus", Html.Attributes.class "play-status" ] [ Html.text config.statusText ]
-            , viewTimerPillHtml config.timerSecs config.timerRemainingSecs
+            , Screen.viewTimerPillHtml config.timerSecs config.timerRemainingSecs
             , Html.div
                 [ Html.Attributes.classList
                     [ ( "turn-indicator", True )
@@ -1952,8 +1952,8 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
             ]
         ]
         ([ viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board
-         , viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
-         , viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
+         , Screen.viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
+         , Screen.viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
          , viewBoardTurnWidgetsHtml config
          ]
             ++ (case config.pauseOverlay of
@@ -2009,11 +2009,11 @@ viewBoardTurnWidgetsHtml config =
                     , ( "turn-blue", not widget.turnIsRed )
                     ]
                 ]
-                (viewBoardTurnChipHtml widget.turnIsRed widget.turnAtTop widget.hopSerial
+                (Screen.viewBoardTurnChipHtml widget.turnIsRed widget.turnAtTop widget.hopSerial
                     :: (case widget.clockSeconds of
                             Just seconds ->
-                                [ viewBoardTurnClockSlotHtml "top" widget.turnAtTop seconds isWarning isDanger
-                                , viewBoardTurnClockSlotHtml "bottom" (not widget.turnAtTop) seconds isWarning isDanger
+                                [ Screen.viewBoardTurnClockSlotHtml "top" widget.turnAtTop seconds isWarning isDanger
+                                , Screen.viewBoardTurnClockSlotHtml "bottom" (not widget.turnAtTop) seconds isWarning isDanger
                                 ]
 
                             Nothing ->
@@ -2066,41 +2066,6 @@ boardTurnWidgetData config =
                             , clockSeconds = clockSeconds
                             }
                 )
-
-
-viewBoardTurnClockSlotHtml : String -> Bool -> Int -> Bool -> Bool -> Html Msg
-viewBoardTurnClockSlotHtml position isActive seconds isWarning isDanger =
-    Html.div
-        [ Html.Attributes.classList
-            [ ( "elm-board-turn-clock", True )
-            , ( "slot-top", position == "top" )
-            , ( "slot-bottom", position == "bottom" )
-            , ( "active", isActive )
-            , ( "inactive", not isActive )
-            , ( "warning", isWarning )
-            , ( "danger", isDanger )
-            ]
-        ]
-        [ Html.span [ Html.Attributes.class "elm-board-turn-clock-digits" ]
-            [ Html.text (String.padLeft 2 '0' (String.fromInt (max 0 seconds))) ]
-        ]
-
-
-viewBoardTurnChipHtml : Bool -> Bool -> Int -> Html Msg
-viewBoardTurnChipHtml turnIsRed turnAtTop hopSerial =
-    Html.div
-        [ Html.Attributes.classList
-            [ ( "elm-board-turn-chip", True )
-            , ( "red", turnIsRed )
-            , ( "blue", not turnIsRed )
-            , ( "at-top", turnAtTop )
-            , ( "at-bottom", not turnAtTop )
-            , ( "arch-hop", hopSerial > 0 )
-            , ( "to-top", turnAtTop )
-            , ( "to-bottom", not turnAtTop )
-            ]
-        ]
-        [ Html.span [ Html.Attributes.class "elm-board-turn-chip-ball", Html.Attributes.attribute "aria-hidden" "true" ] [ Html.text "⚽" ] ]
 
 
 viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg
@@ -2190,35 +2155,6 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                 Nothing ->
                     none
             ]
-
-
-viewTimerPillHtml : Maybe Int -> Maybe Int -> Html Msg
-viewTimerPillHtml timerSecs timerRemainingSecs =
-    case timerSecs of
-        Just secs ->
-            Html.div [ Html.Attributes.class "elm-timer-display" ]
-                (Html.text ("Timer: " ++ String.fromInt secs ++ "s")
-                    :: (case timerRemainingSecs of
-                            Just remainingSecs ->
-                                [ Html.span [ Html.Attributes.class "elm-timer-countdown" ] [ Html.text (String.fromInt remainingSecs ++ "s left") ] ]
-
-                            Nothing ->
-                                []
-                       )
-                )
-
-        Nothing ->
-            Html.text ""
-
-
-viewBoardBadgeHtml : String -> String -> String -> Int -> Html Msg
-viewBoardBadgeHtml position color name score =
-    Html.div
-        [ Html.Attributes.class ("elm-board-badge elm-board-badge-" ++ position) ]
-        [ Html.span [ Html.Attributes.class ("dot " ++ color) ] []
-        , Html.span [] [ Html.text name ]
-        , Html.span [ Html.Attributes.class "elm-board-badge-score" ] [ Html.text (String.fromInt score) ]
-        ]
 
 
 viewToast : String -> Element Msg

@@ -442,4 +442,30 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewMobileReplayCard : Maybe Int -> Int -> Element Msg");
     expect(mainSource).not.toContain("mobileCard : List (Element Msg) -> Element Msg");
   });
+
+  it("extracts desktop game HUD helpers", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewTimerPillHtml",
+      "viewBoardBadgeHtml",
+      "viewBoardTurnChipHtml",
+      "viewBoardTurnClockSlotHtml",
+      "elm-timer-display",
+      "elm-board-badge",
+      "elm-board-turn-chip",
+      "elm-board-turn-clock",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewTimerPillHtml");
+    expect(mainSource).toContain("Screen.viewBoardBadgeHtml");
+    expect(mainSource).toContain("Screen.viewBoardTurnChipHtml");
+    expect(mainSource).toContain("Screen.viewBoardTurnClockSlotHtml");
+    expect(mainSource).not.toContain("viewTimerPillHtml : Maybe Int -> Maybe Int -> Html Msg");
+    expect(mainSource).not.toContain("viewBoardBadgeHtml : String -> String -> String -> Int -> Html Msg");
+    expect(mainSource).not.toContain("viewBoardTurnChipHtml : Bool -> Bool -> Int -> Html Msg");
+    expect(mainSource).not.toContain("viewBoardTurnClockSlotHtml : String -> Bool -> Int -> Bool -> Bool -> Html Msg");
+  });
 });
