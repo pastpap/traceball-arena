@@ -685,4 +685,18 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("model.viewportWidth <= 640");
   });
 
+  it("extracts rules content without changing its copy or dialog actions", () => {
+    expect(existsSync("src/elm/View/Rules.elm")).toBe(true);
+    const rules = readFileSync("src/elm/View/Rules.elm", "utf8");
+    expect(rules).toContain("viewOverlay : Dialog.Actions msg -> Bool -> Element msg");
+    expect(rules).toContain("Dialog.viewOverlay actions");
+    expect(rules).toContain('Dialog.viewHeader actions isMobile "How to play" "Game Rules"');
+    expect(rules).toContain("ruleItem : String -> Html msg");
+    expect(rules).not.toMatch(/import Main|\bMsg\b|\bCloseAppMenu\b/);
+    expect(mainSource).not.toMatch(/^(viewRulesOverlay|ruleItem)\s*:/m);
+    expect(mainSource).toContain("Rules.viewOverlay dialogActions isMobile");
+    const originalStrings = ["\"How to play\"", "\"Game Rules\"", "\"dialog-body\"", "\"rules-list\"", "\"Draw one line segment per turn from the ball's current position to any adjacent grid point.\"", "\"You may bounce off points that were already visited — but never cross or overlap an existing line.\"", "\"Bouncing off the walls is also legal and often strategic.\"", "\"The point in the middle of the gate line is a special bouncing point. It can be strategically used to change the direction of the ball or close the gate.\"", "\"If you have no legal moves, you lose the round and your opponent scores.\"", "\"Score by moving the ball into the opponent's goal gate.\"", "\"If the move timer expires, the turn passes to the other player.\"", "\"rules-note\"", "\"A variant of Paper Soccer (Paper Football). First player to reach the agreed score wins the match.\"", "\"rules-list-item\"", "\"rules-bullet\""];
+    expect(rules.match(/"(?:[^"\\]|\\.)*"/g)).toEqual(originalStrings);
+  });
+
 });

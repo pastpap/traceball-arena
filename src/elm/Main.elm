@@ -19,6 +19,7 @@ import Html.Attributes
 import Html.Events
 import View.Dialog as Dialog
 import View.Menu as Menu
+import View.Rules as Rules
 import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
@@ -2319,7 +2320,7 @@ viewMenuOverlay model =
             viewHistoryOverlay model isMobile
 
         Just "rules" ->
-            viewRulesOverlay isMobile
+            Rules.viewOverlay dialogActions isMobile
 
         Just _ ->
             none
@@ -2349,36 +2350,6 @@ viewHistoryOverlay model isMobile =
                 Html.div [ Html.Attributes.class "history-list" ]
                     (List.indexedMap (HistoryView.viewHistoryEntry model.currentTimeMs OpenHistoryReplay) (List.take 12 model.gameHistory))
             ]
-        ]
-
-
-viewRulesOverlay : Bool -> Element Msg
-viewRulesOverlay isMobile =
-    Dialog.viewOverlay dialogActions
-        [ Dialog.viewHeader dialogActions isMobile "How to play" "Game Rules"
-        , Html.div [ Html.Attributes.class "dialog-body" ]
-            [ Html.ul [ Html.Attributes.class "rules-list" ]
-                (List.map ruleItem
-                    [ "Draw one line segment per turn from the ball's current position to any adjacent grid point."
-                    , "You may bounce off points that were already visited — but never cross or overlap an existing line."
-                    , "Bouncing off the walls is also legal and often strategic."
-                    , "The point in the middle of the gate line is a special bouncing point. It can be strategically used to change the direction of the ball or close the gate."
-                    , "If you have no legal moves, you lose the round and your opponent scores."
-                    , "Score by moving the ball into the opponent's goal gate."
-                    , "If the move timer expires, the turn passes to the other player."
-                    ]
-                )
-            , Html.p [ Html.Attributes.class "rules-note" ]
-                [ Html.text "A variant of Paper Soccer (Paper Football). First player to reach the agreed score wins the match." ]
-            ]
-        ]
-
-
-ruleItem : String -> Html Msg
-ruleItem text =
-    Html.li [ Html.Attributes.class "rules-list-item" ]
-        [ Html.span [ Html.Attributes.class "rules-bullet" ] []
-        , Html.span [] [ Html.text text ]
         ]
 
 
