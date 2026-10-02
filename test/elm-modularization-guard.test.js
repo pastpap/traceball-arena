@@ -436,7 +436,7 @@ describe("Elm modularization static guard", () => {
     expect(source).toContain("mobileCard");
     expect(source).toContain("viewMobileTimerChip");
     expect(source).toContain("viewMobileScorePill");
-    expect(mainSource).toContain("Screen.viewMobileReplayCard");
+    expect(source).toContain("viewMobileReplayCard");
     expect(mainSource).not.toContain("viewMobileTimerChip : Maybe Int -> Maybe Int -> Element Msg");
     expect(mainSource).not.toContain("viewMobileScorePill : String -> String -> Int -> Element Msg");
     expect(mainSource).not.toContain("viewMobileReplayCard : Maybe Int -> Int -> Element Msg");
@@ -501,7 +501,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewMobileTopCard");
+    expect(source).toContain("viewMobileTopCard");
     expect(mainSource).not.toContain("viewMobileTopCard : BoardScreenConfig Msg -> String -> String -> String -> Int -> Int -> Element Msg");
     expect(mainSource).not.toContain("ROUND COMPLETE");
   });
@@ -537,7 +537,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewBoardStageHtml");
+    expect(source).toContain("viewBoardStageHtml");
     expect(mainSource).not.toContain("viewBoardStageHtml : Bool -> BoardScreenConfig Msg -> String -> String -> Int -> Int -> Maybe String -> Html Msg");
     expect(mainSource).not.toContain("Html.Attributes.classList\n            [ ( \"board-stage\", True )");
   });
@@ -558,5 +558,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Screen.viewDesktopBoardScreenHtml");
     expect(mainSource).not.toContain("Html.section [ Html.Attributes.class \"game-layout\" ]");
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
+  });
+
+  it("extracts the mobile board screen shell", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewMobileBoardScreen",
+      "viewMobileTopCard",
+      "viewBoardStageHtml",
+      "viewMobileReplayCard",
+      "statusBanner",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewMobileBoardScreen");
+    expect(mainSource).not.toContain("column [ width fill, spacing 12 ]");
+    expect(mainSource).not.toContain("viewMobileBoardScreen : BoardScreenConfig Msg -> Element Msg");
   });
 });
