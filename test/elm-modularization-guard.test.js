@@ -321,8 +321,28 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(marker);
     }
     expect(source).not.toContain("main : Program");
-    expect(mainSource).toContain("import Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig)");
+    expect(mainSource).toContain("import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)");
     expect(mainSource).not.toContain("type alias PauseOverlayConfig =");
     expect(mainSource).not.toContain("type alias BoardScreenConfig =");
+  });
+
+  it("extracts pause overlay and panel views", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewPauseOverlayHtml",
+      "viewPausePanelHtml",
+      "pause-overlay",
+      "pause-card pause-panel",
+      "onClickAttributes",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(source).toContain("import Html exposing (Html)");
+    expect(mainSource).toContain("Screen.viewPauseOverlayHtml");
+    expect(mainSource).toContain("Screen.viewPausePanelHtml");
+    expect(mainSource).not.toContain("viewPauseOverlayHtml : PauseOverlayConfig Msg -> Html Msg");
+    expect(mainSource).not.toContain("viewPausePanelHtml : PauseOverlayConfig Msg -> Html Msg");
   });
 });

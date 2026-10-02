@@ -17,7 +17,7 @@ import Element.Input as Input
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
-import Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig)
+import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
 import History.View as HistoryView
@@ -1844,7 +1844,7 @@ viewDesktopBoardScreenHtml config =
                  ]
                     ++ (case config.pauseOverlay of
                             Just overlay ->
-                                [ viewPausePanelHtml overlay ]
+                                [ Screen.viewPausePanelHtml overlay ]
 
                             Nothing ->
                                 []
@@ -1946,7 +1946,7 @@ viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore 
          ]
             ++ (case config.pauseOverlay of
                     Just overlay ->
-                        [ viewPauseOverlayHtml overlay ]
+                        [ Screen.viewPauseOverlayHtml overlay ]
 
                     Nothing ->
                         []
@@ -2173,7 +2173,7 @@ viewMobileTopCard config statusBanner blueName redName blueScore redScore =
                     ]
             , case config.pauseOverlay of
                 Just overlay ->
-                    el [ width fill ] (Element.html (viewPausePanelHtml overlay))
+                    el [ width fill ] (Element.html (Screen.viewPausePanelHtml overlay))
 
                 Nothing ->
                     none
@@ -2516,64 +2516,6 @@ viewBoardBadgeHtml position color name score =
         , Html.span [] [ Html.text name ]
         , Html.span [ Html.Attributes.class "elm-board-badge-score" ] [ Html.text (String.fromInt score) ]
         ]
-
-
-viewPauseOverlayHtml : PauseOverlayConfig Msg -> Html Msg
-viewPauseOverlayHtml overlay =
-    Html.div [ Html.Attributes.id "pauseOverlay", Html.Attributes.class "pause-overlay", Html.Attributes.attribute "aria-live" "polite" ]
-        [ Html.div [ Html.Attributes.class "pause-card" ]
-            [ Html.div [ Html.Attributes.class "pause-kicker" ] [ Html.text "Paused" ]
-            , Html.h2 [] [ Html.text overlay.title ]
-            , Html.p [] [ Html.text overlay.message ]
-            , Html.p [ Html.Attributes.id "pauseTurn" ] [ Html.text overlay.turnText ]
-            , Html.div [ Html.Attributes.class "pause-actions" ]
-                [ Html.button
-                    ([ Html.Attributes.id "resumeGame"
-                     , Html.Attributes.type_ "button"
-                     , Html.Attributes.classList
-                        [ ( "primary", True )
-                        , ( "hidden", overlay.resumeAction == Nothing )
-                        ]
-                     , Html.Attributes.disabled (overlay.resumeAction == Nothing)
-                     , Html.Attributes.attribute "data-elm-command" "resume"
-                     ]
-                        ++ onClickAttributes overlay.resumeAction
-                    )
-                    [ Html.text "Resume game" ]
-                ]
-            ]
-        ]
-
-
-viewPausePanelHtml : PauseOverlayConfig Msg -> Html Msg
-viewPausePanelHtml overlay =
-    Html.div
-        [ Html.Attributes.class "pause-card pause-panel"
-        , Html.Attributes.attribute "data-elm-pause-panel" "true"
-        , Html.Attributes.attribute "aria-live" "polite"
-        ]
-        ([ Html.div [ Html.Attributes.class "pause-kicker" ] [ Html.text "Paused" ]
-         , Html.h2 [] [ Html.text overlay.title ]
-         , Html.p [] [ Html.text overlay.message ]
-         , Html.p [ Html.Attributes.class "pause-turn" ] [ Html.text overlay.turnText ]
-         ]
-            ++ (case overlay.resumeAction of
-                    Just resumeAction ->
-                        [ Html.div [ Html.Attributes.class "pause-actions pause-panel-actions" ]
-                            [ Html.button
-                                ([ Html.Attributes.type_ "button"
-                                 , Html.Attributes.attribute "data-elm-command" "resume"
-                                 ]
-                                    ++ onClickAttributes (Just resumeAction)
-                                )
-                                [ Html.text "Resume game" ]
-                            ]
-                        ]
-
-                    Nothing ->
-                        []
-               )
-        )
 
 
 viewWinnerOverlayHtml : Bool -> String -> Maybe Msg -> Html Msg
