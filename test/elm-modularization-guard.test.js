@@ -560,6 +560,18 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
   });
 
+  it("shares the named render contract across desktop and mobile shells", () => {
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const [name, result] of [["viewDesktopBoardScreenHtml", "Html"], ["viewMobileBoardScreen", "Element"]]) {
+      expect(source).toContain(`${name} : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> ${result} msg`);
+      expect(source).toContain(`${name} normalizeSeatId config render`);
+      const body = source.slice(source.indexOf(`${name} :`)).split(/\n\n(?=[a-zA-Z])/)[0];
+      for (const field of ["boardView", "replayActions", "joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore", "winnerName", "onDismissWinner"]) {
+        expect(body).toContain(`render.${field}`);
+      }
+    }
+  });
+
   it("uses a named generic contract for responsive screen rendering", () => {
     const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
     expect(source).toContain("type alias BoardScreenRenderConfig msg =");

@@ -323,14 +323,14 @@ viewBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> BoardScreen
 viewBoardScreenHtml normalizeSeatId config render =
     if config.isCompactLayout then
         Element.layout [ width fill ]
-            (viewMobileBoardScreen normalizeSeatId config render.replayActions render.boardView render.joinBlueAction render.joinRedAction render.blueName render.redName render.blueScore render.redScore render.winnerName render.statusBanner render.onDismissWinner)
+            (viewMobileBoardScreen normalizeSeatId config render)
 
     else
-        viewDesktopBoardScreenHtml normalizeSeatId config render.replayActions render.boardView render.joinBlueAction render.joinRedAction render.blueName render.redName render.blueScore render.redScore render.winnerName render.onDismissWinner
+        viewDesktopBoardScreenHtml normalizeSeatId config render
 
 
-viewDesktopBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> ReplayActions msg -> Html msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> msg -> Html msg
-viewDesktopBoardScreenHtml normalizeSeatId config replayActions boardView joinBlueAction joinRedAction blueName redName blueScore redScore winnerName onDismissWinner =
+viewDesktopBoardScreenHtml : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg
+viewDesktopBoardScreenHtml normalizeSeatId config render =
     Html.section [ Html.Attributes.class "game-layout" ]
         [ Html.div
             [ Html.Attributes.class "board-card mobile-page active"
@@ -349,24 +349,24 @@ viewDesktopBoardScreenHtml normalizeSeatId config replayActions boardView joinBl
                 normalizeSeatId
                 True
                 config
-                boardView
-                blueName
-                redName
-                blueScore
-                redScore
-                winnerName
-                onDismissWinner
-            , viewReplayHtml replayActions config.replayIndex config.moveCount
+                render.boardView
+                render.blueName
+                render.redName
+                render.blueScore
+                render.redScore
+                render.winnerName
+                render.onDismissWinner
+            , viewReplayHtml render.replayActions config.replayIndex config.moveCount
             ]
         , viewDesktopMatchPanelHtml
             config
-            joinBlueAction
-            joinRedAction
-            blueName
-            redName
-            blueScore
-            redScore
-            winnerName
+            render.joinBlueAction
+            render.joinRedAction
+            render.blueName
+            render.redName
+            render.blueScore
+            render.redScore
+            render.winnerName
         ]
 
 
@@ -717,34 +717,34 @@ viewBoardStageHtml normalizeSeatId showWinnerOverlay config boardView blueName r
         )
 
 
-viewMobileBoardScreen : (String -> String) -> BoardScreenConfig msg -> ReplayActions msg -> Html msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> String -> msg -> Element msg
-viewMobileBoardScreen normalizeSeatId config replayActions boardView joinBlueAction joinRedAction blueName redName blueScore redScore winnerName statusBanner onDismissWinner =
+viewMobileBoardScreen : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Element msg
+viewMobileBoardScreen normalizeSeatId config render =
     column [ width fill, spacing 12 ]
         [ viewMobileTopCard
             config
-            joinBlueAction
-            joinRedAction
-            statusBanner
-            blueName
-            redName
-            blueScore
-            redScore
+            render.joinBlueAction
+            render.joinRedAction
+            render.statusBanner
+            render.blueName
+            render.redName
+            render.blueScore
+            render.redScore
         , el [ width fill, centerX ]
             (Element.html
                 (viewBoardStageHtml
                     normalizeSeatId
                     True
                     config
-                    boardView
-                    blueName
-                    redName
-                    blueScore
-                    redScore
-                    winnerName
-                    onDismissWinner
+                    render.boardView
+                    render.blueName
+                    render.redName
+                    render.blueScore
+                    render.redScore
+                    render.winnerName
+                    render.onDismissWinner
                 )
             )
-        , viewMobileReplayCard replayActions config.replayIndex config.moveCount
+        , viewMobileReplayCard render.replayActions config.replayIndex config.moveCount
         ]
 
 
