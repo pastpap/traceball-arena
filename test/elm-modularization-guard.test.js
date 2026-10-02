@@ -767,4 +767,30 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("ignoreClick = IgnoreSheetClick");
   });
 
+  it("extracts mobile headers without relocating visibility or navigation", () => {
+    expect(existsSync("src/elm/View/Header.elm")).toBe(true);
+    const header = readFileSync("src/elm/View/Header.elm", "utf8");
+    for (const name of ["viewMobileGame", "viewMobileLobby", "viewMobileOpenGameStrip"]) {
+      expect(header).toContain(`${name} : MobileActions msg -> Element msg`);
+      expect(mainSource).toContain(`Header.${name} mobileHeaderActions`);
+    }
+    const game = header.split("viewMobileGame actions =")[1].split("viewMobileLobby :")[0];
+    expect(game).toContain("onPress = Just actions.toggleLobby");
+    expect(game).toContain("onPress = Just actions.openMenu");
+    expect(game).toContain('"Open lobby"');
+    expect(game).toContain('"Open app menu"');
+    const lobby = header.split("viewMobileLobby actions =")[1].split("viewMobileOpenGameStrip :")[0];
+    expect(lobby).toContain("onPress = Just actions.openMenu");
+    expect(lobby).toContain('Html.Attributes.src "/icon.svg"');
+    const strip = header.split("viewMobileOpenGameStrip actions =")[1];
+    expect(strip).toContain('onPress = Just actions.toggleLobby, label = text "Open Game"');
+    expect(strip).toContain('"Game in progress"');
+    expect(header).not.toMatch(/import Main|\bModel\b|\bMsg\b|\bToggleLobby\b|\bOpenAppMenu\b/);
+    expect(mainSource).not.toMatch(/^(viewMobileGameHeader|viewMobileLobbyHeader|viewMobileOpenGameStrip)\s*:/m);
+    expect(mainSource).toContain("toggleLobby = ToggleLobby");
+    expect(mainSource).toContain("openMenu = OpenAppMenu");
+    expect(mainSource).toContain("viewGameHeader : Model -> Element Msg");
+    expect(mainSource).toContain("viewMainTabs : Model -> Element Msg");
+  });
+
 });
