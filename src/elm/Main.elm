@@ -1798,7 +1798,17 @@ viewDesktopBoardScreenHtml config =
                     ]
                 ]
                 [ Html.text config.turnIndicatorText ]
-            , viewBoardStageHtml True config blueName redName blueScore redScore winnerName
+            , Screen.viewBoardStageHtml
+                normalizeSeatId
+                True
+                config
+                (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
+                blueName
+                redName
+                blueScore
+                redScore
+                winnerName
+                DismissWinnerBanner
             , Screen.viewReplayHtml
                 { toStart = ReplayToStart
                 , stepBack = ReplayStepBack
@@ -1887,7 +1897,20 @@ viewMobileBoardScreen config =
             blueScore
             redScore
         , el [ width fill, centerX ]
-            (Element.html (viewBoardStageHtml True config blueName redName blueScore redScore winnerName))
+            (Element.html
+                (Screen.viewBoardStageHtml
+                    normalizeSeatId
+                    True
+                    config
+                    (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
+                    blueName
+                    redName
+                    blueScore
+                    redScore
+                    winnerName
+                    DismissWinnerBanner
+                )
+            )
         , Screen.viewMobileReplayCard
             { toStart = ReplayToStart
             , stepBack = ReplayStepBack
@@ -1897,57 +1920,6 @@ viewMobileBoardScreen config =
             config.replayIndex
             config.moveCount
         ]
-
-
-viewBoardStageHtml : Bool -> BoardScreenConfig Msg -> String -> String -> Int -> Int -> Maybe String -> Html Msg
-viewBoardStageHtml showWinnerOverlay config blueName redName blueScore redScore winnerName =
-    let
-        topSide =
-            if config.boardFlipped then
-                { color = "blue", name = blueName, score = blueScore }
-
-            else
-                { color = "red", name = redName, score = redScore }
-
-        bottomSide =
-            if config.boardFlipped then
-                { color = "red", name = redName, score = redScore }
-
-            else
-                { color = "blue", name = blueName, score = blueScore }
-    in
-    Html.div
-        [ Html.Attributes.classList
-            [ ( "board-stage", True )
-            , ( "paused", config.isPaused )
-            , ( "mobile-hero-board", config.isCompactLayout )
-            , ( "board-stage-flipped", config.boardFlipped )
-            ]
-        ]
-        ([ viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board
-         , Screen.viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
-         , Screen.viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
-         , Screen.viewBoardTurnWidgetsHtml normalizeSeatId config
-         ]
-            ++ (case config.pauseOverlay of
-                    Just overlay ->
-                        [ Screen.viewPauseOverlayHtml overlay ]
-
-                    Nothing ->
-                        []
-               )
-            ++ (if showWinnerOverlay && config.showWinnerOverlay then
-                    case winnerName of
-                        Just name ->
-                            [ Screen.viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction DismissWinnerBanner ]
-
-                        Nothing ->
-                            []
-
-                else
-                    []
-               )
-        )
 
 
 viewToast : String -> Element Msg

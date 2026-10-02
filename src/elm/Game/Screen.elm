@@ -1,4 +1,4 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewDesktopMatchPanelHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewBoardBadgeHtml, viewBoardStageHtml, viewBoardTurnChipHtml, viewBoardTurnClockSlotHtml, viewBoardTurnWidgetsHtml, viewDesktopMatchPanelHtml, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewMobileTopCard, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewTimerPillHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board, BoardState(..))
 import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width, wrappedRow)
@@ -598,6 +598,57 @@ viewMobileEllipsisText alignEnd size label =
         , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
         ]
         (text label)
+
+
+viewBoardStageHtml : (String -> String) -> Bool -> BoardScreenConfig msg -> Html msg -> String -> String -> Int -> Int -> Maybe String -> msg -> Html msg
+viewBoardStageHtml normalizeSeatId showWinnerOverlay config boardView blueName redName blueScore redScore winnerName onDismissWinner =
+    let
+        topSide =
+            if config.boardFlipped then
+                { color = "blue", name = blueName, score = blueScore }
+
+            else
+                { color = "red", name = redName, score = redScore }
+
+        bottomSide =
+            if config.boardFlipped then
+                { color = "red", name = redName, score = redScore }
+
+            else
+                { color = "blue", name = blueName, score = blueScore }
+    in
+    Html.div
+        [ Html.Attributes.classList
+            [ ( "board-stage", True )
+            , ( "paused", config.isPaused )
+            , ( "mobile-hero-board", config.isCompactLayout )
+            , ( "board-stage-flipped", config.boardFlipped )
+            ]
+        ]
+        ([ boardView
+         , viewBoardBadgeHtml "top" topSide.color topSide.name topSide.score
+         , viewBoardBadgeHtml "bottom" bottomSide.color bottomSide.name bottomSide.score
+         , viewBoardTurnWidgetsHtml normalizeSeatId config
+         ]
+            ++ (case config.pauseOverlay of
+                    Just overlay ->
+                        [ viewPauseOverlayHtml overlay ]
+
+                    Nothing ->
+                        []
+               )
+            ++ (if showWinnerOverlay && config.showWinnerOverlay then
+                    case winnerName of
+                        Just name ->
+                            [ viewWinnerOverlayHtml config.isCompactLayout name config.newRoundAction onDismissWinner ]
+
+                        Nothing ->
+                            []
+
+                else
+                    []
+               )
+        )
 
 
 viewMobileTopCard : BoardScreenConfig msg -> Maybe msg -> Maybe msg -> String -> String -> String -> Int -> Int -> Element msg

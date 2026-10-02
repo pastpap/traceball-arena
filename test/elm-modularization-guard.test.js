@@ -362,7 +362,7 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(marker);
     }
     expect(source).toContain("import Svg");
-    expect(mainSource).toContain("Screen.viewWinnerOverlayHtml");
+    expect(source).toContain("viewWinnerOverlayHtml");
     expect(source).toContain("viewGhostButtonHtml");
     expect(source).toContain("viewSquareIconButtonHtml");
     expect(source).toContain("viewShareIconButtonHtml");
@@ -460,8 +460,8 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(marker);
     }
     expect(mainSource).toContain("Screen.viewTimerPillHtml");
-    expect(mainSource).toContain("Screen.viewBoardBadgeHtml");
-    expect(mainSource).toContain("Screen.viewBoardTurnWidgetsHtml");
+    expect(source).toContain("viewBoardBadgeHtml");
+    expect(source).toContain("viewBoardTurnWidgetsHtml");
     expect(mainSource).not.toContain("viewTimerPillHtml : Maybe Int -> Maybe Int -> Html Msg");
     expect(mainSource).not.toContain("viewBoardBadgeHtml : String -> String -> String -> Int -> Html Msg");
     expect(mainSource).not.toContain("viewBoardTurnChipHtml : Bool -> Bool -> Int -> Html Msg");
@@ -482,7 +482,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewBoardTurnWidgetsHtml normalizeSeatId config");
+    expect(source).toContain("viewBoardTurnWidgetsHtml");
     expect(mainSource).not.toContain("type alias BoardTurnWidgetData");
     expect(mainSource).not.toContain("viewBoardTurnWidgetsHtml : BoardScreenConfig Msg -> Html Msg");
     expect(mainSource).not.toContain("boardTurnWidgetData : BoardScreenConfig Msg -> Maybe BoardTurnWidgetData");
@@ -522,5 +522,23 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Screen.viewDesktopMatchPanelHtml");
     expect(mainSource).not.toContain("Html.Attributes.class \"card scoreboard elm-match-panel\"");
     expect(mainSource).not.toContain("Html.Attributes.class \"players score-strip\"");
+  });
+
+  it("extracts the board stage shell", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "viewBoardStageHtml",
+      "board-stage",
+      "mobile-hero-board",
+      "board-stage-flipped",
+      "viewWinnerOverlayHtml",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.viewBoardStageHtml");
+    expect(mainSource).not.toContain("viewBoardStageHtml : Bool -> BoardScreenConfig Msg -> String -> String -> Int -> Int -> Maybe String -> Html Msg");
+    expect(mainSource).not.toContain("Html.Attributes.classList\n            [ ( \"board-stage\", True )");
   });
 });
