@@ -1,9 +1,39 @@
-module History.View exposing (relativeDateLabel, viewHistoryEntry)
+module History.View exposing (OverlayConfig, relativeDateLabel, viewHistoryEntry, viewOverlay)
 
+import Element exposing (Element)
+import View.Dialog as Dialog
 import History.Types exposing (HistoryEntry)
 import Html exposing (Html)
 import Html.Attributes
 import Html.Events
+
+
+type alias OverlayConfig msg =
+    { dialogActions : Dialog.Actions msg
+    , isMobile : Bool
+    , nowMs : Int
+    , entries : List HistoryEntry
+    , onReplay : Int -> msg
+    }
+
+
+viewOverlay : OverlayConfig msg -> Element msg
+viewOverlay config =
+    Dialog.viewOverlay config.dialogActions
+        [ Dialog.viewHeader config.dialogActions config.isMobile "Traceball Arena" "Game History"
+        , Html.div [ Html.Attributes.class "dialog-body" ]
+            [ if List.isEmpty config.entries then
+                Html.div [ Html.Attributes.class "dialog-empty" ]
+                    [ Html.div [ Html.Attributes.class "dialog-empty-icon" ] [ Html.text "📂" ]
+                    , Html.div [ Html.Attributes.class "dialog-empty-text" ]
+                        [ Html.text "No games yet. Finished games will appear here." ]
+                    ]
+
+              else
+                Html.div [ Html.Attributes.class "history-list" ]
+                    (List.indexedMap (viewHistoryEntry config.nowMs config.onReplay) (List.take 12 config.entries))
+            ]
+        ]
 
 
 viewHistoryEntry : Int -> (Int -> msg) -> Int -> HistoryEntry -> Html msg

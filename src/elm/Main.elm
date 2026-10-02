@@ -2317,7 +2317,13 @@ viewMenuOverlay model =
                 Menu.viewDesktop menuActions
 
         Just "history" ->
-            viewHistoryOverlay model isMobile
+            HistoryView.viewOverlay
+                { dialogActions = dialogActions
+                , isMobile = isMobile
+                , nowMs = model.currentTimeMs
+                , entries = model.gameHistory
+                , onReplay = OpenHistoryReplay
+                }
 
         Just "rules" ->
             Rules.viewOverlay dialogActions isMobile
@@ -2332,25 +2338,6 @@ dialogActions =
     , ignoreClick = IgnoreSheetClick
     , backToMenu = OpenAppMenu
     }
-
-
-viewHistoryOverlay : Model -> Bool -> Element Msg
-viewHistoryOverlay model isMobile =
-    Dialog.viewOverlay dialogActions
-        [ Dialog.viewHeader dialogActions isMobile "Traceball Arena" "Game History"
-        , Html.div [ Html.Attributes.class "dialog-body" ]
-            [ if List.isEmpty model.gameHistory then
-                Html.div [ Html.Attributes.class "dialog-empty" ]
-                    [ Html.div [ Html.Attributes.class "dialog-empty-icon" ] [ Html.text "📂" ]
-                    , Html.div [ Html.Attributes.class "dialog-empty-text" ]
-                        [ Html.text "No games yet. Finished games will appear here." ]
-                    ]
-
-              else
-                Html.div [ Html.Attributes.class "history-list" ]
-                    (List.indexedMap (HistoryView.viewHistoryEntry model.currentTimeMs OpenHistoryReplay) (List.take 12 model.gameHistory))
-            ]
-        ]
 
 
 viewHistoryReplayHtml : Model -> LocalGame -> Html Msg

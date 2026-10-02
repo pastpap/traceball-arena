@@ -202,7 +202,7 @@ describe("Elm modularization static guard", () => {
     }
     expect(source).not.toContain("main : Program");
     expect(mainSource).toContain("import History.View as HistoryView");
-    expect(mainSource).toContain("HistoryView.viewHistoryEntry");
+    expect(source).toContain("viewHistoryEntry : Int -> (Int -> msg) -> Int -> HistoryEntry -> Html msg");
     expect(mainSource).not.toContain("viewHistoryEntry : Int -> Int -> HistoryEntry -> Html Msg");
     expect(mainSource).not.toContain("relativeDateLabel : Int -> Int -> String");
   });
@@ -654,8 +654,9 @@ describe("Elm modularization static guard", () => {
     }
     expect(dialog).not.toMatch(/import Main|\bCloseAppMenu\b|\bIgnoreSheetClick\b|\bOpenAppMenu\b/);
     expect(mainSource).not.toMatch(/^viewDialogOverlay\s*:|^dialogHeader\s*:/m);
-    expect(mainSource).toContain('Dialog.viewOverlay dialogActions');
-    expect(mainSource).toContain('Dialog.viewHeader dialogActions isMobile');
+    const history = readFileSync('src/elm/History/View.elm', 'utf8');
+    expect(history).toContain('Dialog.viewOverlay config.dialogActions');
+    expect(history).toContain('Dialog.viewHeader config.dialogActions config.isMobile');
     expect(mainSource).toContain('dismiss = CloseAppMenu');
     expect(mainSource).toContain('ignoreClick = IgnoreSheetClick');
     expect(mainSource).toContain('backToMenu = OpenAppMenu');
@@ -697,6 +698,26 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain("Rules.viewOverlay dialogActions isMobile");
     const originalStrings = ["\"How to play\"", "\"Game Rules\"", "\"dialog-body\"", "\"rules-list\"", "\"Draw one line segment per turn from the ball's current position to any adjacent grid point.\"", "\"You may bounce off points that were already visited — but never cross or overlap an existing line.\"", "\"Bouncing off the walls is also legal and often strategic.\"", "\"The point in the middle of the gate line is a special bouncing point. It can be strategically used to change the direction of the ball or close the gate.\"", "\"If you have no legal moves, you lose the round and your opponent scores.\"", "\"Score by moving the ball into the opponent's goal gate.\"", "\"If the move timer expires, the turn passes to the other player.\"", "\"rules-note\"", "\"A variant of Paper Soccer (Paper Football). First player to reach the agreed score wins the match.\"", "\"rules-list-item\"", "\"rules-bullet\""];
     expect(rules.match(/"(?:[^"\\]|\\.)*"/g)).toEqual(originalStrings);
+  });
+
+  it("extracts history overlay with unchanged ordering and replay index wiring", () => {
+    const history = readFileSync("src/elm/History/View.elm", "utf8");
+    expect(history).toContain("type alias OverlayConfig msg");
+    expect(history).toContain("viewOverlay : OverlayConfig msg -> Element msg");
+    const overlay = history.split("viewOverlay config =")[1].split(/\n\n[a-zA-Z]+ :/)[0];
+    expect(overlay).toContain("Dialog.viewOverlay config.dialogActions");
+    expect(overlay).toContain('Dialog.viewHeader config.dialogActions config.isMobile "Traceball Arena" "Game History"');
+    expect(overlay).toContain("List.isEmpty config.entries");
+    expect(overlay).toContain("List.indexedMap (viewHistoryEntry config.nowMs config.onReplay) (List.take 12 config.entries)");
+    expect(overlay).toContain("No games yet. Finished games will appear here.");
+    expect(history).toContain("onReplay : Int -> msg");
+    expect(history).not.toMatch(/import Main|\bOpenHistoryReplay\b|\bMsg\b/);
+    expect(mainSource).not.toMatch(/^viewHistoryOverlay\s*:/m);
+    expect(mainSource).toContain("HistoryView.viewOverlay");
+    expect(mainSource).toContain("entries = model.gameHistory");
+    expect(mainSource).toContain("nowMs = model.currentTimeMs");
+    expect(mainSource).toContain("onReplay = OpenHistoryReplay");
+    expect(mainSource).toContain("viewHistoryReplayHtml : Model -> LocalGame -> Html Msg");
   });
 
 });
