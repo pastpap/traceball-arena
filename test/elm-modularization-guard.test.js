@@ -661,4 +661,28 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).toContain('backToMenu = OpenAppMenu');
   });
 
+  it("extracts generic desktop and mobile menu shells", () => {
+    expect(existsSync("src/elm/View/Menu.elm")).toBe(true);
+    const menu = readFileSync("src/elm/View/Menu.elm", "utf8");
+    expect(menu).toContain("viewDesktop : Actions msg -> Element msg");
+    expect(menu).toContain("viewMobile : Actions msg -> Element msg");
+    for (const shell of ["viewDesktop", "viewMobile"]) {
+      const body = menu.split(`${shell} actions =`)[1].split(/\n\n[a-zA-Z]+ :/)[0];
+      expect(body).toContain("Html.Events.onClick actions.dismiss");
+      expect(body).toContain("Decode.succeed ( actions.ignoreClick, True )");
+      expect(body).toContain('popupMenuItem "clock_history" "Game History" actions.showHistory');
+      expect(body).toContain('popupMenuItem "menu_book" "Game Rules" actions.showRules');
+    }
+    for (const marker of ['popup-menu', 'sheet-overlay', 'sheet-card', 'sheet-close-btn', '🕓', '📖']) {
+      expect(menu).toContain(marker);
+    }
+    expect(menu).not.toMatch(/import Main|\bMsg\b|\bCloseAppMenu\b|\bShowHistoryPanel\b|\bShowRulesPanel\b/);
+    expect(mainSource).not.toMatch(/^(viewDesktopMenuDropdown|viewMobileMenuSheet|popupMenuItem|menuIcon)\s*:/m);
+    expect(mainSource).toContain("Menu.viewDesktop menuActions");
+    expect(mainSource).toContain("Menu.viewMobile menuActions");
+    expect(mainSource).toContain("showHistory = ShowHistoryPanel");
+    expect(mainSource).toContain("showRules = ShowRulesPanel");
+    expect(mainSource).toContain("model.viewportWidth <= 640");
+  });
+
 });

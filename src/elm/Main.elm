@@ -18,6 +18,7 @@ import Html exposing (Html)
 import Html.Attributes
 import Html.Events
 import View.Dialog as Dialog
+import View.Menu as Menu
 import Game.Screen as Screen exposing (BoardScreenConfig, PauseOverlayConfig)
 import History.Codec as HistoryCodec
 import History.Types exposing (HistoryEntry)
@@ -2288,6 +2289,15 @@ viewTimerSheetOption target current optionSeconds =
 -- ── App menu ───────────────────────────────────────────────────────────────────
 
 
+menuActions : Menu.Actions Msg
+menuActions =
+    { dismiss = CloseAppMenu
+    , ignoreClick = IgnoreSheetClick
+    , showHistory = ShowHistoryPanel
+    , showRules = ShowRulesPanel
+    }
+
+
 viewMenuOverlay : Model -> Element Msg
 viewMenuOverlay model =
     let
@@ -2300,10 +2310,10 @@ viewMenuOverlay model =
 
         Just "menu" ->
             if isMobile then
-                viewMobileMenuSheet
+                Menu.viewMobile menuActions
 
             else
-                viewDesktopMenuDropdown
+                Menu.viewDesktop menuActions
 
         Just "history" ->
             viewHistoryOverlay model isMobile
@@ -2313,81 +2323,6 @@ viewMenuOverlay model =
 
         Just _ ->
             none
-
-
-viewDesktopMenuDropdown : Element Msg
-viewDesktopMenuDropdown =
-    Element.html <|
-        Html.div
-            [ Html.Attributes.style "position" "fixed"
-            , Html.Attributes.style "inset" "0"
-            , Html.Attributes.style "z-index" "50"
-            , Html.Events.onClick CloseAppMenu
-            ]
-            [ Html.div
-                [ Html.Attributes.class "popup-menu"
-                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
-                ]
-                [ popupMenuItem "clock_history" "Game History" ShowHistoryPanel
-                , popupMenuItem "menu_book" "Game Rules" ShowRulesPanel
-                ]
-            ]
-
-
-popupMenuItem : String -> String -> Msg -> Html Msg
-popupMenuItem iconLabel label onClickMsg =
-    Html.button
-        [ Html.Attributes.type_ "button"
-        , Html.Attributes.class "popup-menu-item"
-        , Html.Events.onClick onClickMsg
-        ]
-        [ Html.span [ Html.Attributes.class "popup-menu-icon" ] [ Html.text (menuIcon iconLabel) ]
-        , Html.span [ Html.Attributes.class "popup-menu-label" ] [ Html.text label ]
-        , Html.span [ Html.Attributes.class "popup-menu-chevron" ] [ Html.text "›" ]
-        ]
-
-
-menuIcon : String -> String
-menuIcon key =
-    case key of
-        "clock_history" ->
-            "🕓"
-
-        "menu_book" ->
-            "📖"
-
-        _ ->
-            "•"
-
-
-viewMobileMenuSheet : Element Msg
-viewMobileMenuSheet =
-    Element.html <|
-        Html.div
-            [ Html.Attributes.class "sheet-overlay"
-            , Html.Events.onClick CloseAppMenu
-            ]
-            [ Html.div
-                [ Html.Attributes.class "sheet-card"
-                , Html.Events.stopPropagationOn "click" (Decode.succeed ( IgnoreSheetClick, True ))
-                ]
-                [ Html.div [ Html.Attributes.class "sheet-handle" ] []
-                , Html.div [ Html.Attributes.class "sheet-header" ]
-                    [ Html.p [ Html.Attributes.class "sheet-eyebrow" ] [ Html.text "Traceball Arena" ]
-                    , Html.p [ Html.Attributes.class "sheet-title" ] [ Html.text "Menu" ]
-                    ]
-                , Html.div [ Html.Attributes.class "sheet-items" ]
-                    [ popupMenuItem "clock_history" "Game History" ShowHistoryPanel
-                    , popupMenuItem "menu_book" "Game Rules" ShowRulesPanel
-                    ]
-                , Html.button
-                    [ Html.Attributes.type_ "button"
-                    , Html.Attributes.class "sheet-close-btn"
-                    , Html.Events.onClick CloseAppMenu
-                    ]
-                    [ Html.text "Close" ]
-                ]
-            ]
 
 
 dialogActions : Dialog.Actions Msg
