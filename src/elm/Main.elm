@@ -1749,78 +1749,6 @@ viewOnlineGameHtml model board =
 
 viewBoardScreenHtml : BoardScreenConfig Msg -> Html Msg
 viewBoardScreenHtml config =
-    if config.isCompactLayout then
-        let
-            session =
-                config.board.currentSession
-
-            round =
-                session |> Maybe.andThen .round
-
-            winnerName =
-                if config.showWinnerOverlay then
-                    round |> Maybe.andThen .winner |> Maybe.map (winnerDisplayName config.board)
-
-                else
-                    Nothing
-
-            blueName =
-                config.board.blue.player |> Maybe.map .displayName |> Maybe.withDefault "Blue"
-
-            redName =
-                config.board.red.player |> Maybe.map .displayName |> Maybe.withDefault "Red"
-
-            blueScore =
-                session |> Maybe.map (.score >> .blue) |> Maybe.withDefault 0
-
-            redScore =
-                session |> Maybe.map (.score >> .red) |> Maybe.withDefault 0
-
-            statusBanner =
-                case winnerName of
-                    Just name ->
-                        name ++ " wins the round"
-
-                    Nothing ->
-                        config.turnIndicatorText
-        in
-        layout [ width fill ]
-            (Screen.viewMobileBoardScreen
-                normalizeSeatId
-                config
-                { toStart = ReplayToStart
-                , stepBack = ReplayStepBack
-                , stepForward = ReplayStepForward
-                , toLive = ReplayToLive
-                }
-                (viewBoard ClickLegalMove config.ownSeat config.replayIndex config.boardFlipped config.board)
-                (if config.showSeatActions && config.showJoinBlue then
-                    Just (ClaimSeat "blue")
-
-                 else
-                    Nothing
-                )
-                (if config.showSeatActions && config.showJoinRed then
-                    Just (ClaimSeat "red")
-
-                 else
-                    Nothing
-                )
-                blueName
-                redName
-                blueScore
-                redScore
-                winnerName
-                statusBanner
-                DismissWinnerBanner
-            )
-
-    else
-        viewDesktopBoardScreenHtml config
-
-
-viewDesktopBoardScreenHtml : BoardScreenConfig Msg -> Html Msg
-viewDesktopBoardScreenHtml config =
     let
         session =
             config.board.currentSession
@@ -1846,8 +1774,16 @@ viewDesktopBoardScreenHtml config =
 
         redScore =
             session |> Maybe.map (.score >> .red) |> Maybe.withDefault 0
+
+        statusBanner =
+            case winnerName of
+                Just name ->
+                    name ++ " wins the round"
+
+                Nothing ->
+                    config.turnIndicatorText
     in
-    Screen.viewDesktopBoardScreenHtml
+    Screen.viewBoardScreenHtml
         normalizeSeatId
         config
         { toStart = ReplayToStart
@@ -1873,6 +1809,7 @@ viewDesktopBoardScreenHtml config =
         blueScore
         redScore
         winnerName
+        statusBanner
         DismissWinnerBanner
 
 

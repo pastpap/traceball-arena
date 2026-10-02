@@ -555,9 +555,21 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewDesktopBoardScreenHtml");
+    expect(source).toMatch(/^viewDesktopBoardScreenHtml :/m);
     expect(mainSource).not.toContain("Html.section [ Html.Attributes.class \"game-layout\" ]");
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
+  });
+
+  it("consolidates the responsive board screen wrapper", () => {
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    expect(source).toMatch(/^viewBoardScreenHtml :/m);
+    expect(source).toContain("if config.isCompactLayout then");
+    expect(source).toContain("Element.layout [ width fill ]");
+    expect(mainSource).toContain("Screen.viewBoardScreenHtml");
+    expect(mainSource).not.toMatch(/^viewDesktopBoardScreenHtml :/m);
+    const root = mainSource.slice(mainSource.indexOf("viewBoardScreenHtml :"), mainSource.indexOf("viewToast :"));
+    expect(root.match(/session =/g)).toHaveLength(1);
+    expect(root.match(/viewBoard ClickLegalMove/g)).toHaveLength(1);
   });
 
   it("extracts the mobile board screen shell", () => {
@@ -573,7 +585,7 @@ describe("Elm modularization static guard", () => {
     ]) {
       expect(source).toContain(marker);
     }
-    expect(mainSource).toContain("Screen.viewMobileBoardScreen");
+    expect(source).toMatch(/^viewMobileBoardScreen :/m);
     expect(mainSource).not.toContain("column [ width fill, spacing 12 ]");
     expect(mainSource).not.toContain("viewMobileBoardScreen : BoardScreenConfig Msg -> Element Msg");
   });
