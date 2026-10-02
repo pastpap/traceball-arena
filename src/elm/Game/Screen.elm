@@ -1,7 +1,7 @@
-module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, shareIconSvg, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
+module Game.Screen exposing (BoardScreenConfig, PauseOverlayConfig, ReplayActions, mobileCard, shareIconSvg, viewGhostButtonHtml, viewMobileActionButton, viewMobileJoinSeatButton, viewMobilePrimaryActionButton, viewMobileReplayCard, viewMobileScorePill, viewMobileTimerChip, viewPauseOverlayHtml, viewPausePanelHtml, viewReplayHtml, viewRoundSummaryHtml, viewShareIconButtonHtml, viewShareMobileButton, viewSquareIconButtonHtml, viewWinnerOverlayHtml)
 
 import Board.Types exposing (Board)
-import Element exposing (Element, centerX, centerY, el, fill, paddingXY, rgb255, row, spacing, text, width)
+import Element exposing (Element, alignRight, centerX, centerY, clip, clipX, column, el, fill, fillPortion, height, none, padding, paddingXY, paragraph, px, rgb255, row, spacing, text, width)
 import Element.Background as Bg
 import Element.Border as Border
 import Element.Font as Font
@@ -425,6 +425,213 @@ viewShareMobileButton shareMsg =
             el [ centerX, centerY ]
                 (Element.html shareIconSvg)
         }
+
+
+viewMobileTimerChip : Maybe Int -> Maybe Int -> Element msg
+viewMobileTimerChip timerSecs timerRemainingSecs =
+    case timerSecs of
+        Just secs ->
+            row
+                [ spacing 8
+                , paddingXY 10 6
+                , Border.rounded 999
+                , Bg.color (Element.rgba255 0 0 0 150)
+                , Border.width 1
+                , Border.color (Element.rgba255 255 255 255 20)
+                , Font.color (rgb255 240 255 244)
+                , Font.size 12
+                , Font.bold
+                ]
+                (text ("Timer: " ++ String.fromInt secs ++ "s")
+                    :: (case timerRemainingSecs of
+                            Just remainingSecs ->
+                                [ el [ Font.color (rgb255 141 255 174) ] (text (String.fromInt remainingSecs ++ "s left")) ]
+
+                            Nothing ->
+                                []
+                       )
+                )
+
+        Nothing ->
+            none
+
+
+viewMobileScorePill : String -> String -> Int -> Element msg
+viewMobileScorePill color name score =
+    let
+        nameRow =
+            if color == "blue" then
+                row [ width fill, spacing 7, centerY ]
+                    [ el [ width fill, alignRight ] (viewMobileEllipsisText True 12 name)
+                    , el [ Font.size 12, Font.color (rgb255 11 124 255) ] (text "●")
+                    ]
+
+            else
+                row [ width fill, spacing 7, centerY ]
+                    [ el [ Font.size 12, Font.color (rgb255 255 59 48) ] (text "●")
+                    , el [ width fill ] (viewMobileEllipsisText False 12 name)
+                    ]
+
+        scoreRow =
+            if color == "blue" then
+                row [ width fill ]
+                    [ el [ alignRight, Font.size 32, Font.bold, Font.color (rgb255 255 255 255) ]
+                        (text (String.fromInt score))
+                    ]
+
+            else
+                row [ width fill ]
+                    [ el [ Font.size 32, Font.bold, Font.color (rgb255 255 255 255) ]
+                        (text (String.fromInt score))
+                    ]
+    in
+    column
+        [ width fill
+        , height (px 92)
+        , spacing 4
+        , paddingXY 10 9
+        , Border.rounded 18
+        , Bg.color (rgb255 15 42 22)
+        , Border.width 1
+        , Border.color
+            (if color == "blue" then
+                rgb255 34 90 160
+
+             else
+                rgb255 142 49 45
+            )
+        , clip
+        ]
+        [ nameRow
+        , scoreRow
+        ]
+
+
+viewMobileEllipsisText : Bool -> Int -> String -> Element msg
+viewMobileEllipsisText alignEnd size label =
+    el
+        [ width fill
+        , clipX
+        , Font.size size
+        , Font.bold
+        , Font.color (rgb255 232 245 236)
+        , Element.htmlAttribute
+            (Html.Attributes.style
+                "text-align"
+                (if alignEnd then
+                    "right"
+
+                 else
+                    "left"
+                )
+            )
+        , Element.htmlAttribute (Html.Attributes.style "overflow" "hidden")
+        , Element.htmlAttribute (Html.Attributes.style "text-overflow" "ellipsis")
+        , Element.htmlAttribute (Html.Attributes.style "white-space" "nowrap")
+        ]
+        (text label)
+
+
+viewMobileReplayCard : ReplayActions msg -> Maybe Int -> Int -> Element msg
+viewMobileReplayCard actions replayIndex moveCount =
+    let
+        currentIndex =
+            Maybe.withDefault moveCount replayIndex
+
+        label =
+            if moveCount == 0 then
+                "Replay appears once moves are made."
+
+            else
+                "Move "
+                    ++ String.fromInt currentIndex
+                    ++ " of "
+                    ++ String.fromInt moveCount
+                    ++ (if replayIndex == Nothing then
+                            " - live board"
+
+                        else
+                            ""
+                       )
+
+        progress =
+            if moveCount <= 0 then
+                0
+
+            else
+                round ((toFloat currentIndex / toFloat moveCount) * 100)
+    in
+    mobileCard
+        [ el [ Font.size 15, Font.bold, Font.color (rgb255 244 255 246) ] (text "Replay")
+        , row [ width fill, spacing 8 ]
+            [ viewMobileReplayButton (moveCount > 0) (Just actions.toStart) "⏮" "Start"
+            , viewMobileReplayButton (moveCount > 0) (Just actions.stepBack) "◀" "Back"
+            , viewMobileReplayButton (moveCount > 0) (Just actions.stepForward) "▶" "Next"
+            , viewMobileReplayButton (moveCount > 0) (Just actions.toLive) "⏭" "Live"
+            ]
+        , el
+            [ width fill
+            , height (px 8)
+            , Border.rounded 999
+            , Bg.color (Element.rgba255 255 255 255 28)
+            , clip
+            ]
+            (el
+                [ width (fillPortion progress)
+                , height fill
+                , Border.rounded 999
+                , Bg.color (rgb255 24 221 79)
+                ]
+                none
+            )
+        , paragraph [ width fill, Font.size 13, Font.color (rgb255 200 220 200), Font.bold ] [ text label ]
+        ]
+
+
+viewMobileReplayButton : Bool -> Maybe msg -> String -> String -> Element msg
+viewMobileReplayButton enabled onPress icon label =
+    Input.button
+        [ width fill
+        , paddingXY 0 8
+        , Border.rounded 16
+        , Border.width 1
+        , Border.color (rgb255 70 92 74)
+        , Bg.color (rgb255 28 54 31)
+        , Font.color
+            (if enabled then
+                rgb255 244 255 246
+
+             else
+                Element.rgba255 255 255 255 120
+            )
+        , Font.size 16
+        , Font.bold
+        , Element.htmlAttribute (Html.Attributes.attribute "aria-label" label)
+        ]
+        { onPress =
+            if enabled then
+                onPress
+
+            else
+                Nothing
+        , label = el [ centerX, centerY ] (text icon)
+        }
+
+
+mobileCard : List (Element msg) -> Element msg
+mobileCard children =
+    column
+        [ width fill
+        , spacing 8
+        , padding 10
+        , Border.rounded 22
+        , Border.width 1
+        , Border.color (rgb255 110 130 112)
+        , Bg.color (Element.rgba255 2 29 10 214)
+        , Font.color (rgb255 244 255 246)
+        , Font.size 13
+        ]
+        children
 
 
 onClickAttributes : Maybe msg -> List (Html.Attribute msg)

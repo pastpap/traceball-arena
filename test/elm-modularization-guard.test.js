@@ -418,4 +418,28 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("viewReplayButton : Bool -> Maybe Msg -> String -> String -> Html Msg");
     expect(mainSource).not.toContain("viewRoundSummaryHtml : String -> Int -> Int -> Maybe Msg -> Html Msg");
   });
+
+  it("extracts mobile game HUD and replay card helpers", () => {
+    expect(existsSync("src/elm/Game/Screen.elm")).toBe(true);
+
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const marker of [
+      "mobileCard",
+      "viewMobileTimerChip",
+      "viewMobileScorePill",
+      "viewMobileReplayCard",
+      "viewMobileReplayButton",
+      "viewMobileEllipsisText",
+    ]) {
+      expect(source).toContain(marker);
+    }
+    expect(mainSource).toContain("Screen.mobileCard");
+    expect(mainSource).toContain("Screen.viewMobileTimerChip");
+    expect(mainSource).toContain("Screen.viewMobileScorePill");
+    expect(mainSource).toContain("Screen.viewMobileReplayCard");
+    expect(mainSource).not.toContain("viewMobileTimerChip : Maybe Int -> Maybe Int -> Element Msg");
+    expect(mainSource).not.toContain("viewMobileScorePill : String -> String -> Int -> Element Msg");
+    expect(mainSource).not.toContain("viewMobileReplayCard : Maybe Int -> Int -> Element Msg");
+    expect(mainSource).not.toContain("mobileCard : List (Element Msg) -> Element Msg");
+  });
 });
