@@ -560,6 +560,20 @@ describe("Elm modularization static guard", () => {
     expect(mainSource).not.toContain("Html.Attributes.class \"board-card mobile-page active\"");
   });
 
+  it("shares the named render contract with match panels", () => {
+    const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
+    for (const [name, next, result, extra] of [["viewDesktopMatchPanelHtml", "viewMobileActionButton", "Html", "winnerName"], ["viewMobileTopCard", "viewMobileReplayCard", "Element", "statusBanner"]]) {
+      expect(source).toContain(`${name} : BoardScreenConfig msg -> BoardScreenRenderConfig msg -> ${result} msg`);
+      const body = source.slice(source.indexOf(`${name} :`), source.indexOf(`${next} :`));
+      for (const field of ["joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore", extra]) {
+        expect(body).toContain(`render.${field}`);
+      }
+      expect(source).toContain(`${name} config render`);
+    }
+    expect(source).toContain("config.showSeatActions && (config.showJoinBlue || config.showJoinRed)");
+    expect(source).toContain("if config.newRoundAction /= Nothing then");
+  });
+
   it("uses the shared render contract for board stage chrome", () => {
     const source = readFileSync("src/elm/Game/Screen.elm", "utf8");
     expect(source).toContain("viewBoardStageHtml : (String -> String) -> Bool -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg");
@@ -579,7 +593,8 @@ describe("Elm modularization static guard", () => {
       expect(source).toContain(`${name} normalizeSeatId config render`);
       const body = source.slice(source.indexOf(`${name} :`)).split(/\n\n(?=[a-zA-Z])/)[0];
       expect(body).toContain("viewBoardStageHtml");
-      for (const field of ["replayActions", "joinBlueAction", "joinRedAction", "blueName", "redName", "blueScore", "redScore"]) {
+      expect(body).toContain(`${name === "viewDesktopBoardScreenHtml" ? "viewDesktopMatchPanelHtml" : "viewMobileTopCard"} config render`);
+      for (const field of ["replayActions"]) {
         expect(body).toContain(`render.${field}`);
       }
     }

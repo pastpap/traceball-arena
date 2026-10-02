@@ -352,20 +352,12 @@ viewDesktopBoardScreenHtml normalizeSeatId config render =
                 render
             , viewReplayHtml render.replayActions config.replayIndex config.moveCount
             ]
-        , viewDesktopMatchPanelHtml
-            config
-            render.joinBlueAction
-            render.joinRedAction
-            render.blueName
-            render.redName
-            render.blueScore
-            render.redScore
-            render.winnerName
+        , viewDesktopMatchPanelHtml config render
         ]
 
 
-viewDesktopMatchPanelHtml : BoardScreenConfig msg -> Maybe msg -> Maybe msg -> String -> String -> Int -> Int -> Maybe String -> Html msg
-viewDesktopMatchPanelHtml config joinBlueAction joinRedAction blueName redName blueScore redScore winnerName =
+viewDesktopMatchPanelHtml : BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Html msg
+viewDesktopMatchPanelHtml config render =
     Html.aside
         [ Html.Attributes.class "side mobile-page active"
         , Html.Attributes.attribute "data-mobile-page" "match"
@@ -380,16 +372,16 @@ viewDesktopMatchPanelHtml config joinBlueAction joinRedAction blueName redName b
              , Html.div [ Html.Attributes.class "players score-strip", Html.Attributes.attribute "aria-label" "Room score" ]
                 [ Html.div [ Html.Attributes.class "score-name blue-name" ]
                     [ Html.span [ Html.Attributes.class "dot blue" ] []
-                    , Html.strong [] [ Html.text blueName ]
+                    , Html.strong [] [ Html.text render.blueName ]
                     ]
                 , Html.div [ Html.Attributes.class "score-spacer", Html.Attributes.attribute "aria-hidden" "true" ] []
                 , Html.div [ Html.Attributes.class "score-name red-name" ]
-                    [ Html.strong [] [ Html.text redName ]
+                    [ Html.strong [] [ Html.text render.redName ]
                     , Html.span [ Html.Attributes.class "dot red" ] []
                     ]
-                , Html.div [ Html.Attributes.class "score-number blue-score" ] [ Html.text (String.fromInt blueScore) ]
+                , Html.div [ Html.Attributes.class "score-number blue-score" ] [ Html.text (String.fromInt render.blueScore) ]
                 , Html.div [ Html.Attributes.class "score-dash" ] [ Html.text "-" ]
-                , Html.div [ Html.Attributes.class "score-number red-score" ] [ Html.text (String.fromInt redScore) ]
+                , Html.div [ Html.Attributes.class "score-number red-score" ] [ Html.text (String.fromInt render.redScore) ]
                 ]
              , Html.div [ Html.Attributes.class "elm-match-actions" ]
                 [ viewSquareIconButtonHtml "elm-match-icon danger" config.leaveAction "✕" "Leave game"
@@ -412,17 +404,17 @@ viewDesktopMatchPanelHtml config joinBlueAction joinRedAction blueName redName b
                         Nothing ->
                             []
                    )
-                ++ (case winnerName of
+                ++ (case render.winnerName of
                         Just name ->
-                            [ viewRoundSummaryHtml name blueScore redScore config.newRoundAction ]
+                            [ viewRoundSummaryHtml name render.blueScore render.redScore config.newRoundAction ]
 
                         Nothing ->
                             []
                    )
                 ++ [ if config.showSeatActions && (config.showJoinBlue || config.showJoinRed) then
                         Html.div [ Html.Attributes.class "seat-actions" ]
-                            [ viewGhostButtonHtml "ghost" config.showJoinBlue joinBlueAction "Join Blue"
-                            , viewGhostButtonHtml "ghost" config.showJoinRed joinRedAction "Join Red"
+                            [ viewGhostButtonHtml "ghost" config.showJoinBlue render.joinBlueAction "Join Blue"
+                            , viewGhostButtonHtml "ghost" config.showJoinRed render.joinRedAction "Join Red"
                             ]
 
                      else
@@ -714,15 +706,7 @@ viewBoardStageHtml normalizeSeatId showWinnerOverlay config render =
 viewMobileBoardScreen : (String -> String) -> BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Element msg
 viewMobileBoardScreen normalizeSeatId config render =
     column [ width fill, spacing 12 ]
-        [ viewMobileTopCard
-            config
-            render.joinBlueAction
-            render.joinRedAction
-            render.statusBanner
-            render.blueName
-            render.redName
-            render.blueScore
-            render.redScore
+        [ viewMobileTopCard config render
         , el [ width fill, centerX ]
             (Element.html
                 (viewBoardStageHtml
@@ -736,8 +720,8 @@ viewMobileBoardScreen normalizeSeatId config render =
         ]
 
 
-viewMobileTopCard : BoardScreenConfig msg -> Maybe msg -> Maybe msg -> String -> String -> String -> Int -> Int -> Element msg
-viewMobileTopCard config joinBlueAction joinRedAction statusBanner blueName redName blueScore redScore =
+viewMobileTopCard : BoardScreenConfig msg -> BoardScreenRenderConfig msg -> Element msg
+viewMobileTopCard config render =
     if config.newRoundAction /= Nothing then
         mobileCard
             [ row [ width fill, centerY ]
@@ -745,8 +729,8 @@ viewMobileTopCard config joinBlueAction joinRedAction statusBanner blueName redN
                 , el [ alignRight, Font.color (rgb255 141 255 174), Font.size 11, Font.bold, Font.letterSpacing 1 ] (text "ROUND COMPLETE")
                 ]
             , row [ width fill, spacing 8, centerY ]
-                [ viewMobileScorePill "blue" blueName blueScore
-                , viewMobileScorePill "red" redName redScore
+                [ viewMobileScorePill "blue" render.blueName render.blueScore
+                , viewMobileScorePill "red" render.redName render.redScore
                 ]
             , row [ width fill, spacing 10 ] <|
                 List.filterMap identity
@@ -778,15 +762,15 @@ viewMobileTopCard config joinBlueAction joinRedAction statusBanner blueName redN
                 , Font.size 15
                 , Font.bold
                 ]
-                (paragraph [] [ text statusBanner ])
+                (paragraph [] [ text render.statusBanner ])
             , row [ width fill, spacing 8, centerY ]
-                [ viewMobileScorePill "blue" blueName blueScore
-                , viewMobileScorePill "red" redName redScore
+                [ viewMobileScorePill "blue" render.blueName render.blueScore
+                , viewMobileScorePill "red" render.redName render.redScore
                 ]
             , wrappedRow [ width fill, spacing 10 ] <|
                 List.filterMap identity
-                    [ joinBlueAction |> Maybe.map (viewMobileJoinSeatButton "blue")
-                    , joinRedAction |> Maybe.map (viewMobileJoinSeatButton "red")
+                    [ render.joinBlueAction |> Maybe.map (viewMobileJoinSeatButton "blue")
+                    , render.joinRedAction |> Maybe.map (viewMobileJoinSeatButton "red")
                     , config.pauseAction
                         |> Maybe.map
                             (\msg ->
